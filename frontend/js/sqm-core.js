@@ -1292,4 +1292,56 @@
      7a. PAGE: Inventory
      =================================================== */
 
+  /* ===================================================
+     P5: Backend Heartbeat (silent fail 감지)
+     =================================================== */
+  (function() {
+    if (window.__SQM_HEARTBEAT_INSTALLED__) return;
+    window.__SQM_HEARTBEAT_INSTALLED__ = true;
+
+    var HEALTH_URL = '/api/health';
+    var INTERVAL_MS = 15000;
+    var FAIL_COUNT = 0;
+    var MAX_FAIL = 2;
+    var _banner = null;
+
+    function showOfflineBanner() {
+      if (_banner) return;
+      _banner = document.createElement('div');
+      _banner.id = 'sqm-offline-banner';
+      _banner.style.cssText = [
+        'position:fixed', 'top:0', 'left:0', 'right:0',
+        'background:#c0392b', 'color:#fff',
+        'text-align:center', 'padding:8px 16px',
+        'font-size:14px', 'z-index:99999',
+        'font-family:Malgun Gothic,Segoe UI,sans-serif',
+        'box-shadow:0 2px 8px rgba(0,0,0,0.4)'
+      ].join(';');
+      _banner.textContent = '\u26a0\ufe0f \uc11c\ubc84 \uc5f0\uacb0\uc774 \ub04a\uacbc\uc2b5\ub2c8\ub2e4. \ud504\ub85c\uadf8\ub7a8\uc744 \uc7ac\uc2dc\uc791\ud574 \uc8fc\uc138\uc694.';
+      document.body.appendChild(_banner);
+    }
+
+    function hideOfflineBanner() {
+      if (_banner) { _banner.remove(); _banner = null; }
+    }
+
+    function checkHealth() {
+      fetch(HEALTH_URL, { method: 'GET', cache: 'no-store' })
+        .then(function(r) {
+          if (r.ok) { FAIL_COUNT = 0; hideOfflineBanner(); }
+          else { FAIL_COUNT++; if (FAIL_COUNT >= MAX_FAIL) showOfflineBanner(); }
+        })
+        .catch(function() {
+          FAIL_COUNT++;
+          if (FAIL_COUNT >= MAX_FAIL) showOfflineBanner();
+        });
+    }
+
+    setTimeout(function() {
+      checkHealth();
+      setInterval(checkHealth, INTERVAL_MS);
+    }, 5000);
+  })();
+
+
 })();

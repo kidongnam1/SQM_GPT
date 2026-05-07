@@ -15,6 +15,7 @@ import sys
 import logging
 import traceback
 import json
+import ctypes as _ctypes
 
 # ─────────────────────────────────────────────────────────────
 # [Patch 1] 로그 파일 기본 경로 결정 + stdout/stderr 폴백
@@ -61,6 +62,20 @@ try:
     _root_logger.addHandler(_file_h)
 except Exception as _e:
     print(f"[WARN] 로그 파일 핸들러 실패: {_e}")
+
+
+# ─────────────────────────────────────────────────────────────
+# [P4] 단일 인스턴스 락 — exe 이중 실행 방지
+# ─────────────────────────────────────────────────────────────
+_MUTEX_NAME = "SQM_Inventory_SingleInstance_v867"
+
+def _acquire_single_instance_lock():
+    mutex = _ctypes.windll.kernel32.CreateMutexW(None, True, _MUTEX_NAME)
+    last_err = _ctypes.windll.kernel32.GetLastError()
+    if last_err == 183:  # ERROR_ALREADY_EXISTS
+        _ctypes.windll.kernel32.CloseHandle(mutex)
+        return False
+    return True
 
 log = logging.getLogger(__name__)
 log.info(f"=== SQM v8.6.6 시작 — 로그 파일: {LOG_PATH} ===")
@@ -270,6 +285,8 @@ SPLASH_HTML = '''<!DOCTYPE html>
 
 
 def main():
+    if not _acquire_single_instance_lock():
+        sys.exit(0)  # 두 번째 인스턴스 조용히 종료
     log.info("=== SQM 시작 (Splash 즉시 표시 모드) ===")
 
     # [P1 PATCH] 백엔드 부트스트랩(좀비 청소 + API 서버 시작)을 백그라운드 스레드로 위임.

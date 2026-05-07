@@ -1,6 +1,8 @@
 /* SQM Inventory — sqm-tonbag.js (TonbagPage — 톤백 전체) */
 (function () {
   'use strict';
+  if (window.__SQM_TONBAG_INSTALLED__) return;
+  window.__SQM_TONBAG_INSTALLED__ = true;
   /* ─── sqm-core.js 공유 함수 로컬 앨리어스 ─────────────────────────
      sqm-core.js 가 먼저 로드된 뒤 window.* 에 할당된 함수들을
      this IIFE 내부 변수로 re-bind. 직접 호출 패턴 유지. */
