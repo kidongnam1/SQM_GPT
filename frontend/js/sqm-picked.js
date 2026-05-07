@@ -45,7 +45,7 @@
       '<div id="picked-loading" style="padding:40px;text-align:center;color:var(--text-muted)">⏳ 데이터 로딩 중...</div>',
       '<div style="overflow-x:auto">',
       '  <table class="data-table" id="picked-table" style="display:none">',
-      '  <thead><tr><th></th><th style="text-align:center">LOT No</th><th style="width:32px;text-align:center">+</th><th>피킹No</th><th>고객사</th><th>톤백수</th><th>중량(kg)</th><th>MXBG</th><th>Available</th><th>Reserved</th><th>Packed</th><th>Total Bags</th><th>Remain Bags</th><th>AV</th><th>VR</th><th>AR</th><th>피킹일</th></tr></thead>',
+      '  <thead><tr><th></th><th style="text-align:center">LOT No</th><th style="width:32px;text-align:center">+</th><th>피킹No</th><th>고객사</th><th>톤백수</th><th>중량(kg)</th><th>MXBG</th><th>Available</th><th>Reserved</th><th>Packed</th><th>Total Bags</th><th>Remain Bags</th><th>AV</th><th>VR</th><th>AR</th><th>Title Transfer Date</th></tr></thead>',
       '  <tbody id="picked-tbody"></tbody>',
       '  </table>',
       '</div>',
@@ -134,7 +134,7 @@
     apiGet('/api/tonbags?lot_no=' + encodeURIComponent(lotNo)).then(function(res){
       var rows = extractRows(res);
       if (!rows.length) { content.innerHTML = '<div class="empty">톤백 데이터 없음</div>'; return; }
-      var tbl = '<table class="data-table"><thead><tr><th>#</th><th>톤백ID</th><th>중량(kg)</th><th>위치</th><th>상태</th><th>피킹일</th></tr></thead><tbody>';
+      var tbl = '<table class="data-table"><thead><tr><th>#</th><th>톤백ID</th><th>중량(kg)</th><th>위치</th><th>상태</th><th>Title Transfer Date</th></tr></thead><tbody>';
       tbl += rows.map(function(r, i){
         var p = pickedStatusPalette(r.status);
         return '<tr><td>'+(i+1)+'</td><td class="mono-cell">'+escapeHtml(r.sub_lt||r.tonbag_id||'-')+'</td><td class="mono-cell" style="text-align:right">'+(r.weight!=null?Number(r.weight).toLocaleString():'-')+'</td><td>'+escapeHtml(r.location||'-')+'</td><td><span class="tag" style="background:'+p.bg+';color:'+p.fg+';font-weight:700">'+escapeHtml(r.status||'-')+'</span></td><td>'+escapeHtml(r.picked_date||r.updated_at||'-')+'</td></tr>';
