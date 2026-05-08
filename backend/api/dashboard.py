@@ -311,8 +311,79 @@ def get_dashboard_stats():
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# GET /api/dashboard/alerts — ALERTS 패널
-# ━━━━━━━━━━━━━━━━━━━━━━━
+# GET /api/dashboard/alerts — ALERTS 패널 (v8.6.7 추가)
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+@router.get("/alerts")
+def get_alerts():
+    """
+    재고 알림 패널 (v8.6.7 신규).
+
+    조건:
+      - 무중량(weight=0) 톤백 → CRITICAL
+      - 위치(location) 미배정 톤백 → WARNING
+      - 7일 이상 미동작 LOT → INFO
+
+    Response: {"alerts": [{level, message, count}, ...], "total": N}
+    """
+    try:
+        db_path = _get_db_path()
+        con = sqlite3.connect(db_path, timeout=5, check_same_thread=False)
+        con.execute("PRAGMA journal_mode=WAL")
+        con.execute("PRAGMA busy_timeout=3000")
+        c = con.cursor()
+
+        alerts = []
+
+        # ① 무중량 톤백 (CRITICAL)
+        zero_wt = c.execute(
+            "SELECT COUNT(*) FROM inventory_tonbag "
+            "WHERE COALESCE(weight, 0) <= 0 AND status = 'AVAILABLE'"
+        ).fetchone()[0]
+        if zero_wt > 0:
+            alerts.append({
+                "level": "critical",
+                "message": f"무중량 톤백 {zero_wt}개 발견",
+                "count": zero_wt,
+            })
+
+        # ② 위치 미배정 톤백 (WARNING)
+        no_loc = c.execute(
+            "SELECT COUNT(*) FROM inventory_tonbag "
+            "WHERE (location IS NULL OR location = '') "
+            "AND status = 'AVAILABLE'"
+        ).fetchone()[0]
+        if no_loc > 0:
+            alerts.append({
+                "level": "warning",
+                "message": f"위치 미배정 톤백 {no_loc}개",
+                "count": no_loc,
+            })
+
+        # ③ 7일 미동작 LOT (INFO)
+        stale = c.execute("""
+            SELECT COUNT(DISTINCT inventory_id) FROM inventory_tonbag
+            WHERE status = 'AVAILABLE'
+              AND COALESCE(updated_at, created_at, '1970-01-01')
+                  < DATE('now', '-7 days', 'localtime')
+        """).fetchone()[0]
+        if stale > 0:
+            alerts.append({
+                "level": "info",
+                "message": f"7일 이상 미동작 LOT {stale}개",
+                "count": stale,
+            })
+
+        con.close()
+
+        return {
+            "alerts": alerts,
+            "total": len(alerts),
+            "generated_at": datetime.now(KST).isoformat(),
+        }
+    except Exception as e:
+        logger.error("[dashboard/alerts] 집계 실패: %s", e, exc_info=True)
+        return {"alerts": [], "total": 0, "error": str(e)}
+
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # GET /api/dashboard/sidebar-counts  — 사이드바 배지용 경량 집계

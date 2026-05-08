@@ -2,7 +2,7 @@
 SQM Inventory — PyWebView 진입점 (Tkinter 대체)
 실행: python main_webview.py
 
-=== v8.6.6 Debug Visibility 패치 (에러 은폐 차단) ===
+=== v8.6.7 Debug Visibility 패치 (에러 은폐 차단) ===
 1. sys.excepthook / threading.excepthook — 미포획 예외 전부 파일 기록
 2. FileHandler — 모든 로그를 sqm_debug.log 에 항상 기록 (frozen 아닐 때도)
 3. uvicorn log_level="debug" + access_log=True — 백엔드 요청/에러 완전 노출
@@ -78,7 +78,7 @@ def _acquire_single_instance_lock():
     return True
 
 log = logging.getLogger(__name__)
-log.info(f"=== SQM v8.6.6 시작 — 로그 파일: {LOG_PATH} ===")
+log.info(f"=== SQM v8.6.7 시작 — 로그 파일: {LOG_PATH} ===")
 
 # ─────────────────────────────────────────────────────────────
 # [Patch 3] 전역 예외 훅 — 미포획 예외 전부 로그 파일에 기록
@@ -140,7 +140,7 @@ def save_window_state(width, height, maximized=False):
 def run_api_server():
     """FastAPI 서버를 별도 스레드에서 실행
 
-    [Patch] v8.6.6: log_level="debug" + access_log=True
+    [Patch] v8.6.7: log_level="debug" + access_log=True
     → 모든 HTTP 요청/응답/500 에러 전부 콘솔+파일에 기록
     [P11 PATCH 2026-05-06] uvicorn 로거 propagate 분리
     → 이전: uvicorn INFO 메시지가 SQM root 로거로 propagate 되어 [ERROR] root: 로 이중 표시
@@ -278,7 +278,7 @@ SPLASH_HTML = '''<!DOCTYPE html>
   <h1>SQM Inventory</h1>
   <p class="sub">광양창고 시스템을 시작하는 중...</p>
   <div class="spinner"></div>
-  <div class="ver">v8.6.6</div>
+  <div class="ver">v8.6.7</div>
 </body>
 </html>
 '''
@@ -416,7 +416,7 @@ def main():
         _win_w, _win_h, _win_max = load_window_state()
         # [P1 PATCH] url= 대신 html=SPLASH_HTML 로 즉시 표시 (API 대기 없음).
         window = webview.create_window(
-            title='SQM Inventory v8.6.6 — 광양창고',
+            title='SQM Inventory v8.6.7 — 광양창고',
             html=SPLASH_HTML,
             width=_win_w,
             height=_win_h,
@@ -454,7 +454,7 @@ def main():
                 window.SQM_API_BASE = "http://{API_HOST}:{API_PORT}";
                 console.log("[SQM] API Base:", window.SQM_API_BASE);
 
-                // ── v8.6.6 Debug: JS 에러를 백엔드 로그로 전송 ──
+                // ── v8.6.7 Debug: JS 에러를 백엔드 로그로 전송 ──
                 (function installErrorBridge() {{
                     // [3차 수정 2026-05-06] Idempotency guard.
                     // SPA 라우팅 / link click / load_url 재호출 등으로 on_loaded 가 여러 번
