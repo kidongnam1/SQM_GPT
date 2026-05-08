@@ -31,6 +31,9 @@
 | 2026-05-05 | confirm_outbound() 미동기화 | 역방향 전수검사로 탐지 | commit 6b9ec31 |
 | 2026-05-06 | 단일 검증으로 P1 검토 | 6-pass 검증 (3개 버그 추가) | 6-pass SOP 자산화 |
 | 2026-05-08 | CLAUDE.md 단일 거대 파일 | 5분할 + ON/OFF 운영 | docs/claude/ 분할 |
+| 2026-05-08 | gstack URL 추측 제공(`gstack-skills`) → 404 | web_search로 검증 후 인용 (`garrytan/gstack`) | URL 제공 시 web_search 의무 |
+| 2026-05-08 | PowerShell `Get-Content` 한글 mojibake | UTF-8 파일을 cp949로 읽음 → `-Encoding UTF8` 옵션 | 향후 검증 명령에 항상 명시 |
+| 2026-05-08 | Python 3.14.2 사용 중 (CLAUDE.md 규정 = 3.11) | 부팅 정상 작동 확인 + 모니터링 | 호환성 이슈 발생 시 즉시 다운그레이드 |
 
 ---
 
