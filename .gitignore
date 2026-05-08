@@ -32,3 +32,4 @@ exports/*.xls
 tests/workflow_test_report.html
 tests/*.html
 .claude/worktrees/
+.claude/skills/gstack/
