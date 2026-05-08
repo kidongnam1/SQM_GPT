@@ -5,6 +5,38 @@
 
 ---
 
+## 🔭 Active Monitoring Topics (지속 추적 항목)
+
+> **추가:** 2026-05-08 — 작업 ② 완료
+> **검토 주기:** 매주 금요일 오후 + 새 패치 적용 시
+
+### 1️⃣ Python 3.14.2 호환성 (2026-05-08 발견)
+
+| 항목 | 값 |
+|---|---|
+| **사용 중 버전** | Python 3.14.2 (2026-05-08 부팅 로그 기준) |
+| **CLAUDE.md 규정** | Python 3.11 |
+| **현재 상태** | 🟢 정상 작동 (모든 모듈 로드 + KPI/health/alerts 200 OK) |
+| **잠재 리스크** | PyWebView/FastAPI/SQLite WAL 미검증 호환 |
+
+**모니터링 대상:**
+- 매 패치 후 부팅 로그에서 `[ERROR]` 출현 여부
+- pytest 회귀 시 deprecated 경고
+- PyInstaller (Phase 6) EXE 빌드 시 호환성
+
+**롤백 트리거:** 호환성 이슈 1건 발생 시 → Python 3.11로 다운그레이드
+
+### 2️⃣ Cowork .bkit/ 자동 메모리 (DO NOT TOUCH)
+
+| 항목 | 값 |
+|---|---|
+| **위치** | `.bkit/state/memory.json`, `.bkit/audit/*.jsonl` |
+| **관리** | Cowork 자동 시스템 |
+| **수정 금지 이유** | 수동 변경 시 Cowork 컨텍스트 깨짐 |
+| **처리** | 무시 + .gitignore 후보 (필요 시) |
+
+---
+
 ## 🚨 자주 하는 실수 방지책
 
 | # | 방지책 | 내용 |
