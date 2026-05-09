@@ -987,6 +987,7 @@
     renderStatusCards({});   /* dash-matrix-area / dash-integrity-area 컨테이너 생성 */
     loadKpi();
     loadDashboardTables();
+    loadAlerts();
   }
 
   function loadKpi() {
@@ -1012,6 +1013,11 @@
     loadSidebarBadges();
     _sidebarBadgeTimer = setInterval(function(){
       if (document.visibilityState !== 'hidden') loadSidebarBadges();
+    }, 30000);
+    // P6: alerts 초기 로드 + 30초 갱신
+    loadAlerts();
+    setInterval(function(){
+      if (_currentRoute === 'dashboard' && document.visibilityState !== 'hidden') loadAlerts();
     }, 30000);
   }
 
@@ -1099,6 +1105,31 @@
       renderProductMatrix([]);
       renderIntegrity({}, {});
     });
+  }
+
+  /* P6: 재고 알림 패널 (/api/dashboard/alerts 연동) */
+  function loadAlerts() {
+    apiGet('/api/dashboard/alerts').then(function(res) {
+      var d = res.data || res || {};
+      var alerts = d.alerts || [];
+      var el = document.getElementById('alerts-content');
+      if (!el) return;
+      if (alerts.length === 0) {
+        el.innerHTML = '<div class="alerts-header">🔔 재고 알림 <span class="alerts-counter" style="color:#22c55e">✅ 정상</span></div>';
+        return;
+      }
+      var icons   = { critical: '🚨', warning: '⚠️', info: 'ℹ️' };
+      var classes = { critical: 'alert-error', warning: 'alert-warning', info: '' };
+      var items = alerts.map(function(a) {
+        var icon = icons[a.level] || 'ℹ️';
+        var cls  = classes[a.level] || '';
+        return '<li class="alert ' + cls + '"><span class="alert-icon">' + icon + '</span>'
+             + '<span class="alert-text">' + a.message + '</span></li>';
+      }).join('');
+      el.innerHTML = '<div class="alerts-header">🔔 재고 알림 '
+                   + '<span class="alerts-counter">' + alerts.length + '건</span></div>'
+                   + '<ul class="alerts-list">' + items + '</ul>';
+    }).catch(function() {});
   }
 
   function fmtN(v) {
