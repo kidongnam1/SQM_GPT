@@ -1201,6 +1201,9 @@ html[data-table-preset="large"] {
 .alerts-counter {
   color: #d32f2f; font-weight: 800;
 }
+.alerts-counter--ok {
+  color: var(--color-available, #22c55e); font-weight: 800;
+}
 .alerts-list {
   list-style: none; margin: 0; padding: 0;
   display: flex; flex-direction: column; gap: 4px;
