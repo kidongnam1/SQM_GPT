@@ -5,6 +5,8 @@
    ======================================================================= */
 (function () {
   'use strict';
+  if (window.__SQM_CORE_INSTALLED__) return;
+  window.__SQM_CORE_INSTALLED__ = true;
 
   /* ===================================================
      CUSTOM TOOLTIP SYSTEM (SQM Dark Theme)
