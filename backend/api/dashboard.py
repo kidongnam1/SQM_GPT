@@ -61,7 +61,7 @@ def _run_kpi_queries(db_path: str) -> dict:
         cur.execute("""
             SELECT COUNT(DISTINCT lot_no)
             FROM inventory
-            WHERE status NOT IN ('SOLD', 'RETURNED', 'OUTBOUND')
+            WHERE status NOT IN ('SOLD', 'RETURNED', 'OUTBOUND', 'PENDING')
         """)
         current_stock_lots = int(cur.fetchone()[0] or 0)
 
@@ -70,7 +70,7 @@ def _run_kpi_queries(db_path: str) -> dict:
             SELECT COUNT(*)
             FROM inventory_tonbag
             WHERE (location IS NULL OR TRIM(location) = '')
-              AND status NOT IN ('SOLD', 'RETURNED', 'OUTBOUND')
+              AND status NOT IN ('SOLD', 'RETURNED', 'OUTBOUND', 'PENDING')
         """)
         unassigned_locations = int(cur.fetchone()[0] or 0)
 

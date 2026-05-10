@@ -15,6 +15,7 @@ import logging
 import re
 import tempfile
 import os
+from datetime import datetime
 from typing import Any, Optional
 
 from fastapi import APIRouter, HTTPException, UploadFile, File, Query, Body, Form
@@ -2211,3 +2212,77 @@ async def inbound_do(file: UploadFile = File(...)):
                 os.unlink(tmp_path)
             except Exception:
                 pass
+
+
+# ── PENDING 입고 대기 목록 ─────────────────────────────────────────
+@router.get("/pending", summary="📋 입고 대기 목록 (창고 미반입)")
+def get_pending_inbound():
+    """PENDING 상태 LOT 목록 반환 — 포트 입항 후 창고 미반입 화물."""
+    try:
+        db = _open_db()
+        rows = db.execute("""
+            SELECT lot_no, product, net_weight, port_date, inbound_type,
+                   arrival_date, bl_no, vessel, created_at
+            FROM inventory
+            WHERE status = 'PENDING'
+            ORDER BY COALESCE(port_date, created_at) DESC
+        """).fetchall()
+        db.close()
+        return {"success": True, "data": [dict(r) for r in rows], "count": len(rows)}
+    except Exception as e:
+        logger.error(f"GET /pending error: {e}")
+        raise HTTPException(500, str(e))
+
+
+# ── PENDING → AVAILABLE 입고 확정 ────────────────────────────────
+@router.post("/confirm/{lot_no}", summary="✅ 입고 확정 (PENDING → AVAILABLE)")
+def confirm_inbound(lot_no: str, payload: dict = {}):
+    """
+    PENDING → AVAILABLE 전환. 창고 실물 반입 확정 시 호출.
+    payload: { inbound_date: str (YYYY-MM-DD), inbound_type: 'DIRECT'|'BOND' }
+    """
+    inbound_date = (payload.get("inbound_date") or "").strip()
+    if not inbound_date:
+        inbound_date = datetime.now().strftime("%Y-%m-%d")
+    inbound_type = payload.get("inbound_type", "DIRECT")
+    if inbound_type not in ("DIRECT", "BOND"):
+        raise HTTPException(400, "inbound_type 은 'DIRECT' 또는 'BOND' 만 허용")
+    try:
+        db = _open_db()
+        row = db.execute(
+            "SELECT id, status FROM inventory WHERE lot_no=?", (lot_no,)
+        ).fetchone()
+        if not row:
+            db.close()
+            raise HTTPException(404, f"{lot_no} 없음")
+        if dict(row)["status"] != "PENDING":
+            db.close()
+            raise HTTPException(
+                400, f"{lot_no}: PENDING 상태가 아님 (현재: {dict(row)['status']})"
+            )
+        ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        db.execute("""
+            UPDATE inventory
+            SET status='AVAILABLE', inbound_date=?, inbound_type=?, updated_at=?
+            WHERE lot_no=? AND status='PENDING'
+        """, (inbound_date, inbound_type, ts, lot_no))
+        db.execute("""
+            UPDATE inventory_tonbag
+            SET status='AVAILABLE', updated_at=?
+            WHERE lot_no=? AND status='PENDING'
+        """, (ts, lot_no))
+        db.commit()
+        db.close()
+        logger.info(f"[confirm-inbound] {lot_no} → AVAILABLE (type={inbound_type}, date={inbound_date})")
+        return {
+            "success": True,
+            "lot_no": lot_no,
+            "inbound_date": inbound_date,
+            "inbound_type": inbound_type,
+            "message": f"{lot_no} → AVAILABLE 입고 확정 완료",
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"POST /confirm/{lot_no} error: {e}")
+        raise HTTPException(500, str(e))
