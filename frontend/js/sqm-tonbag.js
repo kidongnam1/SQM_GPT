@@ -124,16 +124,54 @@
     });
   }
 
+  function _sqmExtractModalHeadingText(html) {
+    if (!html || typeof html !== 'string') return '';
+    var m = html.match(/<h([123])[^>]*>([\s\S]*?)<\/h\1>/i);
+    if (!m) return '';
+    var tmp = document.createElement('div');
+    tmp.innerHTML = m[2];
+    var txt = (tmp.textContent || '').replace(/\s+/g, ' ').trim();
+    if (txt.length > 72) txt = txt.slice(0, 69) + '…';
+    return txt;
+  }
+  function _sqmSyncModalHeaderFromContent() {
+    var c = document.getElementById('sqm-modal-content');
+    var t = document.getElementById('sqm-modal-title');
+    if (!c || !t) return;
+    var ex = _sqmExtractModalHeadingText(c.innerHTML);
+    t.textContent = ex || 'SQM';
+  }
+  window._sqmSyncModalHeaderFromContent = _sqmSyncModalHeaderFromContent;
+  window._sqmSetModalTitleBar = function(text) {
+    var el = document.getElementById('sqm-modal-title');
+    if (!el || text == null) return;
+    var s = String(text).trim();
+    if (!s) return;
+    el.textContent = s.length > 80 ? s.slice(0, 77) + '…' : s;
+  };
+
   function ensureModal() {
     var m=document.getElementById('sqm-modal');
-    if (m) return m;
+    if (m) {
+      if (!document.getElementById('sqm-modal-title')) {
+        var hdr = document.getElementById('sqm-modal-header');
+        if (hdr) {
+          hdr.innerHTML =
+            '<span id="sqm-modal-title">SQM</span>'
+            + '<span id="sqm-modal-drag-hint" title="이 줄을 드래그하면 창 이동, 바깥 모서리를 잡으면 크기 조절">⋮⋮ 이동 · 크기</span>'
+            + '<button type="button" onclick="document.getElementById(\'sqm-modal\').style.display=\'none\'" style="position:absolute;top:3px;right:10px;background:none;border:none;font-size:1.4rem;cursor:pointer;color:var(--text-muted);">&#x2715;</button>';
+        }
+      }
+      return m;
+    }
     m=document.createElement('div');
     m.id='sqm-modal';
     m.style.cssText='display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;';
     m.innerHTML='<div id="sqm-modal-inner" style="background:var(--bg-card);border-radius:8px;width:min(1280px,92vw);max-width:92vw;min-height:200px;max-height:88vh;position:fixed;top:65px;left:50%;transform:translateX(-50%);overflow:visible;display:flex;flex-direction:column;">'
-      +'<div id="sqm-modal-header" onmousedown="(function(){var mi=document.getElementById(\'sqm-modal-inner\');if(mi)mi.style.zIndex=++(window._sqmZ);})()" style="flex-shrink:0;cursor:move;user-select:none;background:var(--bg-hover,rgba(0,0,0,.06));border-radius:8px 8px 0 0;border-bottom:1px solid var(--panel-border);padding:5px 48px 5px 12px;font-size:11px;color:var(--text-muted);display:flex;align-items:center;gap:6px;min-height:28px;position:relative;">'
-      +'<span style="opacity:.4;letter-spacing:3px;">&#x28FF;&#x28FF;</span>&nbsp;드래그: 이동 &nbsp;|&nbsp; 모서리: 크기 조절'
-      +'<button onclick="document.getElementById(\'sqm-modal\').style.display=\'none\'" style="position:absolute;top:3px;right:10px;background:none;border:none;font-size:1.4rem;cursor:pointer;color:var(--text-muted);">&#x2715;</button>'
+      +'<div id="sqm-modal-header" onmousedown="(function(){var mi=document.getElementById(\'sqm-modal-inner\');if(mi)mi.style.zIndex=++(window._sqmZ);})()" style="flex-shrink:0;cursor:move;user-select:none;background:var(--bg-hover,rgba(0,0,0,.06));border-radius:8px 8px 0 0;border-bottom:1px solid var(--panel-border);padding:5px 48px 5px 12px;display:flex;align-items:center;gap:8px;min-height:28px;position:relative;">'
+      +'<span id="sqm-modal-title">SQM</span>'
+      +'<span id="sqm-modal-drag-hint" title="이 줄을 드래그하면 창 이동, 바깥 모서리를 잡으면 크기 조절">⋮⋮ 이동 · 크기</span>'
+      +'<button type="button" onclick="document.getElementById(\'sqm-modal\').style.display=\'none\'" style="position:absolute;top:3px;right:10px;background:none;border:none;font-size:1.4rem;cursor:pointer;color:var(--text-muted);">&#x2715;</button>'
       +'</div>'
       +'<div id="sqm-modal-content" style="flex:1 1 auto;overflow:auto;padding:16px 20px;min-height:100px;"></div>'
       +'</div>';
@@ -146,9 +184,23 @@
   }
 
   function showDataModal(title, html) {
-    ensureModal().style.display='block';
-    var _hdr = title ? '<h2 style="margin-bottom:16px">'+escapeHtml(title)+'</h2>' : '';
-    document.getElementById('sqm-modal-content').innerHTML=_hdr+html;
+    if (html === undefined && typeof title === 'string') {
+      html = title;
+      title = '';
+    }
+    html = html == null ? '' : String(html);
+    var explicit = (title != null && String(title).trim()) ? String(title).trim() : '';
+    ensureModal().style.display = 'block';
+    document.getElementById('sqm-modal-content').innerHTML = html;
+    var barEl = document.getElementById('sqm-modal-title');
+    if (barEl) {
+      if (explicit) {
+        barEl.textContent = explicit.length > 80 ? explicit.slice(0, 77) + '…' : explicit;
+      } else {
+        _sqmSyncModalHeaderFromContent();
+      }
+    }
+    return document.getElementById('sqm-modal');
   }
 
   /* ===================================================
@@ -1479,8 +1531,10 @@
         '</div>'
       ].join('\n');
 
-      var modal = showDataModal(html);
-      document.getElementById('bma-close-btn').onclick = function() { modal.close(); };
+      showDataModal('', html);
+      document.getElementById('bma-close-btn').onclick = function() {
+        document.getElementById('sqm-modal').style.display = 'none';
+      };
 
       window._bmaRefresh = function() {
         var el = document.getElementById('bma-body');
@@ -2184,59 +2238,6 @@
   }
   window.showOutboundConfirmModal = showOutboundConfirmModal;
 
-  /* ===================================================
-     8i. 입고 취소 — LOT 선택 → POST /api/action2/inbound-cancel
-     =================================================== */
-  function showInboundCancelModal() {
-    var html = [
-      '<div style="max-width:480px">',
-      '  <h2 style="margin:0 0 12px 0">↩️ 입고 취소</h2>',
-      '  <p style="color:var(--text-muted);margin:0 0 16px 0;font-size:.9rem">',
-      '    입고된 LOT를 취소(CANCELLED)합니다. 톤백 포함 원복됩니다.',
-      '  </p>',
-      '  <div style="display:grid;grid-template-columns:100px 1fr;gap:10px;align-items:center;margin-bottom:16px">',
-      '    <label style="font-weight:600">LOT 번호</label>',
-      '    <input type="text" id="ic-lot" placeholder="예: L240101-001" style="padding:8px;background:var(--bg-hover);color:var(--text);border:1px solid var(--border);border-radius:6px;font-family:monospace">',
-      '    <label style="font-weight:600">사유</label>',
-      '    <input type="text" id="ic-reason" placeholder="취소 사유 (선택)" style="padding:8px;background:var(--bg-hover);color:var(--text);border:1px solid var(--border);border-radius:6px">',
-      '  </div>',
-      '  <div id="ic-result" style="margin-bottom:12px;min-height:24px"></div>',
-      '  <div style="display:flex;gap:8px;justify-content:flex-end">',
-      '    <button id="ic-cancel" class="btn btn-ghost">닫기</button>',
-      '    <button id="ic-submit" class="btn btn-primary">입고 취소</button>',
-      '  </div>',
-      '</div>'
-    ].join('\n');
-    showDataModal('', html);
-    var cancel = document.getElementById('ic-cancel');
-    var submit = document.getElementById('ic-submit');
-    var result = document.getElementById('ic-result');
-    cancel.addEventListener('click', function(){ document.getElementById('sqm-modal').style.display='none'; });
-    submit.addEventListener('click', function(){
-      var lot = document.getElementById('ic-lot').value.trim();
-      if (!lot) { showToast('warning', 'LOT 번호를 입력하세요'); return; }
-      if (!confirm('LOT ' + lot + ' 입고를 취소합니다. 계속할까요?')) return;
-      submit.disabled = true; cancel.disabled = true;
-      result.innerHTML = '<div style="padding:8px;color:var(--text-muted)">⏳ 처리 중...</div>';
-      apiPost('/api/action2/inbound-cancel', { lot_no: lot, reason: document.getElementById('ic-reason').value.trim() })
-        .then(function(res){
-          if (res && res.ok) {
-            result.innerHTML = '<div style="padding:12px;background:var(--bg-hover);border-radius:6px;border-left:4px solid var(--success)"><div style="font-weight:600">✅ ' + escapeHtml(res.message||'입고 취소 완료') + '</div></div>';
-            showToast('success', res.message || '입고 취소 완료');
-            if (typeof loadKpi === 'function') loadKpi();
-          } else {
-            result.innerHTML = '<div style="padding:12px;background:var(--bg-hover);border-radius:6px;border-left:4px solid var(--danger)"><div style="font-weight:600">❌ ' + escapeHtml((res&&res.message)||'실패') + '</div></div>';
-            showToast('error', (res&&res.message)||'실패');
-            submit.disabled = false; cancel.disabled = false;
-          }
-        })
-        .catch(function(e){
-          result.innerHTML = '<div style="padding:12px;color:var(--danger)">❌ ' + escapeHtml(e.message||String(e)) + '</div>';
-          submit.disabled = false; cancel.disabled = false;
-        });
-    });
-  }
-  window.showInboundCancelModal = showInboundCancelModal;
 
   /* ===================================================
      8j. 승인 대기 (Allocation Approval Queue)
@@ -2259,8 +2260,10 @@
         html += '</tbody></table>';
       }
       document.getElementById('sqm-modal-content').innerHTML = '<h2 style="margin-bottom:16px">✅ 승인 대기 (Allocation)</h2>' + html;
+      _sqmSyncModalHeaderFromContent();
     }).catch(function(e){
       document.getElementById('sqm-modal-content').innerHTML = '<h2>승인 대기</h2><div class="empty">조회 실패: ' + escapeHtml(e.message||String(e)) + '</div>';
+      _sqmSyncModalHeaderFromContent();
     });
   }
   window.showApprovalQueueModal = showApprovalQueueModal;
@@ -2274,6 +2277,7 @@
       var rows = extractRows(res);
       if (!rows.length) {
         document.getElementById('sqm-modal-content').innerHTML = '<h2>🔄 백업 복원</h2><div class="empty">사용 가능한 백업 파일이 없습니다</div>';
+        _sqmSyncModalHeaderFromContent();
         return;
       }
       var html = '<h2 style="margin-bottom:12px">🔄 백업 복원</h2>';
@@ -2286,6 +2290,7 @@
       html += '<div id="restore-result" style="margin:12px 0;min-height:24px"></div>';
       html += '<div style="display:flex;gap:8px;justify-content:flex-end"><button id="restore-cancel" class="btn btn-ghost">닫기</button><button id="restore-submit" class="btn btn-primary">복원 실행</button></div>';
       document.getElementById('sqm-modal-content').innerHTML = html;
+      _sqmSyncModalHeaderFromContent();
 
       document.getElementById('restore-cancel').addEventListener('click', function(){ document.getElementById('sqm-modal').style.display='none'; });
       document.getElementById('restore-submit').addEventListener('click', function(){
@@ -2313,6 +2318,7 @@
       });
     }).catch(function(e){
       document.getElementById('sqm-modal-content').innerHTML = '<h2>🔄 백업 복원</h2><div class="empty">백업 목록 조회 실패: ' + escapeHtml(e.message||String(e)) + '</div>';
+      _sqmSyncModalHeaderFromContent();
     });
   }
   window.showRestoreModal = showRestoreModal;
@@ -2510,8 +2516,9 @@
       apiPost('/api/action3/db-reset', { confirm: true })
         .then(function(res){
           if (res && res.ok) {
-            document.getElementById('dbr-result').innerHTML = '<div style="padding:12px;background:var(--bg-hover);border-radius:6px;border-left:4px solid var(--success)"><div style="font-weight:600">✅ DB 초기화 완료</div></div>';
+            document.getElementById('dbr-result').innerHTML = '<div style="padding:12px;background:var(--bg-hover);border-radius:6px;border-left:4px solid var(--success)"><div style="font-weight:600">✅ DB 초기화 완료 — 2초 후 새로고침...</div></div>';
             showToast('success', 'DB 초기화 완료');
+            setTimeout(function(){ location.reload(); }, 2000);
           } else {
             document.getElementById('dbr-result').innerHTML = '<div style="padding:12px;color:var(--danger)">❌ ' + escapeHtml((res&&res.message)||'실패') + '</div>';
             submit.disabled = false;
@@ -2663,10 +2670,10 @@
         ? '<span style="color:var(--success)">✅ 키 등록됨</span> <span style="color:var(--text-muted);font-size:.8rem">(' + escapeHtml(cfg.key_source||'') + ')</span>'
         : '<span style="color:var(--warning)">⚠️ 키 없음</span>';
       var html = '<div style="max-width:480px">'
-        + '<h2 style="margin:0 0 14px 0">🔐 Gemini window.API 설정</h2>'
+        + '<h2 style="margin:0 0 14px 0">🔐 Gemini API 설정</h2>'
         + '<div style="margin-bottom:12px">' + statusHtml + '</div>'
         + '<div style="display:grid;grid-template-columns:90px 1fr;gap:10px 12px;align-items:center;margin-bottom:14px">'
-        + '<label style="font-weight:600">window.API 키</label><input type="password" id="gm-key" placeholder="새 키 입력 (변경 시만)" style="' + inp + '">'
+        + '<label style="font-weight:600">API 키</label><input type="password" id="gm-key" placeholder="새 키 입력 (변경 시만)" style="' + inp + '">'
         + '<label style="font-weight:600">모델</label><input type="text" id="gm-model" value="' + escapeHtml(cfg.model||'gemini-1.5-flash') + '" style="' + inp + '">'
         + '<label style="font-weight:600">사용</label><label style="display:flex;align-items:center;gap:6px"><input type="checkbox" id="gm-enabled"' + (cfg.enabled !== false ? ' checked' : '') + '> Gemini AI 활성화</label>'
         + '</div>'
@@ -2698,7 +2705,7 @@
   };
 
   function showGeminiApiTestModal() {
-    showDataModal('', '<div style="max-width:440px"><h3 style="margin:0 0 12px">🧪 Gemini window.API 연결 테스트</h3><div id="gm-test-body" style="color:var(--text-muted)">테스트 중…</div></div>');
+    showDataModal('', '<div style="max-width:440px"><h3 style="margin:0 0 12px">🧪 Gemini API 연결 테스트</h3><div id="gm-test-body" style="color:var(--text-muted)">테스트 중…</div></div>');
     apiGet('/api/ai/test').then(function(res) {
       var body = document.getElementById('gm-test-body');
       if (!body) return;
@@ -2863,6 +2870,7 @@
       /* 툴바 */
       '<div style="display:flex;gap:8px;margin-bottom:14px">',
       '<button class="btn btn-primary" onclick="window._tplShowForm(null)">➕ 수동 추가</button>',
+      '<button class="btn" onclick="window._tplClose();window.onInboundTemplateManage()" style="background:#8e44ad;color:#fff">🤖 AI 자동 생성</button>',
       '<label class="btn" style="cursor:pointer;margin:0">',
       '📄 PDF에서 추출',
       '<input type="file" accept=".pdf" style="display:none" onchange="window._tplFromPdf(this)">',
@@ -3127,8 +3135,10 @@
         html += '</tbody></table>';
       }
       document.getElementById('sqm-modal-content').innerHTML = '<h2 style="margin-bottom:16px">✅ 대량 이동 승인</h2>' + html;
+      _sqmSyncModalHeaderFromContent();
     }).catch(function(e){
       document.getElementById('sqm-modal-content').innerHTML = '<h2>대량 이동 승인</h2><div class="empty">조회 실패</div>';
+      _sqmSyncModalHeaderFromContent();
     });
   }
   window.showMoveApprovalQueueModal = showMoveApprovalQueueModal;
@@ -3214,6 +3224,7 @@
       var prods = Object.keys(byProd).sort();
       if (!prods.length) {
         document.getElementById('sqm-modal-content').innerHTML = '<h2>📋 품목별 재고 요약</h2><div class="empty">데이터가 없습니다</div>';
+        _sqmSyncModalHeaderFromContent();
         return;
       }
       var tbl = '<table class="data-table"><thead><tr><th>제품</th><th>LOT 수</th><th>톤백 수</th><th>총 중량(MT)</th></tr></thead><tbody>';
@@ -3223,8 +3234,10 @@
       });
       tbl += '</tbody></table>';
       document.getElementById('sqm-modal-content').innerHTML = '<h2 style="margin-bottom:16px">📋 품목별 재고 요약</h2><p style="color:var(--text-muted);font-size:.85rem;margin-bottom:12px">' + prods.length + '개 제품, ' + rows.length + '개 LOT</p>' + tbl;
+      _sqmSyncModalHeaderFromContent();
     }).catch(function(e){
       document.getElementById('sqm-modal-content').innerHTML = '<h2>품목별 재고 요약</h2><div class="empty">조회 실패</div>';
+      _sqmSyncModalHeaderFromContent();
     });
   }
   window.showProductSummaryModal = showProductSummaryModal;
@@ -3289,6 +3302,7 @@
       var prods = Object.keys(byProd).sort();
       if (!prods.length) {
         document.getElementById('sqm-modal-content').innerHTML = '<h2>품목별 입출고</h2><div class="empty">데이터가 없습니다</div>';
+        _sqmSyncModalHeaderFromContent();
         return;
       }
       var tbl = '<table class="data-table"><thead><tr><th>제품</th><th>입고</th><th>출고</th><th>반품</th><th>기타</th></tr></thead><tbody>';
@@ -3298,8 +3312,10 @@
       });
       tbl += '</tbody></table>';
       document.getElementById('sqm-modal-content').innerHTML = '<h2 style="margin-bottom:16px">📊 품목별 입출고 현황</h2>' + tbl;
+      _sqmSyncModalHeaderFromContent();
     }).catch(function(e){
       document.getElementById('sqm-modal-content').innerHTML = '<h2>품목별 입출고</h2><div class="empty">조회 실패</div>';
+      _sqmSyncModalHeaderFromContent();
     });
   }
   window.showProductMovementModal = showProductMovementModal;
@@ -3420,6 +3436,7 @@
         '</div>'
       ].join('\n');
       document.getElementById('sqm-modal-content').innerHTML = html;
+      _sqmSyncModalHeaderFromContent();
       bindPmHandlers();
     }
 
@@ -3429,6 +3446,7 @@
         renderPm(d);
       }).catch(function(e){
         document.getElementById('sqm-modal-content').innerHTML = '<h2>제품 마스터</h2><div class="empty">'+escapeHtml(e.message||String(e))+'</div>';
+        _sqmSyncModalHeaderFromContent();
       });
     }
 
@@ -3464,8 +3482,10 @@
         '<h3 style="margin:14px 0 8px;font-size:1rem">사유별</h3>', tbl1,
         '<h3 style="margin:14px 0 8px;font-size:1rem">월별 추이 (최근 12개월)</h3>', tbl2
       ].join('');
+      _sqmSyncModalHeaderFromContent();
     }).catch(function(e){
       document.getElementById('sqm-modal-content').innerHTML = '<h2>반품 통계</h2><div class="empty">'+escapeHtml(e.message||String(e))+'</div>';
+      _sqmSyncModalHeaderFromContent();
     });
   }
   window.showReturnStatisticsModal = showReturnStatisticsModal;
@@ -3504,20 +3524,248 @@
   }
   window.showAdvancedToolsHubModal = showAdvancedToolsHubModal;
 
+  /* ── AI 채팅 패널 ─────────────────────────────────────── */
+  function showAiChatModal() {
+    var panelId = 'sqm-ai-chat-panel';
+    if (document.getElementById(panelId)) {
+      document.getElementById(panelId).style.display = 'flex';
+      return;
+    }
+    var examples = ['전체 재고 현황', '제품별 재고', '저재고 LOT', '리튬카보네이트 재고', 'SAP별 현황'];
+    var exBtns = examples.map(function(q) {
+      return '<button type="button" class="btn btn-ghost" style="font-size:.78rem;padding:3px 8px" onclick="window._aiChatSend('+JSON.stringify(q)+')">' + (q) + '</button>';
+    }).join('');
+
+    var panel = document.createElement('div');
+    panel.id = panelId;
+    panel.style.cssText = 'position:fixed;right:20px;bottom:20px;width:420px;max-height:580px;'
+      + 'background:var(--bg-card,#1a2233);border:1px solid var(--border,#2a3a5c);border-radius:12px;'
+      + 'box-shadow:0 8px 32px rgba(0,0,0,.5);display:flex;flex-direction:column;z-index:9999;overflow:hidden';
+    panel.innerHTML =
+      '<div style="background:var(--primary,#2563eb);padding:10px 14px;display:flex;justify-content:space-between;align-items:center">'
+      + '<span style="font-weight:700;color:#fff">🤖 AI 재고 조회</span>'
+      + '<button onclick="document.getElementById(\''+panelId+'\').style.display=\'none\'" style="background:none;border:none;color:#fff;font-size:1.3rem;cursor:pointer;line-height:1">×</button>'
+      + '</div>'
+      + '<div id="ai-chat-history" style="flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:8px;min-height:200px">'
+      + '<div style="color:var(--text-muted,#8899aa);font-size:.84rem">안녕하세요! 재고를 자연어로 질문해보세요.</div>'
+      + '</div>'
+      + '<div style="padding:6px 10px;border-top:1px solid var(--border,#2a3a5c);display:flex;flex-wrap:wrap;gap:4px">' + exBtns + '</div>'
+      + '<div style="padding:10px;border-top:1px solid var(--border,#2a3a5c);display:flex;gap:8px">'
+      + '<input id="ai-chat-input" type="text" placeholder="질문을 입력하세요..." autocomplete="off"'
+      + ' style="flex:1;padding:8px 10px;background:var(--bg-hover,#0d1b2e);color:var(--text,#e2e8f0);border:1px solid var(--border,#2a3a5c);border-radius:6px;font-size:.9rem">'
+      + '<button onclick="window._aiChatSend()" class="btn btn-primary" style="padding:8px 14px">전송</button>'
+      + '</div>';
+    document.body.appendChild(panel);
+    document.getElementById('ai-chat-input').addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') window._aiChatSend();
+    });
+  }
+  window.showAiChatModal = showAiChatModal;
+
+  window._aiChatSend = function(preset) {
+    var inp = document.getElementById('ai-chat-input');
+    var msg = preset || (inp ? inp.value.trim() : '');
+    if (!msg) return;
+    if (inp && !preset) inp.value = '';
+    var hist = document.getElementById('ai-chat-history');
+    if (!hist) return;
+    var uDiv = document.createElement('div');
+    uDiv.style.cssText = 'align-self:flex-end;background:var(--primary,#2563eb);color:#fff;padding:7px 12px;border-radius:10px 10px 2px 10px;max-width:85%;font-size:.88rem';
+    uDiv.textContent = msg;
+    hist.appendChild(uDiv);
+    var aDiv = document.createElement('div');
+    aDiv.style.cssText = 'align-self:flex-start;background:var(--bg-hover,#0d1b2e);color:var(--text,#e2e8f0);padding:7px 12px;border-radius:10px 10px 10px 2px;max-width:85%;font-size:.88rem';
+    aDiv.textContent = '⏳ 조회 중…';
+    hist.appendChild(aDiv);
+    hist.scrollTop = hist.scrollHeight;
+    fetch('http://127.0.0.1:8765/api/ai/chat', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({message: msg})
+    }).then(function(r){ return r.json(); }).then(function(res) {
+      aDiv.innerHTML = '';
+      var answer = (res && res.answer) ? res.answer : '응답 없음';
+      answer.split('\n').forEach(function(line, i) {
+        if (i > 0) aDiv.appendChild(document.createElement('br'));
+        aDiv.appendChild(document.createTextNode(line));
+      });
+      if (res && res.row_count > 0) {
+        var meta = document.createElement('div');
+        meta.style.cssText = 'margin-top:5px;font-size:.75rem;color:var(--text-muted,#8899aa)';
+        meta.textContent = '📊 ' + res.row_count + '건 · ' + (res.elapsed_ms||0) + 'ms';
+        aDiv.appendChild(meta);
+      }
+      hist.scrollTop = hist.scrollHeight;
+    }).catch(function(e) {
+      aDiv.style.color = 'var(--danger,#f87171)';
+      aDiv.textContent = '❌ 오류: ' + (e.message || String(e));
+      hist.scrollTop = hist.scrollHeight;
+    });
+  };
+
+  /* ── PL 신뢰도 파서 ─────────────────────────────────────── */
+  function _confBadge(conf, status) {
+    var color = status === 'green' ? '#22c55e' : status === 'yellow' ? '#f59e0b' : '#ef4444';
+    return '<span style="background:' + color + ';color:#fff;border-radius:4px;padding:1px 6px;font-size:.75rem;font-weight:700">' + conf + '%</span>';
+  }
+
+  function showPlParserModal() {
+    var h = [
+      '<div style="max-width:480px;padding:4px 0">',
+      '  <h2 style="margin:0 0 8px 0">📄 PL 신뢰도 파서</h2>',
+      '  <p style="color:var(--text-muted);font-size:.85rem;margin-bottom:14px">Packing List PDF를 업로드하면 Gemini가 필드별 신뢰도를 분석합니다.</p>',
+      '  <div id="pl-drop-zone" style="border:2px dashed var(--border);border-radius:8px;padding:28px;text-align:center;cursor:pointer;transition:border-color .2s">',
+      '    <div style="font-size:2rem;margin-bottom:8px">📂</div>',
+      '    <div style="font-size:.9rem;color:var(--text-muted)">PDF 파일을 여기에 드래그하거나 클릭하여 선택</div>',
+      '    <input type="file" id="pl-file-input" accept=".pdf" style="display:none">',
+      '  </div>',
+      '  <div id="pl-file-name" style="margin-top:8px;font-size:.82rem;color:var(--text-muted)"></div>',
+      '  <div style="margin-top:14px;display:flex;gap:8px">',
+      '    <button type="button" class="btn btn-primary" id="pl-parse-btn" disabled>🔍 파싱 시작</button>',
+      '    <button type="button" class="btn btn-ghost" onclick="document.getElementById(\'sqm-modal\').style.display=\'none\'">닫기</button>',
+      '  </div>',
+      '  <div id="pl-parse-status" style="margin-top:10px;font-size:.85rem"></div>',
+      '</div>'
+    ].join('\n');
+    showDataModal('', h);
+
+    var zone = document.getElementById('pl-drop-zone');
+    var inp  = document.getElementById('pl-file-input');
+    var btn  = document.getElementById('pl-parse-btn');
+    var nameEl = document.getElementById('pl-file-name');
+    var statusEl = document.getElementById('pl-parse-status');
+    var selectedFile = null;
+
+    zone.addEventListener('click', function(){ inp.click(); });
+    zone.addEventListener('dragover', function(e){ e.preventDefault(); zone.style.borderColor='var(--primary)'; });
+    zone.addEventListener('dragleave', function(){ zone.style.borderColor='var(--border)'; });
+    zone.addEventListener('drop', function(e){
+      e.preventDefault(); zone.style.borderColor='var(--border)';
+      var f = e.dataTransfer.files[0];
+      if (f) { selectedFile = f; nameEl.textContent = '선택됨: ' + f.name; btn.disabled = false; }
+    });
+    inp.addEventListener('change', function(){
+      if (inp.files[0]) { selectedFile = inp.files[0]; nameEl.textContent = '선택됨: ' + selectedFile.name; btn.disabled = false; }
+    });
+
+    btn.addEventListener('click', function(){
+      if (!selectedFile) return;
+      btn.disabled = true;
+      btn.textContent = '⏳ 분석 중...';
+      statusEl.textContent = 'Gemini Vision이 PL을 분석하고 있습니다... (10~30초 소요)';
+      var fd = new FormData();
+      fd.append('file', selectedFile, selectedFile.name);
+      fetch('/api/ai/parse-pl', { method: 'POST', body: fd })
+        .then(function(r){ return r.json(); })
+        .then(function(data){
+          document.getElementById('sqm-modal').style.display = 'none';
+          showPlResultModal(data, selectedFile.name);
+        })
+        .catch(function(e){
+          btn.disabled = false; btn.textContent = '🔍 파싱 시작';
+          statusEl.style.color = '#ef4444';
+          statusEl.textContent = '오류: ' + e.message;
+        });
+    });
+  }
+  window.showPlParserModal = showPlParserModal;
+
+  function showPlResultModal(data, filename) {
+    if (!data.success) {
+      showDataModal('파싱 실패', '<div style="color:#ef4444;padding:16px">❌ ' + (data.error || '알 수 없는 오류') + '</div>');
+      return;
+    }
+    var docConf = data.doc_confidence || 0;
+    var autoApprove = data.auto_approve;
+    var confColor = docConf >= 85 ? '#22c55e' : docConf >= 70 ? '#f59e0b' : '#ef4444';
+
+    var lines = [
+      '<div style="max-width:680px;max-height:75vh;overflow-y:auto;padding:4px 0">',
+      '<h2 style="margin:0 0 4px 0">📄 PL 파싱 결과</h2>',
+      '<div style="font-size:.82rem;color:var(--text-muted);margin-bottom:12px">' + (filename || '') + '</div>',
+      '<div style="background:var(--surface-2);border-radius:6px;padding:10px 14px;margin-bottom:14px;display:flex;align-items:center;gap:12px">',
+      '  <span style="font-size:1.5rem;font-weight:700;color:' + confColor + '">' + docConf + '%</span>',
+      '  <div>',
+      '    <div style="font-weight:600">전체 신뢰도</div>',
+      '    <div style="font-size:.82rem;color:var(--text-muted)">' + (autoApprove ? '✅ 자동 저장 가능' : (data.review_needed ? '⚠️ 수동 검토 필요' : '☑️ 저장 가능')) + '</div>',
+      '  </div>',
+      '</div>',
+    ];
+
+    // 헤더 필드
+    var f = data.fields || {};
+    lines.push('<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px">');
+    [['folio','Folio'],['vessel','Vessel'],['product','Product'],['customer','Customer']].forEach(function(pair){
+      var key = pair[0], label = pair[1];
+      var fd = f[key] || {};
+      lines.push('<div style="background:var(--surface-2);border-radius:6px;padding:8px 10px">');
+      lines.push('<div style="font-size:.75rem;color:var(--text-muted);margin-bottom:2px">' + label + ' ' + _confBadge(fd.confidence||0, fd.status||'red') + '</div>');
+      lines.push('<div style="font-weight:600;font-size:.9rem">' + (fd.value || '—') + '</div>');
+      if (fd.reason) lines.push('<div style="font-size:.72rem;color:var(--text-muted);margin-top:2px">' + fd.reason + '</div>');
+      lines.push('</div>');
+    });
+    lines.push('</div>');
+
+    // LOT 테이블
+    var lots = data.lots || [];
+    if (lots.length) {
+      lines.push('<div style="font-weight:600;margin-bottom:6px">LOT 목록 (' + lots.length + '건)</div>');
+      lines.push('<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:.82rem">');
+      lines.push('<thead><tr style="background:var(--surface-2)">');
+      ['#','LOT No','Container','중량(kg)','톤백','평균'].forEach(function(h){ lines.push('<th style="padding:5px 8px;text-align:left;white-space:nowrap">' + h + '</th>'); });
+      lines.push('</tr></thead><tbody>');
+      lots.forEach(function(lot, i){
+        var rowBg = i%2===0 ? '' : 'background:var(--surface-2)';
+        lines.push('<tr style="' + rowBg + '">');
+        lines.push('<td style="padding:4px 8px">' + (i+1) + '</td>');
+        var lotNo = lot.lot_no || {};
+        var cno   = lot.container_no || {};
+        var wt    = lot.net_weight_kg || {};
+        var mxbg  = lot.mxbg || {};
+        lines.push('<td style="padding:4px 8px">' + (lotNo.value||'—') + ' ' + _confBadge(lotNo.confidence||0, lotNo.status||'red') + '</td>');
+        lines.push('<td style="padding:4px 8px">' + (cno.value||'—') + ' ' + _confBadge(cno.confidence||0, cno.status||'red') + '</td>');
+        lines.push('<td style="padding:4px 8px">' + (wt.value||'—') + ' ' + _confBadge(wt.confidence||0, wt.status||'red') + '</td>');
+        lines.push('<td style="padding:4px 8px">' + (mxbg.value||'—') + ' ' + _confBadge(mxbg.confidence||0, mxbg.status||'red') + '</td>');
+        var avg = lot._avg || 0;
+        var avgColor = avg >= 95 ? '#22c55e' : avg >= 70 ? '#f59e0b' : '#ef4444';
+        lines.push('<td style="padding:4px 8px;font-weight:700;color:' + avgColor + '">' + avg + '%</td>');
+        lines.push('</tr>');
+      });
+      lines.push('</tbody></table></div>');
+    }
+
+    if ((data.low_confidence_fields||[]).length) {
+      lines.push('<div style="margin-top:12px;padding:8px 12px;background:#fef3c7;border-radius:6px;font-size:.82rem">');
+      lines.push('<strong>⚠️ 검토 필요 항목:</strong> ');
+      lines.push(data.low_confidence_fields.map(function(x){ return x.field + '(' + x.confidence + '%)'; }).join(', '));
+      lines.push('</div>');
+    }
+
+    lines.push('<div style="margin-top:14px;text-align:right"><button type="button" class="btn btn-ghost" onclick="document.getElementById(\'sqm-modal\').style.display=\'none\'">닫기</button></div>');
+    lines.push('</div>');
+
+    showDataModal('', lines.join('\n'));
+  }
+  window.showPlResultModal = showPlResultModal;
+
   function showAiToolsHubModal() {
     var h = [
       '<div style="max-width:420px;padding:4px 0">',
       '  <h2 style="margin:0 0 12px 0">🤖 AI / 선사 도구</h2>',
       '  <p style="color:var(--text-muted);font-size:.86rem;margin-bottom:16px">자주 쓰는 항목을 모았습니다.</p>',
       '  <div style="display:flex;flex-direction:column;gap:10px">',
+      '    <button type="button" class="btn btn-primary" id="aihub-chat">💬 AI 재고 채팅</button>',
+      '    <button type="button" class="btn btn-primary" id="aihub-pl-parser">📄 PL 신뢰도 파서</button>',
       '    <button type="button" class="btn btn-primary" id="aihub-carrier">🚢 선사 프로파일 (BL 등록)</button>',
-      '    <button type="button" class="btn btn-primary" id="aihub-gemini-set">🔐 Gemini window.API 설정</button>',
+      '    <button type="button" class="btn btn-primary" id="aihub-gemini-set">🔐 Gemini API 설정</button>',
       '    <button type="button" class="btn btn-ghost" id="aihub-gemini-test">🧪 Gemini 연결 테스트</button>',
       '  </div>',
       '  <div style="margin-top:16px;text-align:right"><button type="button" class="btn btn-ghost" onclick="document.getElementById(\'sqm-modal\').style.display=\'none\'">닫기</button></div>',
       '</div>'
     ].join('\n');
     showDataModal('', h);
+    document.getElementById('aihub-chat').addEventListener('click', function(){ document.getElementById('sqm-modal').style.display='none'; showAiChatModal(); });
+    document.getElementById('aihub-pl-parser').addEventListener('click', function(){ document.getElementById('sqm-modal').style.display='none'; showPlParserModal(); });
     document.getElementById('aihub-carrier').addEventListener('click', function(){ document.getElementById('sqm-modal').style.display='none'; showCarrierProfileModal(); });
     document.getElementById('aihub-gemini-set').addEventListener('click', function(){ document.getElementById('sqm-modal').style.display='none'; showGeminiApiSettingsModal(); });
     document.getElementById('aihub-gemini-test').addEventListener('click', function(){ document.getElementById('sqm-modal').style.display='none'; showGeminiApiTestModal(); });
@@ -3615,6 +3863,7 @@
       var rows = extractRows(res);
       if (!rows.length) {
         document.getElementById('sqm-modal-content').innerHTML = '<h2>📋 보고서·작업 이력</h2><div class="empty">감사 로그가 없습니다</div>';
+        _sqmSyncModalHeaderFromContent();
         return;
       }
       var prefer = rows.filter(function(r){
@@ -3636,8 +3885,10 @@
         '<p style="color:var(--text-muted);font-size:.85rem;margin-bottom:10px">audit_log 기준 최근 ' + show.length + '건 (PDF·보고서·입출고 관련 우선 표시)</p>',
         tbl
       ].join('');
+      _sqmSyncModalHeaderFromContent();
     }).catch(function(e){
       document.getElementById('sqm-modal-content').innerHTML = '<h2>이력</h2><div class="empty">조회 실패</div>';
+      _sqmSyncModalHeaderFromContent();
     });
   }
   window.showReportHistoryAuditModal = showReportHistoryAuditModal;
@@ -3673,8 +3924,10 @@
         }).join('')+'</tbody></table>';
       }
       document.getElementById('sqm-modal-content').innerHTML='<h2 style="margin-bottom:16px">'+escapeHtml(title)+'</h2>'+html;
+      _sqmSyncModalHeaderFromContent();
     }).catch(function(e){
       document.getElementById('sqm-modal-content').innerHTML='<h2>'+escapeHtml(title)+'</h2><div class="empty">Load failed: '+escapeHtml(e.message||String(e))+'</div>';
+      _sqmSyncModalHeaderFromContent();
     });
   }
 
@@ -3687,8 +3940,10 @@
         return '<tr><td style="font-weight:600;width:40%">'+escapeHtml(kv[0])+'</td><td>'+escapeHtml(String(kv[1]))+'</td></tr>';
       }).join('')+'</tbody></table>';
       document.getElementById('sqm-modal-content').innerHTML='<h2 style="margin-bottom:16px">LOT Detail: '+escapeHtml(lotNo)+'</h2>'+html;
+      _sqmSyncModalHeaderFromContent();
     }).catch(function(e){
       document.getElementById('sqm-modal-content').innerHTML='<h2>LOT Detail: '+escapeHtml(lotNo)+'</h2><div class="empty">Load failed: '+escapeHtml(e.message||String(e))+'</div>';
+      _sqmSyncModalHeaderFromContent();
     });
   };
 
@@ -3765,7 +4020,6 @@
     /* v864.2 menu_registry: _bulk_import_inventory_simple — 동일 모달 */
     'onBulkImportInventorySimple': {m:'JS', u:'inbound-upload', lbl:'엑셀 파일 수동 입고'},
     'onInboundList':     {m:'JS',   u:'inbound',                                  lbl:'입고 목록'},
-    'onInboundCancel':   {m:'JS',   u:'inbound-cancel',                            lbl:'입고 취소'},
     'onCarrierProfile':  {m:'JS',   u:'carrier-profile',                          lbl:'선사 프로파일 관리'},
 
     /* ── 출고 메뉴 ── */
@@ -3883,10 +4137,8 @@
     'onBlCarrierRegister': {m:'JS', u:'carrier-profile',                           lbl:'🚢 선사 BL 등록 도구'},
     'onBlCarrierAnalyze':  {m:'JS', u:'carrier-profile',                           lbl:'🔬 선사 패턴 분석'},
     'onGeminiToggle':      {m:'JS', u:'gemini-toggle',                             lbl:'🔀 Gemini AI 사용'},
-    /* 채팅 UI 미포함 시 window.API 설정으로 안내 (키 등록 후 사용) */
-    'onAiChat':            {m:'JS', u:'gemini-api-settings',                       lbl:'💬 AI 채팅'},
-    'onGeminiApiSettings': {m:'JS', u:'gemini-api-settings',                       lbl:'🔐 Gemini window.API 설정'},
-    'onGeminiApiTest':     {m:'JS', u:'gemini-api-test',                           lbl:'🧪 Gemini window.API 테스트'},
+    'onGeminiApiSettings': {m:'JS', u:'gemini-api-settings',                       lbl:'🔐 Gemini API 설정'},
+    'onGeminiApiTest':     {m:'JS', u:'gemini-api-test',                           lbl:'🧪 Gemini API 테스트'},
 
     /* ── 재고 메뉴: LOT Excel은 FileResponse → 새 창 다운로드 / 추이는 JSON 모달 ── */
     'onExportLot':         {m:'GET', u:'/api/action/open-lot-excel',               lbl:'📊 LOT 리스트 Excel'},
@@ -3983,10 +4235,6 @@
       }
       if (conf.u === 'outbound-confirm') {
         showOutboundConfirmModal();
-        return;
-      }
-      if (conf.u === 'inbound-cancel') {
-        showInboundCancelModal();
         return;
       }
       if (conf.u === 'approval-queue') {
@@ -4596,6 +4844,13 @@
   }
   // ═══════════════════════════════════════════════════════════════════
 
+  // ── modal-template-ai inline onclick 핸들러 — IIFE 외부 노출 (필수) ──
+  window.onInboundTemplateManage = onInboundTemplateManage;
+  window.closeTplAiModal         = closeTplAiModal;
+  window.onTplFileSelect         = onTplFileSelect;
+  window.onTplAnalyze            = onTplAnalyze;
+  window.onTplSaveBoth           = onTplSaveBoth;
+  window.onTplSaveOne            = onTplSaveOne;
 
   window.loadTonbagPage     = loadTonbagPage;
 })();

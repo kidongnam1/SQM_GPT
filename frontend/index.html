@@ -6,7 +6,7 @@
   <title>S.I.M.S (SQM Inventory Management System) v8.6.6</title>
   <link rel="icon" type="image/x-icon" href="favicon.ico">
   <link rel="stylesheet" href="css/design-system.css?v=20260427f">
-  <link rel="stylesheet" href="css/v864-layout.css?v=20260503a">
+  <link rel="stylesheet" href="css/v864-layout.css?v=20260511a">
 </head>
 <body data-theme="dark">
 
@@ -265,7 +265,6 @@
       <div class="submenu-parent" tabindex="0">
         <button class="submenu-parent-btn" type="button">✨ Gemini AI</button>
         <div class="submenu-dropdown">
-          <button data-action="onAiChat" title="Gemini AI와 재고/물류 관련 질문을 나눕니다">💬 AI 채팅</button>
           <button data-action="onGeminiApiSettings" title="Gemini API 키를 등록·변경합니다">🔐 API 키 설정</button>
           <button data-action="onGeminiApiTest" title="현재 API 키로 Gemini 연결 상태를 테스트합니다">🧪 API 연결 테스트</button>
         </div>
@@ -328,6 +327,7 @@
     <div class="side-group">
       <button class="side-btn side-parent" data-route="inventory"><span class="side-icon">📦</span><span class="side-label">Inventory</span><span class="side-total-badge" id="badge-inv-total"></span></button>
       <div class="side-children">
+        <button class="side-btn side-child" data-route="pending"><span class="side-child-icon">⏳</span><span class="side-child-label">Pending</span><span class="side-child-badge" id="badge-pending" style="color:#94a3b8"></span></button>
         <button class="side-btn side-child" data-route="available"><span class="side-child-icon">✅</span><span class="side-child-label">Available</span><span class="side-child-badge" id="badge-available" style="color:#22c55e"></span></button>
         <button class="side-btn side-child" data-route="allocation"><span class="side-child-icon">📋</span><span class="side-child-label">Allocation</span><span class="side-child-badge" id="badge-allocation" style="color:#3b82f6"></span></button>
         <button class="side-btn side-child" data-route="picked"><span class="side-child-icon">📦</span><span class="side-child-label">Picked</span><span class="side-child-badge" id="badge-picked" style="color:#f59e0b"></span></button>
@@ -368,7 +368,7 @@
     <script src="js/sqm-allocation.js?v=20260505a"></script>
     <script src="js/sqm-picked.js?v=20260505a"></script>
     <script src="js/sqm-logistics.js?v=20260505a"></script>
-    <script src="js/sqm-tonbag.js?v=20260505a"></script>
+    <script src="js/sqm-tonbag.js?v=20260511f"></script>
     <script src="js/sqm-onestop-inbound.js?v=20260504a"></script>
 
 
