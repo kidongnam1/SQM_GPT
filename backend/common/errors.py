@@ -29,8 +29,12 @@ def ok_response(data: Any = None, message: str | None = None) -> dict:
 
 
 def err_response(error: str, detail: Any = None) -> dict:
-    """표준 에러 응답 포맷 (JSON body 용)"""
-    return {"ok": False, "data": None, "error": error, "detail": detail}
+    """표준 에러 응답 포맷 — 'error'와 'message' 동시 포함 (프론트 호환).
+
+    프론트엔드 sqm-inline.js 등이 res.message 를 우선 읽으므로
+    error 와 message 를 동일 값으로 함께 제공하여 메시지 누락 방지.
+    """
+    return {"ok": False, "data": None, "error": error, "message": error, "detail": detail}
 
 
 # ========== Exception Classes ==========

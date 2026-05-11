@@ -340,7 +340,7 @@ def run_one_cycle(engine, iteration):
     # step A만 하면 정합성 검증에서 initial≠current+picked 오류 발생
     picked = engine.db.fetchall(
         "SELECT lot_no, sub_lt, weight FROM inventory_tonbag "
-        "WHERE lot_no=? AND status IN ('PICKED','CONFIRMED','SHIPPED','SOLD','OUTBOUND') "
+        "WHERE lot_no=? AND status IN ('PICKED','CONFIRMED','SHIPPED','SOLD') "
         "  AND COALESCE(is_sample,0)=0 ORDER BY sub_lt",
         (lot_no,)
     )

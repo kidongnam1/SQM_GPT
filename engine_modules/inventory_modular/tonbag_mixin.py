@@ -110,8 +110,7 @@ class TonbagMixin:
 
     # ─── 이동 허용 상태 (v6.6.0 하드스톱 §5) ───
     _MOVE_BLOCKED_STATUSES = frozenset({
-        'PICKED', 'SOLD', 'DEPLETED', 'SHIPPED',
-        'OUTBOUND',   # v9.0: 출고완료 톤백 위치변경 차단 (감사 추적 혼란 방지)
+        'PICKED', 'SOLD', 'DEPLETED', 'SHIPPED',   # v9.0: 출고완료 톤백 위치변경 차단 (감사 추적 혼란 방지)
     })
     # 사유 코드 화이트리스트 (§7)
     VALID_MOVE_REASONS = frozenset({

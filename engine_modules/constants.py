@@ -21,8 +21,8 @@ SQM 재고관리 시스템 — 비즈니스 상수 (v5.6.8)
 STATUS_AVAILABLE = 'AVAILABLE'    # 입고 완료, 출고 가능
 STATUS_RESERVED = 'RESERVED'      # v5.9.3: Allocation 예약 (톤백 지정 완료, 출고 대기)
 STATUS_PICKED = 'PICKED'          # 출고 실행 (피킹 완료)
-STATUS_OUTBOUND = 'OUTBOUND'      # v7.2.0: 출고 완료 (신규 write 기준) — SOLD 하위호환 유지
-STATUS_SOLD = 'SOLD'              # ⚠️ DEPRECATED: 읽기 전용 하위호환 — 신규 write는 STATUS_OUTBOUND 사용
+STATUS_OUTBOUND = 'SOLD'          # v8.6.8: OUTBOUND→SOLD 통합 — 하위호환 별칭 유지
+STATUS_SOLD = 'SOLD'              # v8.6.8: 출고/판매 완료 기본 상태값
 STATUS_RETURN = 'RETURN'          # v7.2.0: 반품 입고 대기 (location 지정 전 임시 상태)
 STATUS_PARTIAL = 'PARTIAL'        # v6.8.7: 부분 출고 (OUTBOUND+AVAILABLE 혼재) — LOT 레벨 전용
 STATUS_DEPLETED = 'DEPLETED'      # 전량 출고 완료 — LOT 집계 전용
@@ -33,7 +33,7 @@ STATUS_RETURNED = 'RETURNED'      # history 전용: picking_table/sold_table 이
 STATUSES_CURRENT = (STATUS_AVAILABLE, STATUS_RESERVED, STATUS_PICKED, STATUS_RETURN)
 
 # 출고 완료 상태 집합 (하위호환: OUTBOUND + SOLD 모두 포함)
-STATUSES_OUTBOUND_ALL = ('OUTBOUND', 'SOLD', 'SHIPPED', 'CONFIRMED')
+STATUSES_OUTBOUND_ALL = ('SOLD', 'SHIPPED', 'CONFIRMED')
 
 # 출고 상태 (outbound.status)
 OUTBOUND_PENDING = 'PENDING'      # 출고 대기

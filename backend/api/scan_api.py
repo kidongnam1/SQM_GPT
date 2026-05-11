@@ -76,7 +76,7 @@ async def scan_confirm_outbound(payload: dict):
         remaining = conn.execute(
             "SELECT COUNT(*) FROM inventory_tonbag "
             "WHERE lot_no=? AND status NOT IN (?,?,?,?)",
-            (r["lot_no"], "SOLD", "OUTBOUND", "CONFIRMED", "SHIPPED")
+            (r["lot_no"], "SOLD", "CONFIRMED", "SHIPPED")
         ).fetchone()[0]
         if remaining == 0:
             conn.execute("UPDATE inventory SET status=? WHERE lot_no=?", ("SOLD", r["lot_no"]))
@@ -101,7 +101,7 @@ async def scan_return(payload: dict):
         row = conn.execute(
             "SELECT id, sub_lt, lot_no, status FROM inventory_tonbag "
             "WHERE (tonbag_uid = ? OR sub_lt = ?) AND status IN (?,?,?) LIMIT 1",
-            (uid, uid, "OUTBOUND", "PICKED", "SOLD")
+            (uid, uid, "PICKED", "SOLD")
         ).fetchone()
         if not row:
             conn.close()

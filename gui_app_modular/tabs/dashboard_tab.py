@@ -428,7 +428,7 @@ class DashboardTabMixin:
                             LEFT JOIN (
                                 SELECT lot_no,
                                     SUM(CASE WHEN status IN ('AVAILABLE','RESERVED','PICKED') THEN weight ELSE 0 END) AS cur_kg,
-                                    SUM(CASE WHEN status IN ('OUTBOUND','SHIPPED','SOLD') THEN weight ELSE 0 END) AS out_kg
+                                    SUM(CASE WHEN status IN ('SOLD','SHIPPED') THEN weight ELSE 0 END) AS out_kg
                                 FROM inventory_tonbag GROUP BY lot_no
                             ) t_agg ON i.lot_no = t_agg.lot_no
                             GROUP BY COALESCE(i.product, 'Unknown')
@@ -876,7 +876,7 @@ class DashboardTabMixin:
             products = {}
             status_map = {
                 'AVAILABLE': 'available', 'RESERVED': 'reserved',
-                'PICKED': 'picked', 'OUTBOUND': 'outbound', 'SHIPPED': 'outbound',
+                'PICKED': 'picked', 'SHIPPED': 'outbound',
                 'SOLD': 'outbound', 'RETURNED': 'return', 'RETURN': 'return',
             }
             for r in (rows or []):
@@ -944,7 +944,7 @@ class DashboardTabMixin:
                     LEFT JOIN (
                         SELECT lot_no,
                             SUM(CASE WHEN status IN ('AVAILABLE','RESERVED','PICKED') THEN weight ELSE 0 END) AS close_kg,
-                            SUM(CASE WHEN status IN ('OUTBOUND','SHIPPED','SOLD') THEN weight ELSE 0 END) AS out_kg,
+                            SUM(CASE WHEN status IN ('SOLD','SHIPPED') THEN weight ELSE 0 END) AS out_kg,
                             0 AS in_kg
                         FROM inventory_tonbag GROUP BY lot_no
                     ) ta ON i.lot_no = ta.lot_no
@@ -1212,7 +1212,7 @@ class DashboardTabMixin:
             if hasattr(self, 'engine') and self.engine and hasattr(self.engine, 'db'):
                 row = self.engine.db.fetchone(
                     "SELECT AVG(julianday('now') - julianday(stock_date)) AS avg_days "
-                    "FROM inventory WHERE status NOT IN ('DEPLETED','OUTBOUND','SOLD') "
+                    "FROM inventory WHERE status NOT IN ('DEPLETED','SOLD') "
                     "AND stock_date IS NOT NULL AND stock_date != ''"
                 )
                 if row:

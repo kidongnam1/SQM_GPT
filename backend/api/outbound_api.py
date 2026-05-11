@@ -686,7 +686,7 @@ def onestop_complete(req: OneStopCompleteRequest):
             cur = db.execute(
                 """
                 UPDATE inventory_tonbag
-                   SET status='OUTBOUND', outbound_date=?, updated_at=?
+                   SET status='SOLD', outbound_date=?, updated_at=?
                  WHERE lot_no=? AND CAST(sub_lt AS TEXT)=? AND status='PICKED'
                 """,
                 (outbound_date, now, lot_no, sub_lt),
@@ -708,7 +708,7 @@ def onestop_complete(req: OneStopCompleteRequest):
         for lot_no, entry in by_lot.items():
             _write_audit_log(
                 db,
-                event_type="OUTBOUND_SOLD",
+                event_type="SOLD",
                 event_data={
                     "lot_no": lot_no,
                     "customer": customer,

@@ -172,7 +172,7 @@ class QueryMixin:
                            ap.customer AS alloc_customer, ap.outbound_date AS alloc_outbound_date
                     FROM inventory_tonbag t
                     LEFT JOIN allocation_plan ap ON ap.tonbag_id = t.id AND ap.status IN ('RESERVED','EXECUTED')
-                    WHERE t.lot_no = ? AND t.status IN ('PICKED','SOLD','SHIPPED','OUTBOUND','RESERVED')
+                    WHERE t.lot_no = ? AND t.status IN ('PICKED','SOLD','SHIPPED','RESERVED')
                     ORDER BY COALESCE(t.outbound_date, t.picked_date, ap.outbound_date, '') DESC,
                              t.sub_lt
                 """, (lot_no,))
@@ -183,7 +183,7 @@ class QueryMixin:
                                is_sample, picked_to, picked_date, outbound_date,
                                picked_to AS alloc_customer, outbound_date AS alloc_outbound_date
                         FROM inventory_tonbag
-                        WHERE lot_no = ? AND status IN ('PICKED','SOLD','SHIPPED','OUTBOUND','RESERVED')
+                        WHERE lot_no = ? AND status IN ('PICKED','SOLD','SHIPPED','RESERVED')
                         ORDER BY COALESCE(outbound_date, picked_date, '') DESC, sub_lt
                     """, (lot_no,))
                 else:
@@ -212,7 +212,7 @@ class QueryMixin:
                            ap.customer AS alloc_customer, ap.outbound_date AS alloc_outbound_date
                     FROM inventory_tonbag t
                     LEFT JOIN allocation_plan ap ON ap.tonbag_id = t.id AND ap.status IN ('RESERVED','EXECUTED')
-                    WHERE t.status IN ('PICKED','SOLD','SHIPPED','OUTBOUND','RESERVED')
+                    WHERE t.status IN ('PICKED','SOLD','SHIPPED','RESERVED')
                     ORDER BY t.lot_no, COALESCE(t.outbound_date, t.picked_date, ap.outbound_date, '') DESC, t.sub_lt
                 """)
             except sqlite3.OperationalError as _e:
@@ -222,7 +222,7 @@ class QueryMixin:
                                is_sample, picked_to, picked_date, outbound_date,
                                picked_to AS alloc_customer, outbound_date AS alloc_outbound_date
                         FROM inventory_tonbag
-                        WHERE status IN ('PICKED','SOLD','SHIPPED','OUTBOUND','RESERVED')
+                        WHERE status IN ('PICKED','SOLD','SHIPPED','RESERVED')
                         ORDER BY lot_no, COALESCE(outbound_date, picked_date, '') DESC, sub_lt
                     """)
                 else:
@@ -286,7 +286,7 @@ class QueryMixin:
                 i.current_weight, i.initial_weight,
                 t.weight AS tonbag_weight,
                 t.weight AS tonbag_initial_weight,
-                CASE WHEN t.status IN ('PICKED','SOLD','SHIPPED','OUTBOUND','DEPLETED') THEN 0 ELSE t.weight END AS tonbag_current_weight,
+                CASE WHEN t.status IN ('PICKED','SOLD','SHIPPED','DEPLETED') THEN 0 ELSE t.weight END AS tonbag_current_weight,
                 t.picked_date, t.picked_to
             FROM inventory_tonbag t
             LEFT JOIN inventory i ON t.lot_no = i.lot_no
@@ -308,7 +308,7 @@ class QueryMixin:
                 i.current_weight, i.initial_weight,
                 t.weight AS tonbag_weight,
                 t.weight AS tonbag_initial_weight,
-                CASE WHEN t.status IN ('PICKED','SOLD','SHIPPED','OUTBOUND','DEPLETED') THEN 0 ELSE t.weight END AS tonbag_current_weight,
+                CASE WHEN t.status IN ('PICKED','SOLD','SHIPPED','DEPLETED') THEN 0 ELSE t.weight END AS tonbag_current_weight,
                 t.picked_date, t.picked_to
             FROM inventory_tonbag t
             LEFT JOIN inventory i ON t.lot_no = i.lot_no
@@ -412,7 +412,7 @@ class QueryMixin:
                        COALESCE(SUM(weight), 0) as total_kg,
                        COUNT(*) as bag_count
                 FROM inventory_tonbag
-                WHERE status IN ('PICKED', 'OUTBOUND')
+                WHERE status IN ('PICKED')
                 GROUP BY picked_to ORDER BY total_kg DESC
             """
             rows = self.db.fetchall(query)
@@ -467,7 +467,7 @@ class QueryMixin:
                 cnt_reserved = fb.get('c', 0) if isinstance(fb, dict) else (fb[0] if fb else 0)
             picked = self.db.fetchone("SELECT COUNT(DISTINCT lot_no) AS c FROM inventory_tonbag WHERE status = 'PICKED'")
             cnt_picked = picked.get('c', 0) if isinstance(picked, dict) else (picked[0] if picked else 0)
-            sold = self.db.fetchone("SELECT COUNT(DISTINCT lot_no) AS c FROM inventory_tonbag WHERE status IN ('SOLD','OUTBOUND')")
+            sold = self.db.fetchone("SELECT COUNT(DISTINCT lot_no) AS c FROM inventory_tonbag WHERE status IN ('SOLD')")
             cnt_sold = sold.get('c', 0) if isinstance(sold, dict) else (sold[0] if sold else 0)
             if scope == 'current':
                 cnt_sold = 0  # 현재 재고 기준에서는 출고 개수 미표시
@@ -656,7 +656,7 @@ class QueryMixin:
 
     def count_tonbags_by_status(self, lot_no: str) -> dict:
         """LOT별 상태별 톤백 수 한 번에 조회 (N+1 방지용 배치 버전).
-        반환: {'AVAILABLE': N, 'RESERVED': N, 'PICKED': N, 'OUTBOUND': N, ...}
+        반환: {'AVAILABLE': N, 'RESERVED': N, 'PICKED': N, 'SOLD': N, ...}
         """
         try:
             rows = self.db.fetchall(

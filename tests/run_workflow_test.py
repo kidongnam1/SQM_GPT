@@ -239,12 +239,12 @@ def print_state_table(con, title, day):
           SUM(CASE WHEN is_sample=0 AND status='AVAILABLE' THEN 1 ELSE 0 END) ra,
           SUM(CASE WHEN is_sample=0 AND status='RESERVED'  THEN 1 ELSE 0 END) rr,
           SUM(CASE WHEN is_sample=0 AND status='PICKED'    THEN 1 ELSE 0 END) rp,
-          SUM(CASE WHEN is_sample=0 AND status='OUTBOUND'      THEN 1 ELSE 0 END) rs,
+          SUM(CASE WHEN is_sample=0 AND status='SOLD'           THEN 1 ELSE 0 END) rs,
           SUM(CASE WHEN is_sample=0 AND status='RETURN'    THEN 1 ELSE 0 END) rt,
           SUM(CASE WHEN is_sample=1 AND status='AVAILABLE' THEN 1 ELSE 0 END) sa,
           SUM(CASE WHEN is_sample=1 AND status='RESERVED'  THEN 1 ELSE 0 END) sr,
           SUM(CASE WHEN is_sample=1 AND status='PICKED'    THEN 1 ELSE 0 END) sp,
-          SUM(CASE WHEN is_sample=1 AND status='OUTBOUND'      THEN 1 ELSE 0 END) ss,
+          SUM(CASE WHEN is_sample=1 AND status='SOLD'           THEN 1 ELSE 0 END) ss,
           SUM(CASE WHEN is_sample=1 AND status='RETURN'    THEN 1 ELSE 0 END) st,
           SUM(weight) tm
         FROM inventory_tonbag
@@ -414,15 +414,15 @@ def step3_outbound(con):
     for r in rows:
         con.execute("""
             UPDATE inventory_tonbag
-            SET status='OUTBOUND', outbound_date=?, updated_at=?
+            SET status='SOLD', outbound_date=?, updated_at=?
             WHERE lot_no=? AND sub_lt=? AND status='PICKED'
         """, (now,now,r['lot_no'],r['sub_lt']))
         con.execute("""
-            UPDATE allocation_plan SET status='OUTBOUND', updated_at=?
+            UPDATE allocation_plan SET status='SOLD', updated_at=?
             WHERE lot_no=? AND sub_lt=? AND status='PICKED'
         """, (now,r['lot_no'],r['sub_lt']))
     con.commit()
-    print_state_table(con, "STEP 3 - 출고 완료 (PICKED -> OUTBOUND)", "Day 14")
+    print_state_table(con, "STEP 3 - 출고 완료 (PICKED -> SOLD)", "Day 14")
     print_outbound_table(con)
     check_integrity(con, "Step3-Outbound")
 
@@ -435,8 +435,8 @@ def print_outbound_table(con):
     print("  " + "-"*W)
     rows = con.execute("""
         SELECT lot_no, sap_no,
-          COUNT(CASE WHEN is_sample=0 AND status='OUTBOUND' THEN 1 END) rg,
-          COUNT(CASE WHEN is_sample=1 AND status='OUTBOUND' THEN 1 END) sm,
+          COUNT(CASE WHEN is_sample=0 AND status='SOLD' THEN 1 END) rg,
+          COUNT(CASE WHEN is_sample=1 AND status='SOLD' THEN 1 END) sm,
           MAX(outbound_date) od
         FROM inventory_tonbag GROUP BY lot_no, sap_no ORDER BY lot_no
     """).fetchall()
@@ -469,11 +469,11 @@ def step4_return(con):
         con.execute("""
             UPDATE inventory_tonbag
             SET status='RETURN', return_date=?, updated_at=?
-            WHERE lot_no=? AND sub_lt=1 AND status='OUTBOUND'
+            WHERE lot_no=? AND sub_lt=1 AND status='SOLD'
         """, (now,now,lot_no))
         con.execute("""
             UPDATE allocation_plan SET status='RETURN', updated_at=?
-            WHERE lot_no=? AND sub_lt=1 AND status='OUTBOUND'
+            WHERE lot_no=? AND sub_lt=1 AND status='SOLD'
         """, (now,lot_no))
     con.commit()
     print_state_table(con,
@@ -582,7 +582,7 @@ def final_summary(con):
         FROM inventory_tonbag GROUP BY status ORDER BY cnt DESC
     """).fetchall()
     mx   = max(r['cnt'] for r in sc) if sc else 1
-    cmap = {'AVAILABLE':C,'RESERVED':Y,'PICKED':B,'OUTBOUND':R,'RETURN':P}
+    cmap = {'AVAILABLE':C,'RESERVED':Y,'PICKED':B,'SOLD':R,'RETURN':P}
     print("\n  상태별 최종 톤백 수:")
     for r in sc:
         fn  = cmap.get(r['status'], lambda x: x)

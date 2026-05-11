@@ -342,7 +342,7 @@ class ReturnReinboundEngine:
                 "UPDATE sold_table "
                 "SET status='RETURNED', "
                 "remark=COALESCE(remark,'')||' | REINBOUND반품:'||? "
-                "WHERE lot_no=? AND status IN ('SOLD','OUTBOUND')",
+                "WHERE lot_no=? AND status IN ('SOLD')",
                 (_now, lot_no)
             )
             import logging as _log

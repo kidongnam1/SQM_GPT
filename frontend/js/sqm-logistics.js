@@ -22,7 +22,7 @@
 
   var STATUS_COLOR = {
     'INBOUND':'#1976d2','ALLOCATED':'#7b1fa2','PICKED':'#f57c00',
-    'OUTBOUND':'#388e3c','RETURN':'#c62828','HOLD':'#616161'
+    'SOLD':'#388e3c','RETURN':'#c62828','HOLD':'#616161'
   };
 
   function _renderInboundRows(rows) {
@@ -81,7 +81,7 @@
     if (!c) return;
     _inboundAllRows = [];
 
-    var FILTERS = ['ALL','INBOUND','ALLOCATED','PICKED','OUTBOUND','RETURN','HOLD'];
+    var FILTERS = ['ALL','INBOUND','ALLOCATED','PICKED','SOLD','RETURN','HOLD'];
     var filterBtns = FILTERS.map(function(s){
       var col = STATUS_COLOR[s] || '#555';
       return '<button class="inbound-filter-btn" data-status="'+s+'" '+
@@ -292,7 +292,7 @@
       '  <h2 style="margin:0">📤 출고 완료 (Sold / Outbound)</h2>',
       '  <div style="margin-left:auto;display:flex;gap:8px;align-items:center">',
       '    <button class="btn btn-primary" onclick="window.showOutboundPickingModal()" style="font-weight:600">📋 Picking List 업로드</button>',
-      '    <button class="btn" onclick="window.allocRevertStep(\'OUTBOUND\')" style="font-size:12px" title="OUTBOUND 상태를 PICKED로 되돌립니다">↩ OUTBOUND &rarr; PICKED</button>',
+      '    <button class="btn" onclick="window.allocRevertStep(\'SOLD\')" style="font-size:12px" title="SOLD 상태를 PICKED로 되돌립니다">↩ SOLD &rarr; PICKED</button>',
       '    <button class="btn btn-secondary" onclick="renderPage(\'outbound\')">🔁 새로고침</button>',
       '  </div>',
       '</div>',
@@ -613,7 +613,7 @@
         }
         var evtType = r.event_type||r.type||r.action||'';
         var evtColor = evtType.indexOf('ALLOC')>=0 ? '#7b1fa2'
-          : evtType.indexOf('OUTBOUND')>=0 ? '#388e3c'
+          : evtType.indexOf('SOLD')>=0 ? '#388e3c'
           : evtType.indexOf('INBOUND')>=0 ? '#1976d2'
           : evtType.indexOf('RETURN')>=0 ? '#c62828'
           : evtType.indexOf('ADJUST')>=0 ? '#f57c00'

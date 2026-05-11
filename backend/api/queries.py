@@ -267,7 +267,7 @@ def create_today_snapshot(force: bool = False):
             SELECT
                 COUNT(*) AS total_lots,
                 COALESCE(SUM(current_weight), 0)   AS total_weight,
-                COALESCE(SUM(CASE WHEN status NOT IN ('DEPLETED','OUTBOUND') THEN current_weight ELSE 0 END), 0) AS avail_weight,
+                COALESCE(SUM(CASE WHEN status NOT IN ('DEPLETED') THEN current_weight ELSE 0 END), 0) AS avail_weight,
                 COALESCE(SUM(picked_weight), 0)     AS picked_weight
             FROM inventory
         """).fetchone()
@@ -468,7 +468,7 @@ def get_sold_list(limit: int = 500):
                 SUM(COALESCE(s.sold_qty_kg, 0))      AS total_kg,
                 MAX(s.sold_date)                     AS sold_date
             FROM sold_table s
-            WHERE s.status IN ('SOLD', 'OUTBOUND', 'CONFIRMED')
+            WHERE s.status IN ('SOLD', 'CONFIRMED')
             GROUP BY s.lot_no, s.sales_order_no
             ORDER BY s.sold_date DESC, s.lot_no
             LIMIT ?

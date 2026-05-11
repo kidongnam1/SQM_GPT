@@ -102,7 +102,7 @@ def cleanup_logs(payload: dict = None):
         # stock_movement 정리 (참고용 이동 이력만 — INBOUND/OUTBOUND는 보존)
         move_del = con.execute("""
             DELETE FROM stock_movement
-            WHERE movement_type NOT IN ('INBOUND','OUTBOUND')
+            WHERE movement_type NOT IN ('INBOUND')
               AND julianday('now') - julianday(created_at) > ?
         """, (days,)).rowcount
 
@@ -356,9 +356,19 @@ def db_reset(body: dict = Body(default={})):
                 con.execute(f"DELETE FROM [{tbl}]")
                 deleted[tbl] = count
 
-        con.execute("VACUUM")
-        con.commit()
+        # [Fix 2026-05-09] VACUUM 트랜잭션 함정 회피
+        # Python sqlite3는 DELETE 시 자동 BEGIN -> VACUUM이 트랜잭션 내부에서 실행되어 실패
+        # 해결: 먼저 DELETE 트랜잭션 커밋 + 연결 종료 -> 별도 연결로 VACUUM
+        con.commit()  # DELETE 트랜잭션 종료
         con.close()
+
+        # VACUUM은 별도 연결에서 실행 (autocommit 모드)
+        import sqlite3 as _sqlite3
+        con_vacuum = _sqlite3.connect(db_file, timeout=10)
+        try:
+            con_vacuum.execute("VACUUM")
+        finally:
+            con_vacuum.close()
 
         return ok_response(
             data={"tables_cleared": deleted, "backup": backup_name},

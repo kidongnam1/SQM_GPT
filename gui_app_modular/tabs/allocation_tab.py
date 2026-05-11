@@ -107,8 +107,8 @@ class AllocationTabMixin:
         btn_revert_picked.pack(side=LEFT, padx=Spacing.XS)
         apply_tooltip(btn_revert_picked, "피킹(PICKED) 상태를 되돌려 RESERVED로 복원합니다.")
 
-        btn_revert_outbound = ttk.Button(btn_frame2, text="OUTBOUND → PICKED",
-                                          command=lambda: self._on_revert_step('OUTBOUND'))
+        btn_revert_outbound = ttk.Button(btn_frame2, text="SOLD → PICKED",
+                                          command=lambda: self._on_revert_step('SOLD'))
         btn_revert_outbound.pack(side=LEFT, padx=Spacing.XS)
         apply_tooltip(btn_revert_outbound, "출고(OUTBOUND/SOLD) 상태를 되돌려 PICKED로 복원합니다.")
 
@@ -985,7 +985,7 @@ class AllocationTabMixin:
             # v8.6.5: RESERVED + PICKED + OUTBOUND 전체 활성 배정 취소
             all_active = engine.db.fetchall(
                 "SELECT id, status FROM allocation_plan "
-                "WHERE status IN ('RESERVED','PENDING_APPROVAL','STAGED','PICKED','EXECUTED','OUTBOUND','SOLD','SHIPPED','CONFIRMED')"
+                "WHERE status IN ('RESERVED','PENDING_APPROVAL','STAGED','PICKED','EXECUTED','SOLD','SHIPPED','CONFIRMED')"
             ) or []
             all_plan_ids = [row['id'] if isinstance(row, dict) else row[0] for row in all_active]
             if not all_plan_ids:
@@ -1006,7 +1006,7 @@ class AllocationTabMixin:
             ):
                 return
             has_picked = any(s in _statuses for s in ('PICKED', 'EXECUTED'))
-            has_outbound = any(s in _statuses for s in ('OUTBOUND', 'SOLD', 'SHIPPED', 'CONFIRMED'))
+            has_outbound = any(s in _statuses for s in ('SOLD', 'SHIPPED', 'CONFIRMED'))
             r = engine.cancel_reservation(
                 plan_ids=all_plan_ids,
                 include_picked=has_picked,
@@ -1039,8 +1039,8 @@ class AllocationTabMixin:
                 'label': 'PICKED → RESERVED',
                 'tb_clear': ('outbound_date',),
             },
-            'OUTBOUND': {
-                'source': ('OUTBOUND', 'SOLD', 'SHIPPED', 'CONFIRMED'),
+            'SOLD': {
+                'source': ('SOLD', 'SHIPPED', 'CONFIRMED'),
                 'target_tb': 'PICKED',
                 'target_plan': 'EXECUTED',
                 'label': 'OUTBOUND → PICKED',
@@ -1114,10 +1114,10 @@ class AllocationTabMixin:
                                 [grp['target_tb'], now, _lot] + list(grp['source']))
 
                     # OUTBOUND → PICKED: sold_table도 되돌리기
-                    if from_status == 'OUTBOUND' and _lot:
+                    if from_status == 'SOLD' and _lot:
                         engine.db.execute(
                             "UPDATE sold_table SET status='RETURNED' "
-                            "WHERE lot_no=? AND status IN ('OUTBOUND','SOLD')", (_lot,))
+                            "WHERE lot_no=? AND status IN ('SOLD')", (_lot,))
 
                     # allocation_plan 상태 변경
                     engine.db.execute(
@@ -1325,7 +1325,7 @@ class AllocationTabMixin:
         # v8.6.5: 전체 활성 배정 조회 (RESERVED + PICKED + OUTBOUND)
         all_active = engine.db.fetchall(
             "SELECT id, status FROM allocation_plan "
-            "WHERE status IN ('RESERVED','PENDING_APPROVAL','STAGED','PICKED','EXECUTED','OUTBOUND','SOLD','SHIPPED','CONFIRMED')"
+            "WHERE status IN ('RESERVED','PENDING_APPROVAL','STAGED','PICKED','EXECUTED','SOLD','SHIPPED','CONFIRMED')"
         ) or []
         all_plan_ids = [row['id'] if isinstance(row, dict) else row[0] for row in all_active]
         if not all_plan_ids:
@@ -1342,7 +1342,7 @@ class AllocationTabMixin:
         ):
             return
         has_picked = any(s in _statuses for s in ('PICKED', 'EXECUTED'))
-        has_outbound = any(s in _statuses for s in ('OUTBOUND', 'SOLD', 'SHIPPED', 'CONFIRMED'))
+        has_outbound = any(s in _statuses for s in ('SOLD', 'SHIPPED', 'CONFIRMED'))
         r = engine.cancel_reservation(
             plan_ids=all_plan_ids,
             include_picked=has_picked,

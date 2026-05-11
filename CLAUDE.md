@@ -2,7 +2,7 @@
 
 **작업 폴더:** `D:\program\SQM_inventory\SQM_v867_clean`
 **GitHub:** `https://github.com/kidongnam1/sqm_3` (main)
-**최종 갱신:** 2026-05-08
+**최종 갱신:** 2026-05-09
 
 ---
 
@@ -16,16 +16,18 @@ PyWebView 5 · FastAPI 0.104 · Vanilla JS · SQLite WAL · Python 3.11
 - **방지책 ④** — 세션 시작 시 py_compile + node --check 전수검사
 - 색상/폰트 → `design-tokens.css` 변수만 (하드코딩 금지)
 
-## CURRENT STATE (2026-05-08)
-- ✅ LAYER 1 완료 (P1+P2+P3+P11) — 어제 6-pass 검증
-- ✅ 발견 ①② 반영 (commit `65cc27d`)
-- ✅ P4 Mutex 락 (이름: `SQM_Inventory_SingleInstance_v867`)
-- 🔧 P5 Heartbeat 진행 / ⏳ P7~P10 대기
+## CURRENT STATE (2026-05-09)
+- ✅ LAYER 1 + 2 + 3 모두 완료 (90be151, 7cdcd29)
+- ✅ 발견 ①② + Title Transfer Date 라벨 (65cc27d, c83aac0)
+- ✅ CLAUDE.md 5분할 + 패치 자산화 (dfd7459, 7cdcd29)
+- ✅ Claude CLI 9개 플러그인 설치 (superpowers/bkit/codex/context7/code-review/code-simplifier/frontend-design/pyright-lsp/telegram)
+- 🎯 다음: Phase 6 EXE 빌드 (5/15-16 주말)
 
 ## REFERENCES (필요 시 로드)
 - `@docs/claude/CLAUDE.layer2.md` — LAYER 2 작업 상세
 - `@docs/claude/CLAUDE.test.md` — pytest / Playwright
 - `@docs/claude/CLAUDE.history.md` — 학습 로그 + 사고 이력
+- `@docs/claude/CLAUDE.plugins.md` — Claude CLI 9개 플러그인 + 4모드
 - `@docs/claude/CLAUDE.full.md` — 원본 백업
 - `@WORK_ORDER_P4P5P7P10_20260507.md` — 작업 지시서
 

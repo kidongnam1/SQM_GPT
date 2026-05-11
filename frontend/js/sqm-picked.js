@@ -22,7 +22,7 @@
     if (st === 'AVAILABLE') return { bg: 'rgba(34,197,94,0.18)', fg: '#22c55e' };
     if (st === 'RESERVED' || st === 'ALLOCATED') return { bg: 'rgba(245,158,11,0.22)', fg: '#f59e0b' };
     if (st === 'PICKED') return { bg: 'rgba(59,130,246,0.22)', fg: '#3b82f6' };
-    if (st === 'SOLD' || st === 'OUTBOUND' || st === 'SHIPPED' || st === 'CONFIRMED') return { bg: 'rgba(239,68,68,0.2)', fg: '#ef4444' };
+    if (st === 'SOLD' || st === 'SHIPPED' || st === 'CONFIRMED') return { bg: 'rgba(239,68,68,0.2)', fg: '#ef4444' };
     if (st === 'RETURN' || st === 'RETURNED') return { bg: 'rgba(168,85,247,0.2)', fg: '#a855f7' };
     if (st === 'INBOUND') return { bg: 'rgba(59,130,246,0.22)', fg: '#3b82f6' };
     if (st === 'HOLD') return { bg: 'rgba(148,163,184,0.2)', fg: '#94a3b8' };

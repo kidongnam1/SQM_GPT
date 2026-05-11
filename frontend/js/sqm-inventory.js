@@ -57,7 +57,7 @@
           var bal = Number(r.balance);
           sumBal += bal;
           var st = String(r.status || '').toUpperCase();
-          if (st === 'SOLD' || st === 'OUTBOUND' || st === 'SHIPPED' || st === 'CONFIRMED') sumSold += bal;
+          if (st === 'SOLD' || st === 'SHIPPED' || st === 'CONFIRMED') sumSold += bal;
           else sumUnsold += bal;
         }
         if (r.net != null && !isNaN(Number(r.net))) sumNet += Number(r.net);
@@ -148,13 +148,13 @@
         var statusBadgeBg = (rawStatus === 'AVAILABLE') ? 'rgba(34,197,94,0.18)'
           : (rawStatus === 'RESERVED') ? 'rgba(245,158,11,0.22)'
           : (rawStatus === 'PICKED') ? 'rgba(59,130,246,0.22)'
-          : (rawStatus === 'SOLD' || rawStatus === 'OUTBOUND' || rawStatus === 'SHIPPED' || rawStatus === 'CONFIRMED') ? 'rgba(239,68,68,0.2)'
+          : (rawStatus === 'SOLD' || rawStatus === 'SHIPPED' || rawStatus === 'CONFIRMED') ? 'rgba(239,68,68,0.2)'
           : (rawStatus === 'RETURN' || rawStatus === 'RETURNED') ? 'rgba(168,85,247,0.2)'
           : 'rgba(148,163,184,0.2)';
         var statusBadgeColor = (rawStatus === 'AVAILABLE') ? '#22c55e'
           : (rawStatus === 'RESERVED') ? '#f59e0b'
           : (rawStatus === 'PICKED') ? '#3b82f6'
-          : (rawStatus === 'SOLD' || rawStatus === 'OUTBOUND' || rawStatus === 'SHIPPED' || rawStatus === 'CONFIRMED') ? '#ef4444'
+          : (rawStatus === 'SOLD' || rawStatus === 'SHIPPED' || rawStatus === 'CONFIRMED') ? '#ef4444'
           : (rawStatus === 'RETURN' || rawStatus === 'RETURNED') ? '#a855f7'
           : '#94a3b8';
 

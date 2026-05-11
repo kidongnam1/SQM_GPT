@@ -162,7 +162,7 @@ def query_audit_summary(db, date_from: str = '', date_to: str = '') -> dict:
     기간별 이벤트 요약 통계.
 
     Returns:
-        {'INBOUND': 5, 'OUTBOUND': 12, ...}
+        {'INBOUND': 5, 'SOLD': 12, ...}
     """
     try:
         where = ''

@@ -282,7 +282,7 @@ class ScanTabMixin:
         try:
             rows = self.db.fetchall(
                 "SELECT DISTINCT tonbag_uid FROM inventory_tonbag "
-                "WHERE tonbag_uid LIKE ? AND status NOT IN ('OUTBOUND','SOLD') "
+                "WHERE tonbag_uid LIKE ? AND status NOT IN ('SOLD') "
                 "LIMIT 8",
                 (text + '%',)
             ) or []
@@ -547,7 +547,7 @@ class ScanTabMixin:
         try:
             now = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             self.db.execute(
-                "UPDATE inventory_tonbag SET status='OUTBOUND', updated_at=? WHERE tonbag_uid=?",
+                "UPDATE inventory_tonbag SET status='SOLD', updated_at=? WHERE tonbag_uid=?",
                 (now, uid)
             )
             # ★ v8.1.5 BUG-13: sold_table 자동 INSERT
@@ -635,7 +635,7 @@ class ScanTabMixin:
             return
 
         # 반품 가능 상태 확인
-        returnable = ('PICKED', 'OUTBOUND', 'SOLD', 'CONFIRMED', 'SHIPPED', 'RESERVED')
+        returnable = ('PICKED', 'SOLD', 'CONFIRMED', 'SHIPPED', 'RESERVED')
         if status not in returnable:
             msg = f"반품 불가 상태 (현재: {status})"
             self._scan_add_hist(uid, lot_no, '반품등록', msg, False)

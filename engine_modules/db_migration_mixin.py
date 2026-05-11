@@ -2542,7 +2542,7 @@ class DatabaseMigrationMixin:
                        i.gross_weight, i.mxbg_pallet, i.sold_to, i.sale_ref
                 FROM inventory_tonbag t
                 JOIN inventory i ON t.lot_no = i.lot_no
-                WHERE t.status IN ('OUTBOUND', 'SOLD')
+                WHERE t.status IN ('SOLD')
                   AND t.id NOT IN (SELECT COALESCE(tonbag_id, 0) FROM sold_table)
             """)
             if orphans:
@@ -2566,7 +2566,7 @@ class DatabaseMigrationMixin:
                              gross_weight_kg, sold_date, status, created_by,
                              sap_no, bl_no, customer, sku, delivery_date, ct_plt, is_sample)
                             VALUES (?, ?, ?, ?, ?, ?,
-                                    ?, ?, 'OUTBOUND', 'migration_v857',
+                                    ?, ?, 'migration_v857',
                                     ?, ?, ?, ?, ?, 1, ?)""",
                             (r['lot_no'], r['tonbag_id'], r.get('sub_lt', 0),
                              r.get('tonbag_uid', ''),

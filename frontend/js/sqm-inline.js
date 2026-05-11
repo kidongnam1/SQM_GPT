@@ -1416,7 +1416,7 @@
       '  <span style="font-size:12px;font-weight:600;white-space:nowrap">&#x21A9; 단계 되돌리기:</span>',
       '  <button class="btn" onclick="window.allocRevertStep(\'RESERVED\')" style="font-size:12px">RESERVED &rarr; AVAILABLE</button>',
       '  <button class="btn" onclick="window.allocRevertStep(\'PICKED\')" style="font-size:12px">PICKED &rarr; RESERVED</button>',
-      '  <button class="btn" onclick="window.allocRevertStep(\'OUTBOUND\')" style="font-size:12px">OUTBOUND &rarr; PICKED</button>',
+      '  <button class="btn" onclick="window.allocRevertStep(\'SOLD\')" style="font-size:12px">SOLD &rarr; PICKED</button>',
       '</div>',
       /* ── 상태 필터 ── */
       '<div class="alloc-filter" style="display:flex;gap:4px;margin-bottom:8px">',
@@ -1670,7 +1670,7 @@
 
   /* ── 단계 되돌리기 ── */
   window.allocRevertStep = function(fromStatus) {
-    var labels = { RESERVED: 'RESERVED → AVAILABLE', PICKED: 'PICKED → RESERVED', OUTBOUND: 'OUTBOUND → PICKED' };
+    var labels = { RESERVED: 'RESERVED → AVAILABLE', PICKED: 'PICKED → RESERVED', SOLD: 'SOLD → PICKED' };
     var label = labels[fromStatus] || fromStatus;
     if (!confirm('↩️ 단계 되돌리기\n\n' + label + '\n\n' + fromStatus + ' 상태의 모든 배정을 한 단계 되돌립니다.\n계속하시겠습니까?')) return;
     apiPost('/api/allocation/revert-step', { from_status: fromStatus })
@@ -1739,7 +1739,7 @@
 
   /* ── 단계 되돌리기 ── */
   window.allocRevertStep = function(fromStatus) {
-    var labels = { RESERVED: 'RESERVED → AVAILABLE', PICKED: 'PICKED → RESERVED', OUTBOUND: 'OUTBOUND → PICKED' };
+    var labels = { RESERVED: 'RESERVED → AVAILABLE', PICKED: 'PICKED → RESERVED', SOLD: 'SOLD → PICKED' };
     var label = labels[fromStatus] || fromStatus;
     if (!confirm('↩️ 단계 되돌리기\n\n' + label + '\n\n' + fromStatus + ' 상태의 모든 배정을 한 단계 되돌립니다.\n계속하시겠습니까?')) return;
     apiPost('/api/allocation/revert-step', { from_status: fromStatus })
@@ -2091,7 +2091,7 @@
 
   var STATUS_COLOR = {
     'INBOUND':'#1976d2','ALLOCATED':'#7b1fa2','PICKED':'#f57c00',
-    'OUTBOUND':'#388e3c','RETURN':'#c62828','HOLD':'#616161'
+    'SOLD':'#388e3c','RETURN':'#c62828','HOLD':'#616161'
   };
 
   function _renderInboundRows(rows) {
@@ -2151,7 +2151,7 @@
     if (!c) return;
     _inboundAllRows = [];
 
-    var FILTERS = ['ALL','INBOUND','ALLOCATED','PICKED','OUTBOUND','RETURN','HOLD'];
+    var FILTERS = ['ALL','INBOUND','ALLOCATED','PICKED','SOLD','RETURN','HOLD'];
     var filterBtns = FILTERS.map(function(s){
       var col = STATUS_COLOR[s] || '#555';
       return '<button class="inbound-filter-btn" data-status="'+s+'" '+
@@ -3960,7 +3960,7 @@
               '<div style="color:var(--text-muted);font-size:.85rem">LOT ' + escapeHtml(d.lot_no||'-') + ' · ' + (d.picked_count||0) + '개 톤백 · ' + (d.total_weight_mt||0).toFixed(3) + ' MT · ' + escapeHtml(d.customer||'-') + '</div>' +
               '</div>';
             showToast('success', res.message || '출고 완료');
-            dbgLog('🟢','QUICK-OUTBOUND OK', res.message, '#66bb6a');
+            dbgLog('🟢','QUICK-SOLD OK', res.message, '#66bb6a');
             // refresh
             if (_currentRoute === 'inventory' && typeof loadInventoryPage === 'function') loadInventoryPage();
             if (typeof loadKpi === 'function') loadKpi();
@@ -3973,7 +3973,7 @@
               (errs.length ? '<ul style="margin:8px 0 0 18px;color:var(--text-muted);font-size:.85rem">' + errs.map(function(e){return '<li>'+escapeHtml(e)+'</li>';}).join('') + '</ul>' : '') +
               '</div>';
             showToast('error', errMsg);
-            dbgLog('🔴','QUICK-OUTBOUND FAIL', errMsg, '#ef5350');
+            dbgLog('🔴','QUICK-SOLD FAIL', errMsg, '#ef5350');
             submitBtn.disabled = false;
             cancelBtn.disabled = false;
           }
@@ -4662,14 +4662,14 @@
   window.showQuickOutboundPasteModal = showQuickOutboundPasteModal;
 
   /* ===================================================
-     8i. F028 출고 확정 — PICKED → OUTBOUND
+     8i. F028 출고 확정 — PICKED → SOLD
      =================================================== */
   function showOutboundConfirmModal() {
     var html = [
       '<div style="max-width:640px">',
-      '  <h2 style="margin:0 0 12px 0">✅ 출고 확정 — PICKED → OUTBOUND</h2>',
+      '  <h2 style="margin:0 0 12px 0">✅ 출고 확정 — PICKED → SOLD</h2>',
       '  <p style="color:var(--text-muted);margin:0 0 12px 0;font-size:.9rem">',
-      '    PICKED 상태인 톤백을 실제 출고(OUTBOUND)로 확정합니다.',
+      '    PICKED 상태인 톤백을 실제 출고(SOLD)로 확정합니다.',
       '  </p>',
       '  <div style="display:grid;grid-template-columns:110px 1fr;gap:10px;align-items:center;margin-bottom:10px">',
       '    <label style="font-weight:600">LOT 번호</label>',
@@ -4736,7 +4736,7 @@
     cancel.addEventListener('click', function(){ document.getElementById('sqm-modal').style.display='none'; });
     submit.addEventListener('click', function(){
       var payload = { lot_no: lot.value.trim(), force_all: force.checked };
-      var msg = payload.lot_no ? ('LOT ' + payload.lot_no + ' 의 PICKED 톤백을 OUTBOUND 로 확정합니다.') :
+      var msg = payload.lot_no ? ('LOT ' + payload.lot_no + ' 의 PICKED 톤백을 SOLD 로 확정합니다.') :
                                   '⚠️ LOT 미지정 — 전체 PICKED 일괄 확정입니다! 매우 위험.';
       if (!confirm(msg + '\n계속하시겠습니까?')) return;
 
@@ -4752,7 +4752,7 @@
             '<div style="color:var(--text-muted);font-size:.85rem;margin-top:4px">LOT: ' + escapeHtml(d.lot_no||'-') + ' · 확정 <strong>' + (d.confirmed||0) + '</strong>개</div>' +
             '</div>';
           showToast('success', res.message || '확정 완료');
-          dbgLog('🟢','CONFIRM-OUTBOUND OK', res.message, '#66bb6a');
+          dbgLog('🟢','CONFIRM-SOLD OK', res.message, '#66bb6a');
           if (_currentRoute === 'inventory' && typeof loadInventoryPage === 'function') loadInventoryPage();
           if (typeof loadKpi === 'function') loadKpi();
           loadSummary();
@@ -4818,7 +4818,7 @@
             showToast('success', res.message || '입고 취소 완료');
             if (typeof loadKpi === 'function') loadKpi();
           } else {
-            result.innerHTML = '<div style="padding:12px;background:var(--bg-hover);border-radius:6px;border-left:4px solid var(--danger)"><div style="font-weight:600">❌ ' + escapeHtml((res&&res.message)||'실패') + '</div></div>';
+            result.innerHTML = '<div style="padding:12px;background:var(--bg-hover);border-radius:6px;border-left:4px solid var(--danger)"><div style="font-weight:600">❌ ' + escapeHtml((res&&(res.message||res.error||res.detail))||'실패') + '</div></div>';
             showToast('error', (res&&res.message)||'실패');
             submit.disabled = false; cancel.disabled = false;
           }
@@ -5017,7 +5017,7 @@
           result.innerHTML = '<div style="padding:12px;background:var(--bg-hover);border-radius:6px;border-left:4px solid var(--success)"><div style="font-weight:600">✅ ' + escapeHtml(res.message||'반품 완료') + '</div></div>';
           showToast('success', res.message || '반품 완료');
         } else {
-          result.innerHTML = '<div style="padding:12px;color:var(--danger)">❌ ' + escapeHtml((res&&res.message)||'실패') + '</div>';
+          result.innerHTML = '<div style="padding:12px;color:var(--danger)">❌ ' + escapeHtml((res&&(res.message||res.error||res.detail))||'실패') + '</div>';
           submitBtn.disabled = false;
         }
       }).catch(function(e){
@@ -5106,7 +5106,7 @@
             document.getElementById('dbr-result').innerHTML = '<div style="padding:12px;background:var(--bg-hover);border-radius:6px;border-left:4px solid var(--success)"><div style="font-weight:600">✅ DB 초기화 완료</div></div>';
             showToast('success', 'DB 초기화 완료');
           } else {
-            document.getElementById('dbr-result').innerHTML = '<div style="padding:12px;color:var(--danger)">❌ ' + escapeHtml((res&&res.message)||'실패') + '</div>';
+            document.getElementById('dbr-result').innerHTML = '<div style="padding:12px;color:var(--danger)">❌ ' + escapeHtml((res&&(res.message||res.error||res.detail))||'실패') + '</div>';
             submit.disabled = false;
           }
         })
@@ -5876,7 +5876,7 @@
         if (!byProd[p]) byProd[p] = { inbound:0, outbound:0, return_count:0, move:0 };
         var t = (r.movement_type||'').toUpperCase();
         if (t === 'INBOUND') byProd[p].inbound += Number(r.quantity||r.weight||1);
-        else if (t === 'OUTBOUND') byProd[p].outbound += Number(r.quantity||r.weight||1);
+        else if (t === 'SOLD') byProd[p].outbound += Number(r.quantity||r.weight||1);
         else if (t === 'RETURN') byProd[p].return_count += Number(r.quantity||r.weight||1);
         else byProd[p].move += Number(r.quantity||r.weight||1);
       });
@@ -6213,7 +6213,7 @@
       }
       var prefer = rows.filter(function(r){
         var t = ((r.event_type || '') + ' ' + (String(r.event_data || ''))).toUpperCase();
-        return t.indexOf('PDF') >= 0 || t.indexOf('REPORT') >= 0 || t.indexOf('OUTBOUND') >= 0 || t.indexOf('INBOUND') >= 0;
+        return t.indexOf('PDF') >= 0 || t.indexOf('REPORT') >= 0 || t.indexOf('SOLD') >= 0 || t.indexOf('INBOUND') >= 0;
       });
       var show = prefer.length ? prefer.slice(0, 80) : rows.slice(0, 80);
       var tbl = '<table class="data-table"><thead><tr><th>시간</th><th>유형</th><th>요약</th></tr></thead><tbody>';

@@ -550,10 +550,10 @@ class DatabaseSchemaMixin:
                         FILTER(WHERE status='PICKED'), 0)
                         AS picked_weight_kg,
                     COUNT(*)
-                        FILTER(WHERE status IN ('OUTBOUND','SOLD','SHIPPED','CONFIRMED'))
+                        FILTER(WHERE status IN ('SOLD','SHIPPED','CONFIRMED'))
                         AS outbound_count,
                     COALESCE(SUM(weight)
-                        FILTER(WHERE status IN ('OUTBOUND','SOLD','SHIPPED','CONFIRMED')), 0)
+                        FILTER(WHERE status IN ('SOLD','SHIPPED','CONFIRMED')), 0)
                         AS outbound_weight_kg,
                     COUNT(*)
                         FILTER(WHERE COALESCE(is_sample,0)=1)

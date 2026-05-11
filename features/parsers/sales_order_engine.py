@@ -382,7 +382,7 @@ class SalesOrderEngine:
                 self.db.executemany(
                     """
                     UPDATE picking_table
-                    SET status = 'OUTBOUND', sold_date = ?, sales_order_no = ?
+                    SET status = 'SOLD', sold_date = ?, sales_order_no = ?
                     WHERE id = ?
                     """,
                     [(now, so, pid) for so, pid in picking_updates],
@@ -391,7 +391,7 @@ class SalesOrderEngine:
                 self.db.executemany(
                     """
                     UPDATE inventory_tonbag
-                    SET status = 'OUTBOUND', outbound_date = ?, sale_ref = ?, updated_at = ?
+                    SET status = 'SOLD', outbound_date = ?, sale_ref = ?, updated_at = ?
                     WHERE id = ?
                     """,
                     [(now, so, now, tid) for so, tid in tonbag_updates],
@@ -458,12 +458,12 @@ class SalesOrderEngine:
         else:
             for so, pid in picking_updates:
                 self.db.execute(
-                    "UPDATE picking_table SET status='OUTBOUND', sold_date=?, sales_order_no=? WHERE id=?",
+                    "UPDATE picking_table SET status='SOLD', sold_date=?, sales_order_no=? WHERE id=?",
                     (now, so, pid),
                 )
             for so, tid in tonbag_updates:
                 self.db.execute(
-                    "UPDATE inventory_tonbag SET status='OUTBOUND', outbound_date=?, sale_ref=?, updated_at=? WHERE id=?",
+                    "UPDATE inventory_tonbag SET status='SOLD', outbound_date=?, sale_ref=?, updated_at=? WHERE id=?",
                     (now, so, now, tid),
                 )
             for lot, kg in inventory_delta.items():
@@ -794,7 +794,7 @@ class SalesOrderEngine:
             self.db.execute(
                 """
                 UPDATE picking_table
-                SET status = 'OUTBOUND', sold_date = datetime('now')
+                SET status = 'SOLD', sold_date = datetime('now')
                 WHERE id = ?
                 """,
                 (pk_row["id"],),
@@ -804,7 +804,7 @@ class SalesOrderEngine:
                 self.db.execute(
                     """
                     UPDATE inventory_tonbag
-                    SET status = 'OUTBOUND', outbound_date = datetime('now'),
+                    SET status = 'SOLD', outbound_date = datetime('now'),
                         sale_ref = ?, updated_at = datetime('now')
                     WHERE id = ?
                     """,
@@ -986,17 +986,17 @@ class SalesOrderEngine:
 
                 if picking_rows:
                     self.db.execute(
-                        "UPDATE sold_table SET status='OUTBOUND', sold_date=datetime('now') WHERE id=?",
+                        "UPDATE sold_table SET status='SOLD', sold_date=datetime('now') WHERE id=?",
                         (pr["id"],),
                     )
                     for pk in picking_rows:
                         self.db.execute(
-                            "UPDATE picking_table SET status='OUTBOUND', sold_date=datetime('now') WHERE id=?",
+                            "UPDATE picking_table SET status='SOLD', sold_date=datetime('now') WHERE id=?",
                             (pk["id"],),
                         )
                         if pk.get("tonbag_id"):
                             self.db.execute(
-                                "UPDATE inventory_tonbag SET status='OUTBOUND', outbound_date=datetime('now') WHERE id=?",
+                                "UPDATE inventory_tonbag SET status='SOLD', outbound_date=datetime('now') WHERE id=?",
                                 (pk["tonbag_id"],),
                             )
                             qty_kg = pk.get("qty_kg") or TONBAG_WEIGHT_KG

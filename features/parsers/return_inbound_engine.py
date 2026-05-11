@@ -174,7 +174,7 @@ def process_return_inbound(engine: Any, parsed: dict, source_file: str = "") -> 
                 try:
                     db.execute(
                         "UPDATE sold_table SET status = 'RETURNED' "
-                        "WHERE lot_no = ? AND sub_lt = ? AND status IN ('SOLD','OUTBOUND')",
+                        "WHERE lot_no = ? AND sub_lt = ? AND status IN ('SOLD')",
                         (r["lot_no"], r["sub_lt"]),
                     )
                 except (sqlite3.OperationalError, ValueError, TypeError, KeyError, AttributeError) as _se:

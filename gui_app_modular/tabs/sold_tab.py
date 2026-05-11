@@ -12,8 +12,8 @@ from ..utils.ui_constants import is_dark, Spacing, ThemeColors, apply_tooltip
 
 logger = logging.getLogger(__name__)
 
-# v8.1.5: 출고 확정 시 'OUTBOUND', 레거시 'SOLD' 행 병행 조회
-_SOLD_TABLE_ACTIVE_STATUSES = ("'SOLD'", "'OUTBOUND'", "'CONFIRMED'")
+# v8.6.8: OUTBOUND→SOLD 통합 완료
+_SOLD_TABLE_ACTIVE_STATUSES = ("'SOLD'", "'CONFIRMED'")
 
 SOLD_LOT_COLUMNS = [
     ('row_num',        'No.',        50, 'center'),

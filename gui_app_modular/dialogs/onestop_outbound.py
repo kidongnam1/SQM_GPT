@@ -1785,7 +1785,7 @@ class S1OneStopOutboundDialog:
             for batch in finalized:
                 for tb_id in batch['selected_tonbags']:
                     self.db.execute(
-                        "UPDATE inventory_tonbag SET status='OUTBOUND', "
+                        "UPDATE inventory_tonbag SET status='SOLD', "
                         "outbound_date=?, updated_at=? WHERE id=? AND status='PICKED'",
                         (date.today().isoformat(), now_str, tb_id)
                     )
@@ -1806,7 +1806,7 @@ class S1OneStopOutboundDialog:
             # ★ Q2: 출고 완료 이벤트 기록
             for batch in finalized:
                 self._write_audit(
-                    event_type='OUTBOUND_SOLD',
+                    event_type='SOLD',
                     event_data={
                         'lot_no': batch['lot_no'],
                         'customer': batch['customer'],
@@ -1978,7 +1978,7 @@ class S1OneStopOutboundDialog:
         event_var = tk.StringVar(value="전체")
         event_combo = ttk.Combobox(row1, textvariable=event_var, width=18,
                                     values=["전체", "UNMATCHED_SCAN", "PROOF_ATTACH",
-                                            "OUTBOUND_SOLD", "PROOF_CLEANUP", "AUDIT_EXPORT"],
+                                            "SOLD", "PROOF_CLEANUP", "AUDIT_EXPORT"],
                                     state='readonly')
         event_combo.pack(side=LEFT, padx=4)
 

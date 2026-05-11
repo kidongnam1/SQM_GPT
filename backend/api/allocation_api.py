@@ -505,7 +505,7 @@ def cancel_by_sale_ref(data: dict = Body(...)):
         for lot_no in lot_list:
             con.execute(
                 "UPDATE inventory SET status='AVAILABLE', sold_to=NULL, sale_ref=NULL "
-                "WHERE lot_no=? AND status NOT IN ('SOLD','OUTBOUND')",
+                "WHERE lot_no=? AND status NOT IN ('SOLD')",
                 (lot_no,)
             )
         con.commit(); con.close()
@@ -546,7 +546,7 @@ def reset_all_allocations():
         for lot_no in lot_list:
             con.execute(
                 "UPDATE inventory SET status='AVAILABLE', sold_to=NULL, sale_ref=NULL "
-                "WHERE lot_no=? AND status NOT IN ('SOLD','OUTBOUND')",
+                "WHERE lot_no=? AND status NOT IN ('SOLD')",
                 (lot_no,)
             )
         con.commit(); con.close()
@@ -569,7 +569,7 @@ def reset_all_allocations():
 _REVERT_MAP = {
     "RESERVED": ("RESERVED",  "AVAILABLE"),
     "PICKED":   ("PICKED",    "RESERVED"),
-    "OUTBOUND": ("OUTBOUND",  "PICKED"),
+    "SOLD": ("PICKED"),
 }
 
 @router.post("/revert-step", summary="↩️ 단계 되돌리기 (RESERVED→AVAILABLE 등)")
@@ -820,7 +820,7 @@ def get_allocation_lot_overview():
             FROM inventory i
             LEFT JOIN allocation_plan ap ON ap.lot_no = i.lot_no
             LEFT JOIN inventory_tonbag t ON t.lot_no = i.lot_no
-            WHERE i.status NOT IN ('SOLD','CANCELLED','OUTBOUND','DEPLETED')
+            WHERE i.status NOT IN ('SOLD','CANCELLED','DEPLETED')
             GROUP BY i.lot_no
             ORDER BY i.lot_no
         """).fetchall()

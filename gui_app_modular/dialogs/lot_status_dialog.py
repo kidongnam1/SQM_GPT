@@ -29,7 +29,7 @@ COLUMNS = [
     ('reserved_tb',  'RESERVED',     85, 'center'),
     ('reserved_mt',  'RSV(MT)',       70, 'center'),
     ('picked_tb',    'PICKED',        65, 'center'),
-    ('out_tb',       'OUTBOUND',      70, 'center'),
+    ('out_tb',      70, 'center'),
     ('sample_stat',  '샘플(1kg)',     80, 'center'),
     ('rsv_pct',      '배정%',         55, 'center'),
     ('sale_refs',    'SALE REF',      80, 'center'),
@@ -42,7 +42,7 @@ STATUS_TAGS = {
     'PARTIAL':      {'background': '#dbeafe', 'foreground': '#1e40af'},
     'FULL_RSV':     {'background': '#c7d2fe', 'foreground': '#3730a3'},
     'PICKED':       {'background': '#fef3c7', 'foreground': '#92400e'},
-    'OUTBOUND':     {'background': '#f3f4f6', 'foreground': '#374151'},
+    'SOLD':     {'background': '#f3f4f6', 'foreground': '#374151'},
 }
 
 
@@ -53,7 +53,7 @@ def _calc_lot_status(row: dict) -> str:
     pick = int(row.get('picked_tb', 0) or 0)
     rsv = int(row.get('reserved_tb', 0) or 0)
     if tot > 0 and out >= tot:
-        return 'OUTBOUND'
+        return 'SOLD'
     if pick > 0:
         return 'PICKED'
     if rsv > 0 and rsv >= tot and tot > 0:
@@ -75,7 +75,7 @@ class LotStatusDialog:
             SUM(CASE WHEN COALESCE(t.is_sample,0)=0 AND t.status='PICKED'
                 THEN 1 ELSE 0 END) AS picked_tb,
             SUM(CASE WHEN COALESCE(t.is_sample,0)=0
-                AND t.status IN ('OUTBOUND','SOLD') THEN 1 ELSE 0 END) AS out_tb,
+                AND t.status IN ('SOLD') THEN 1 ELSE 0 END) AS out_tb,
             COALESCE((SELECT CAST(SUM(ap.qty_mt/0.5) AS INT)
                 FROM allocation_plan ap
                 WHERE ap.lot_no=i.lot_no AND ap.status='RESERVED'), 0) AS reserved_tb,
@@ -144,7 +144,7 @@ class LotStatusDialog:
         # 상태 필터
         ttk.Label(toolbar, text="상태:").pack(side=LEFT, padx=(12, 4))
         self._status_filter = ttk.Combobox(toolbar, width=12, state='readonly',
-                                           values=['전체', 'AVAILABLE', 'PARTIAL', 'FULL_RSV', 'PICKED', 'OUTBOUND'])
+                                           values=['전체', 'AVAILABLE', 'PARTIAL', 'FULL_RSV', 'PICKED', 'SOLD'])
         self._status_filter.set('전체')
         self._status_filter.pack(side=LEFT, padx=2)
         self._status_filter.bind('<<ComboboxSelected>>', lambda e: self._apply_filter())
@@ -272,7 +272,7 @@ class LotStatusDialog:
                     'AVAILABLE': 'AVAIL',
                     'RESERVED':  'RSV',
                     'PICKED':    'PICKED',
-                    'OUTBOUND':  'DONE',
+                    'SOLD':  'DONE',
                     'SOLD':      'DONE',
                 }.get(samp_stat.upper(), samp_stat)
                 sample_display = f"{samp_cnt}개 {_stat_label}" 

@@ -148,7 +148,7 @@ class DashboardDataMixin:
                     WHERE con_return IS NOT NULL
                       AND con_return != ''
                       AND con_return <= ?
-                      AND status NOT IN ('OUTBOUND','SOLD','DEPLETED')
+                      AND status NOT IN ('SOLD','DEPLETED')
                     ORDER BY con_return ASC
                     LIMIT 5
                 """, (_d3,))
@@ -313,13 +313,13 @@ class DashboardDataMixin:
                     SUM(CASE WHEN status = 'AVAILABLE' THEN 1 ELSE 0 END) AS available_cnt,
                     SUM(CASE WHEN status = 'RESERVED'  THEN 1 ELSE 0 END) AS reserved_tonbag_cnt,
                     SUM(CASE WHEN status = 'PICKED'    THEN 1 ELSE 0 END) AS picked_cnt,
-                    SUM(CASE WHEN status IN ('OUTBOUND','SOLD') THEN 1 ELSE 0 END) AS outbound_cnt,
+                    SUM(CASE WHEN status IN ('SOLD') THEN 1 ELSE 0 END) AS outbound_cnt,
                     SUM(CASE WHEN status = 'SOLD'      THEN 1 ELSE 0 END) AS sold_cnt,
                     SUM(CASE WHEN status = 'RETURN'    THEN 1 ELSE 0 END) AS return_cnt,
                     COUNT(*) AS total_cnt,
                     COALESCE(SUM(CASE WHEN status = 'AVAILABLE' THEN weight ELSE 0 END), 0) AS available_kg,
                     COALESCE(SUM(CASE WHEN status = 'PICKED'    THEN weight ELSE 0 END), 0) AS picked_kg,
-                    COALESCE(SUM(CASE WHEN status IN ('OUTBOUND','SOLD') THEN weight ELSE 0 END), 0) AS outbound_kg,
+                    COALESCE(SUM(CASE WHEN status IN ('SOLD') THEN weight ELSE 0 END), 0) AS outbound_kg,
                     COALESCE(SUM(CASE WHEN status = 'SOLD'      THEN weight ELSE 0 END), 0) AS sold_kg,
                     COALESCE(SUM(CASE WHEN status = 'RETURN'    THEN weight ELSE 0 END), 0) AS return_kg,
                     COALESCE(SUM(weight), 0) AS total_kg,
@@ -327,8 +327,8 @@ class DashboardDataMixin:
                     SUM(CASE WHEN status='AVAILABLE' AND COALESCE(is_sample,0)=1 THEN 1 ELSE 0 END) AS avail_samp_cnt,
                     SUM(CASE WHEN status='PICKED'    AND COALESCE(is_sample,0)=0 THEN 1 ELSE 0 END) AS picked_tb_cnt,
                     SUM(CASE WHEN status='PICKED'    AND COALESCE(is_sample,0)=1 THEN 1 ELSE 0 END) AS picked_samp_cnt,
-                    SUM(CASE WHEN status IN ('OUTBOUND','SOLD') AND COALESCE(is_sample,0)=0 THEN 1 ELSE 0 END) AS out_tb_cnt,
-                    SUM(CASE WHEN status IN ('OUTBOUND','SOLD') AND COALESCE(is_sample,0)=1 THEN 1 ELSE 0 END) AS out_samp_cnt,
+                    SUM(CASE WHEN status IN ('SOLD') AND COALESCE(is_sample,0)=0 THEN 1 ELSE 0 END) AS out_tb_cnt,
+                    SUM(CASE WHEN status IN ('SOLD') AND COALESCE(is_sample,0)=1 THEN 1 ELSE 0 END) AS out_samp_cnt,
                     SUM(CASE WHEN status='RETURN'    AND COALESCE(is_sample,0)=0 THEN 1 ELSE 0 END) AS ret_tb_cnt,
                     SUM(CASE WHEN status='RETURN'    AND COALESCE(is_sample,0)=1 THEN 1 ELSE 0 END) AS ret_samp_cnt
                 FROM inventory_tonbag
@@ -813,7 +813,7 @@ class DashboardDataMixin:
             row = db.fetchone("""
                 SELECT COUNT(*) AS cnt
                 FROM stock_movement
-                WHERE movement_type IN ('OUTBOUND','SOLD','PICKED')
+                WHERE movement_type IN ('SOLD','PICKED')
                   AND created_at >= date('now', '-30 days')
             """)
             total = int(row['cnt'] if isinstance(row, dict) else (row[0] if row else 0))
@@ -905,7 +905,7 @@ class DashboardDataMixin:
                            julianday(COALESCE(inv.stock_date, inv.arrival_date, inv.created_at))) AS avg_d
                 FROM inventory inv
                 JOIN stock_movement sm ON sm.lot_no = inv.lot_no
-                WHERE sm.movement_type IN ('SOLD','OUTBOUND')
+                WHERE sm.movement_type IN ('SOLD')
                   AND COALESCE(inv.stock_date, inv.arrival_date) IS NOT NULL
                   AND sm.created_at >= date('now', '-180 days')
             """)
@@ -1100,7 +1100,7 @@ class DashboardDataMixin:
 
             row2 = self.engine.db.fetchone("""
                 SELECT COUNT(*) AS cnt FROM stock_movement
-                WHERE movement_type IN ('PICKED', 'SOLD', 'OUTBOUND')
+                WHERE movement_type IN ('PICKED', 'SOLD')
                 AND created_at >= date('now', '-30 days')
             """)
             if row2:
@@ -1271,7 +1271,7 @@ class DashboardDataMixin:
             r_out = db.fetchone(
                 "SELECT COUNT(*) AS cnt, COALESCE(SUM(weight), 0) AS kg "
                 "FROM inventory_tonbag "
-                "WHERE status IN ('OUTBOUND','SOLD','SHIPPED','CONFIRMED')"
+                "WHERE status IN ('SOLD','SHIPPED','CONFIRMED')"
             )
             out_cnt = int(_fv(r_out, "cnt") or 0)
             out_kg = float(_fv(r_out, "kg") or 0)
@@ -1293,7 +1293,7 @@ class DashboardDataMixin:
             cur_samp_cnt = int(_fv(r_cur_samp, "cnt") or 0)
             r_out_samp = db.fetchone(
                 "SELECT COUNT(*) AS cnt FROM inventory_tonbag "
-                "WHERE status IN ('OUTBOUND','SOLD','SHIPPED','CONFIRMED') "
+                "WHERE status IN ('SOLD','SHIPPED','CONFIRMED') "
                 "AND COALESCE(is_sample,0)=1"
             )
             out_samp_cnt = int(_fv(r_out_samp, "cnt") or 0)
@@ -1352,7 +1352,7 @@ class DashboardDataMixin:
                 SELECT i.lot_no,
                        i.initial_weight,
                        i.current_weight,
-                       COALESCE(SUM(CASE WHEN t.status IN ('OUTBOUND','SOLD')
+                       COALESCE(SUM(CASE WHEN t.status IN ('SOLD')
                                          THEN t.weight ELSE 0 END),0) AS out_kg,
                        COALESCE(SUM(CASE WHEN t.status IN ('AVAILABLE','RESERVED','PICKED','RETURN')
                                          AND COALESCE(t.is_sample,0)=0

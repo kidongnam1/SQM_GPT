@@ -61,7 +61,7 @@ def _run_kpi_queries(db_path: str) -> dict:
         cur.execute("""
             SELECT COUNT(DISTINCT lot_no)
             FROM inventory
-            WHERE status NOT IN ('SOLD', 'RETURNED', 'OUTBOUND', 'PENDING')
+            WHERE status NOT IN ('SOLD', 'RETURNED', 'PENDING')
         """)
         current_stock_lots = int(cur.fetchone()[0] or 0)
 
@@ -70,7 +70,7 @@ def _run_kpi_queries(db_path: str) -> dict:
             SELECT COUNT(*)
             FROM inventory_tonbag
             WHERE (location IS NULL OR TRIM(location) = '')
-              AND status NOT IN ('SOLD', 'RETURNED', 'OUTBOUND', 'PENDING')
+              AND status NOT IN ('SOLD', 'RETURNED', 'PENDING')
         """)
         unassigned_locations = int(cur.fetchone()[0] or 0)
 
@@ -155,7 +155,7 @@ def get_dashboard_stats():
         status_rows = c.execute("""
             SELECT
                 CASE
-                    WHEN status IN ('OUTBOUND', 'SOLD', 'SHIPPED', 'CONFIRMED') THEN 'outbound'
+                    WHEN status IN ('SOLD', 'SHIPPED', 'CONFIRMED') THEN 'outbound'
                     WHEN status = 'AVAILABLE' THEN 'available'
                     WHEN status = 'RESERVED'  THEN 'reserved'
                     WHEN status = 'PICKED'    THEN 'picked'
@@ -203,7 +203,7 @@ def get_dashboard_stats():
                 SUM(CASE WHEN tb.status = 'AVAILABLE' THEN 1 ELSE 0 END) AS available,
                 SUM(CASE WHEN tb.status = 'RESERVED'  THEN 1 ELSE 0 END) AS reserved,
                 SUM(CASE WHEN tb.status = 'PICKED'    THEN 1 ELSE 0 END) AS picked,
-                SUM(CASE WHEN tb.status IN ('OUTBOUND','SOLD','SHIPPED','CONFIRMED') THEN 1 ELSE 0 END) AS outbound,
+                SUM(CASE WHEN tb.status IN ('SOLD','SHIPPED','CONFIRMED') THEN 1 ELSE 0 END) AS outbound,
                 SUM(CASE WHEN tb.status = 'RETURN'    THEN 1 ELSE 0 END) AS return_cnt,
                 COUNT(*)                         AS total,
                 COUNT(DISTINCT CASE WHEN tb.status IN ('AVAILABLE','RESERVED','PICKED','RETURN')
@@ -246,7 +246,7 @@ def get_dashboard_stats():
         # 출고 누계 중량 (샘플 포함: OUTBOUND + SOLD 상태 톤백)
         outbound_total_kg = c.execute("""
             SELECT COALESCE(SUM(weight), 0) FROM inventory_tonbag
-            WHERE status IN ('OUTBOUND', 'SOLD', 'SHIPPED', 'CONFIRMED')
+            WHERE status IN ('SOLD', 'SHIPPED', 'CONFIRMED')
         """).fetchone()[0]
 
         diff_kg = round(float(total_inbound_kg) - float(current_stock_kg) - float(outbound_total_kg), 1)

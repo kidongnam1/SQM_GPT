@@ -94,7 +94,7 @@ def get_inventory(
                  WHERE t.lot_no = i.lot_no AND t.is_sample = 0
                 ) AS total_bags,
                 (SELECT COUNT(*) FROM inventory_tonbag t
-                 WHERE t.lot_no = i.lot_no AND t.status IN ('SOLD','OUTBOUND','CONFIRMED','SHIPPED') AND t.is_sample = 0
+                 WHERE t.lot_no = i.lot_no AND t.status IN ('SOLD','CONFIRMED','SHIPPED') AND t.is_sample = 0
                 ) AS tb_sold,
                 (SELECT COUNT(*) FROM inventory_tonbag t
                  WHERE t.lot_no = i.lot_no AND t.is_sample = 1
@@ -540,8 +540,8 @@ async def scan_bulk_upload(file: UploadFile = FileField(...), action: str = "loo
                 r["matched"] = True
                 if action != "lookup":
                     STATUS_TRANS = {
-                        "outbound": ("PICKED", "OUTBOUND"),
-                        "return": ("OUTBOUND", "RETURN"),
+                        "outbound": ("PICKED", "SOLD"),
+                        "return": ("RETURN"),
                         "pick": ("AVAILABLE", "PICKED"),
                         "available": (None, "AVAILABLE"),
                     }

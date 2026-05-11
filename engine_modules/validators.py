@@ -527,7 +527,7 @@ class InventoryValidator:
                         WHERE tb.lot_no=inv.lot_no AND tb.status='AVAILABLE'
                         AND COALESCE(tb.is_sample,0)=0) AS avail_cnt,
                        (SELECT COUNT(*) FROM inventory_tonbag tb
-                        WHERE tb.lot_no=inv.lot_no AND tb.status IN ('SOLD','OUTBOUND')
+                        WHERE tb.lot_no=inv.lot_no AND tb.status IN ('SOLD')
                         AND COALESCE(tb.is_sample,0)=0) AS sold_cnt
                 FROM inventory inv
                 WHERE inv.status = 'DEPLETED'

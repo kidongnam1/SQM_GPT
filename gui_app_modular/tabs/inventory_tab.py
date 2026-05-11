@@ -878,7 +878,7 @@ class InventoryTabMixin:
         tree = _ttk.Treeview(dlg, columns=cols, show='headings', height=Spacing.Tab.TREE_MIN_H)
         
         type_icons = {
-            'OUTBOUND': '📤 출고', 'INBOUND': '📥 입고',
+            'SOLD': '📤 출고', 'INBOUND': '📥 입고',
             'CANCEL_OUTBOUND': '↩️ 취소', 'RETURN': '🔄 반품'
         }
         
@@ -1104,7 +1104,7 @@ class InventoryTabMixin:
                         reserved_map[_lot] = reserved_map.get(_lot, 0) + _cnt
                     elif _st == STATUS_PICKED:
                         picked_map[_lot]   = picked_map.get(_lot, 0) + _cnt
-                    elif _st in ('OUTBOUND', 'SOLD'):  # v7.2.0: OUTBOUND+SOLD 통합
+                    elif _st in ('SOLD'):  # v7.2.0: OUTBOUND+SOLD 통합
                         sold_map[_lot]     = sold_map.get(_lot, 0) + _cnt
             except (sqlite3.OperationalError, sqlite3.IntegrityError, OSError) as e:
                 logger.debug(f"TONBAG 상태 집계 조회 실패(기본 0 처리): {e}")

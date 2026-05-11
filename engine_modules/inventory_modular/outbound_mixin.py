@@ -268,13 +268,13 @@ class OutboundMixin(InventoryBaseMixin):
                 SELECT inv.lot_no,
                        SUM(CASE WHEN tb.status = 'AVAILABLE' AND tb.is_sample = 0 THEN 1 ELSE 0 END) AS normal_avail,
                        SUM(CASE WHEN tb.status = 'AVAILABLE' AND tb.is_sample = 1 THEN 1 ELSE 0 END) AS sample_avail,
-                       SUM(CASE WHEN tb.status IN ('SOLD','OUTBOUND') THEN 1 ELSE 0 END) AS sold_cnt
+                       SUM(CASE WHEN tb.status IN ('SOLD') THEN 1 ELSE 0 END) AS sold_cnt
                 FROM inventory inv
                 JOIN inventory_tonbag tb ON tb.lot_no = inv.lot_no
-                WHERE inv.status IN (?, 'OUTBOUND')
+                WHERE inv.status IN (?)
                 GROUP BY inv.lot_no
                 HAVING (normal_avail + sample_avail) > 0
-            """, (STATUS_SOLD, 'OUTBOUND')) or []
+            """, (STATUS_SOLD)) or []
 
             for _r in needs_avail:
                 _lot = _r.get('lot_no') if isinstance(_r, dict) else _r[0]
@@ -799,7 +799,7 @@ class OutboundMixin(InventoryBaseMixin):
         self.db.execute(
             """INSERT INTO stock_movement 
             (lot_no, movement_type, qty_kg, remarks, created_at)
-            VALUES (?, 'OUTBOUND', ?, ?, ?)""",
+            VALUES (?, ?, ?, ?)""",
             (lot_no, weight_kg, f"customer={customer}" if customer else '', now)
         )
         
@@ -2695,7 +2695,7 @@ class OutboundMixin(InventoryBaseMixin):
             return False
         try:
             row = self.db.fetchone(
-                "SELECT id FROM sold_table WHERE tonbag_id=? AND status IN ('OUTBOUND','SOLD')",
+                "SELECT id FROM sold_table WHERE tonbag_id=? AND status IN ('SOLD')",
                 (tonbag_id,)
             )
             return bool(row)
@@ -2714,7 +2714,7 @@ class OutboundMixin(InventoryBaseMixin):
                 """SELECT i.initial_weight,
                           COALESCE(SUM(CASE WHEN t.status='AVAILABLE' THEN t.weight ELSE 0 END),0) AS avail,
                           COALESCE(SUM(CASE WHEN t.status='PICKED'    THEN t.weight ELSE 0 END),0) AS picked,
-                          COALESCE(SUM(CASE WHEN t.status IN ('OUTBOUND','SOLD')
+                          COALESCE(SUM(CASE WHEN t.status IN ('SOLD')
                                            THEN t.weight ELSE 0 END),0) AS outb
                    FROM inventory i
                    LEFT JOIN inventory_tonbag t ON t.lot_no=i.lot_no AND COALESCE(t.is_sample,0)=0
@@ -2948,7 +2948,7 @@ class OutboundMixin(InventoryBaseMixin):
                  sap_no, bl_no, customer, sku, sales_order_no, picking_no,
                  delivery_date, ct_plt, is_sample)
                 VALUES (?, ?, ?, ?, ?,
-                        ?, ?, ?, ?, 'OUTBOUND', 'system',
+                        ?, ?, ?, ?, 'system',
                         ?, ?, ?, ?, ?, ?,
                         ?, ?, ?)""",
                 values
@@ -2965,7 +2965,7 @@ class OutboundMixin(InventoryBaseMixin):
         """stock_movement에 OUTBOUND 이력 INSERT."""
         self.db.execute(
             "INSERT INTO stock_movement (lot_no, movement_type, qty_kg, remarks, created_at) "
-            "VALUES (?, 'OUTBOUND', ?, ?, ?)",
+            "VALUES (?, ?, ?, ?)",
             (tb['lot_no'], tb.get('weight', 0),
              f"confirm_outbound, sub_lt={tb.get('sub_lt', 0)}", now))
 
@@ -3081,7 +3081,7 @@ class OutboundMixin(InventoryBaseMixin):
                     self._co_insert_outbound_movement(tb, now)
                     # allocation_plan → OUTBOUND 상태 동기화
                     self.db.execute(
-                        "UPDATE allocation_plan SET status='OUTBOUND', executed_at=? "
+                        "UPDATE allocation_plan SET status='SOLD', executed_at=? "
                         "WHERE lot_no=? AND tonbag_id=? AND status IN ('PICKED','EXECUTED')",
                         (now, tb.get('lot_no'), tb['id'])
                     )
@@ -3645,7 +3645,7 @@ class OutboundMixin(InventoryBaseMixin):
         if include_picked:
             cancel_statuses.extend(['PICKED', 'EXECUTED'])
         if include_outbound:
-            cancel_statuses.extend(['OUTBOUND', 'SOLD', 'SHIPPED', 'CONFIRMED'])
+            cancel_statuses.extend(['SOLD', 'SHIPPED', 'CONFIRMED'])
         status_ph = ','.join('?' * len(cancel_statuses))
         query = f"SELECT id, lot_no, tonbag_id, status FROM allocation_plan WHERE status IN ({status_ph})"
         params = list(cancel_statuses)
@@ -3679,7 +3679,7 @@ class OutboundMixin(InventoryBaseMixin):
                 'STAGED': STATUS_AVAILABLE,
                 'PICKED': 'RESERVED',
                 'EXECUTED': 'RESERVED',
-                'OUTBOUND': STATUS_PICKED,
+                'SOLD': STATUS_PICKED,
                 'SOLD': STATUS_PICKED,
                 'SHIPPED': STATUS_PICKED,
                 'CONFIRMED': STATUS_PICKED,
@@ -3690,7 +3690,7 @@ class OutboundMixin(InventoryBaseMixin):
                 'STAGED': 'CANCELLED',
                 'PICKED': 'RESERVED',
                 'EXECUTED': 'RESERVED',
-                'OUTBOUND': 'PICKED',
+                'SOLD': 'PICKED',
                 'SOLD': 'PICKED',
                 'SHIPPED': 'PICKED',
                 'CONFIRMED': 'PICKED',
@@ -3748,10 +3748,10 @@ class OutboundMixin(InventoryBaseMixin):
                                     (_prev_tb, now, _lot, _cur_status))
 
                     # OUTBOUND/SOLD → PICKED 복원 시: sold_table RETURNED 처리
-                    if _cur_status in ('OUTBOUND', 'SOLD', 'SHIPPED', 'CONFIRMED') and _lot:
+                    if _cur_status in ('SOLD', 'SHIPPED', 'CONFIRMED') and _lot:
                         self.db.execute(
                             "UPDATE sold_table SET status='RETURNED' "
-                            "WHERE lot_no=? AND status IN ('OUTBOUND','SOLD')",
+                            "WHERE lot_no=? AND status IN ('SOLD')",
                             (_lot,))
 
                     # allocation_plan → 직전 상태로 복원

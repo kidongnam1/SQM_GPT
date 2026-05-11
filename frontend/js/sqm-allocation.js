@@ -27,7 +27,7 @@
     if (st === 'AVAILABLE') return { bg: 'rgba(34,197,94,0.18)', fg: '#22c55e' };
     if (st === 'RESERVED')  return { bg: 'rgba(245,158,11,0.22)', fg: '#f59e0b' };
     if (st === 'PICKED')    return { bg: 'rgba(59,130,246,0.22)', fg: '#3b82f6' };
-    if (st === 'SOLD' || st === 'OUTBOUND' || st === 'SHIPPED' || st === 'CONFIRMED') return { bg: 'rgba(239,68,68,0.2)', fg: '#ef4444' };
+    if (st === 'SOLD' || st === 'SHIPPED' || st === 'CONFIRMED') return { bg: 'rgba(239,68,68,0.2)', fg: '#ef4444' };
     if (st === 'RETURN' || st === 'RETURNED') return { bg: 'rgba(168,85,247,0.2)', fg: '#a855f7' };
     return { bg: 'rgba(148,163,184,0.2)', fg: '#94a3b8' };
   }
@@ -383,7 +383,7 @@
 
   /* ── 단계 되돌리기 ── */
   window.allocRevertStep = function(fromStatus) {
-    var labels = { RESERVED: 'RESERVED → AVAILABLE', PICKED: 'PICKED → RESERVED', OUTBOUND: 'OUTBOUND → PICKED' };
+    var labels = { RESERVED: 'RESERVED → AVAILABLE', PICKED: 'PICKED → RESERVED', SOLD: 'SOLD → PICKED' };
     var label = labels[fromStatus] || fromStatus;
     if (!confirm('↩️ 단계 되돌리기\n\n' + label + '\n\n' + fromStatus + ' 상태의 모든 배정을 한 단계 되돌립니다.\n계속하시겠습니까?')) return;
     apiPost('/api/allocation/revert-step', { from_status: fromStatus })
@@ -456,7 +456,7 @@
 
   /* ── 단계 되돌리기 ── */
   window.allocRevertStep = function(fromStatus) {
-    var labels = { RESERVED: 'RESERVED → AVAILABLE', PICKED: 'PICKED → RESERVED', OUTBOUND: 'OUTBOUND → PICKED' };
+    var labels = { RESERVED: 'RESERVED → AVAILABLE', PICKED: 'PICKED → RESERVED', SOLD: 'SOLD → PICKED' };
     var label = labels[fromStatus] || fromStatus;
     if (!confirm('↩️ 단계 되돌리기\n\n' + label + '\n\n' + fromStatus + ' 상태의 모든 배정을 한 단계 되돌립니다.\n계속하시겠습니까?')) return;
     apiPost('/api/allocation/revert-step', { from_status: fromStatus })

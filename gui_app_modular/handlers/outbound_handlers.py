@@ -2092,7 +2092,7 @@ class OutboundHandlersMixin:
         try:
             rows = engine.db.fetchall(
                 "SELECT DISTINCT lot_no FROM inventory_tonbag "
-                "WHERE status IN ('OUTBOUND', 'SOLD') ORDER BY lot_no"
+                "WHERE status IN ('SOLD') ORDER BY lot_no"
             )
         except Exception:
             rows = []

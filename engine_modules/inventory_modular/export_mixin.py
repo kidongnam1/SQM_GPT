@@ -831,7 +831,7 @@ class ExportMixin:
                    COALESCE(i.product, 'LITHIUM CARBONATE') AS description
             FROM sold_table s
             LEFT JOIN inventory i ON s.lot_no = i.lot_no
-            WHERE s.status IN ('OUTBOUND', 'SOLD')
+            WHERE s.status IN ('SOLD')
         """
         params = []
         if sale_ref:
@@ -1132,7 +1132,7 @@ class ExportMixin:
             sold_rows = self.db.fetchall(
                 """SELECT DISTINCT lot_no FROM sold_table
                    WHERE sales_order_no LIKE ?
-                     AND status IN ('OUTBOUND','SOLD')""",
+                     AND status IN ('SOLD')""",
                 (f"%{sales_order_no}%",)
             )
             sold_lots = {r.get('lot_no') if isinstance(r, dict) else r[0]
@@ -1196,7 +1196,7 @@ class ExportMixin:
                    COALESCE(i.product, 'LITHIUM CARBONATE') AS description
             FROM sold_table s
             LEFT JOIN inventory i ON s.lot_no = i.lot_no
-            WHERE s.status IN ('OUTBOUND', 'SOLD')
+            WHERE s.status IN ('SOLD')
         """
         params = []
         if sale_ref:

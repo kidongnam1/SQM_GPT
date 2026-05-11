@@ -302,7 +302,7 @@ class BarcodeScanEngine:
         now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         # 확정 처리: inventory_tonbag → SOLD (레거시 호환)
         self.db.execute(
-            "UPDATE inventory_tonbag SET status='OUTBOUND', outbound_date=?, picked_to=?, sale_ref=?, updated_at=? WHERE id=?",
+            "UPDATE inventory_tonbag SET status='SOLD', outbound_date=?, picked_to=?, sale_ref=?, updated_at=? WHERE id=?",
             (now, customer, eff_sale_ref, now, row['id']),
         )
         # 로그 기록
@@ -840,7 +840,7 @@ class BarcodeScanEngine:
             result.setdefault("errors",[]).append(f"[SD-02] UID 미발견: {uid}")
             return None
         tb = dict(tb) if not isinstance(tb, dict) else tb
-        if tb.get("status") in ("OUTBOUND","SOLD"):
+        if tb.get("status") in ("SOLD"):
             result.setdefault("errors",[]).append(f"[SD-03][ALREADY_SOLD] {uid}")
             return None
         if current_lot_no and tb.get("lot_no") != current_lot_no:
@@ -1109,7 +1109,7 @@ class BarcodeScanEngine:
                 # ── STEP 2: PICKED → SOLD ──────────────────────────────
                 self.db.execute(
                     "UPDATE inventory_tonbag "
-                    "SET status='OUTBOUND', outbound_date=?, picked_to=?, sale_ref=?, updated_at=? WHERE id=?",
+                    "SET status='SOLD', outbound_date=?, picked_to=?, sale_ref=?, updated_at=? WHERE id=?",
                     (now, customer, sale_ref, now, tb_id),
                 )
                 self.db.execute(
@@ -1120,7 +1120,7 @@ class BarcodeScanEngine:
                     self.db.execute(
                         "INSERT INTO sold_table "
                         "(lot_no, tonbag_id, sub_lt, tonbag_uid, sold_qty_kg, sold_date, status, created_by) "
-                        "VALUES (?,?,?,?,?,?,'OUTBOUND','barcode_lot_mode')",
+                        "VALUES (?,?,?,?,?,?,'barcode_lot_mode')",
                         (
                             lot_no, tb_id,
                             row.get('sub_lt', 0),
@@ -1219,7 +1219,7 @@ class BarcodeScanEngine:
                     ((code, code, _normalize_sublt(code), sale_ref) if sale_ref else (code, code, _normalize_sublt(code))))
                 if row:
                     self.db.execute(
-                        "UPDATE inventory_tonbag SET status='OUTBOUND', outbound_date=?, updated_at=? "
+                        "UPDATE inventory_tonbag SET status='SOLD', outbound_date=?, updated_at=? "
                         "WHERE id=? AND status='PICKED'",
                         (now, now, row['id'])
                     )
@@ -1279,7 +1279,7 @@ class BarcodeScanEngine:
                         (now, picked_row['id']),
                     )
                     self.db.execute(
-                        "UPDATE inventory_tonbag SET status='OUTBOUND', outbound_date=?, picked_to=?, sale_ref=?, updated_at=? "
+                        "UPDATE inventory_tonbag SET status='SOLD', outbound_date=?, picked_to=?, sale_ref=?, updated_at=? "
                         "WHERE id=?",
                         (now, picked_row.get('picked_to', ''), picked_row.get('sale_ref', ''), now, scanned_row['id']),
                     )

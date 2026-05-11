@@ -172,7 +172,7 @@ def _init_db_startup():
             _stats = _con2.execute("""
                 SELECT COUNT(*) AS tl,
                        COALESCE(SUM(current_weight),0) AS tw,
-                       COALESCE(SUM(CASE WHEN status NOT IN ('DEPLETED','OUTBOUND')
+                       COALESCE(SUM(CASE WHEN status NOT IN ('DEPLETED')
                                     THEN current_weight ELSE 0 END),0) AS aw,
                        COALESCE(SUM(picked_weight),0) AS pw
                 FROM inventory
@@ -551,7 +551,7 @@ def get_outbound_history(
     if not ENGINE_AVAILABLE:
         return []
     try:
-        return engine.get_inventory(status="OUTBOUND")
+        return engine.get_inventory(status="SOLD")
     except Exception as e:
         raise HTTPException(500, str(e))
 

@@ -36,7 +36,7 @@ STATUS_DISPLAY = {
     'AVAILABLE': '판매가능',
     'RESERVED': '판매배정',
     'PICKED': '판매화물 결정',
-    'OUTBOUND': '출고완료',    # v7.2.0 신규
+    'SOLD': '출고완료',    # v7.2.0 신규
     'SOLD': '출고완료',        # 하위호환 (OUTBOUND와 동일 표시)
     'RETURN': '반품대기',      # v7.2.0 신규: 반품 입고 후 location 지정 전
     'SHIPPED': '선적',
@@ -613,7 +613,7 @@ class ThemeColors:
         'AVAILABLE': {'bg_light': '#EAF3DE', 'fg_light': '#166534', 'bg_dark': '#052e16', 'fg_dark': '#4ade80'},
         'RESERVED':  {'bg_light': '#EFF6FF', 'fg_light': '#1e40af', 'bg_dark': '#1e1b4b', 'fg_dark': '#a5b4fc'},
         'PICKED':    {'bg_light': '#FFFBEB', 'fg_light': '#92400e', 'bg_dark': '#1c1917', 'fg_dark': '#fcd34d'},
-        'OUTBOUND':  {'bg_light': '#F8FAFC', 'fg_light': '#475569', 'bg_dark': '#1e293b', 'fg_dark': '#94a3b8'},
+        'SOLD':  {'bg_light': '#F8FAFC', 'fg_light': '#475569', 'bg_dark': '#1e293b', 'fg_dark': '#94a3b8'},
         'RETURN':    {'bg_light': '#FEF2F2', 'fg_light': '#991b1b', 'bg_dark': '#1f0a0a', 'fg_dark': '#fca5a5'},
     }
 
@@ -631,7 +631,7 @@ class ThemeColors:
             tree.tag_configure(tag_name, background=colors[bg_key], foreground=colors[fg_key])
 
         # 하위호환: shipped = outbound 색상
-        ob = cls.STATUS_BADGE['OUTBOUND']
+        ob = cls.STATUS_BADGE['SOLD']
         tree.tag_configure('shipped',
                           background=ob['bg_dark' if is_dark else 'bg_light'],
                           foreground=ob['fg_dark' if is_dark else 'fg_light'])

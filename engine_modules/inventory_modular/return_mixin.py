@@ -25,7 +25,7 @@ Return (반품) processing functions
 from engine_modules.constants import (
     STATUS_AVAILABLE, STATUS_RESERVED, STATUS_PICKED,
     STATUS_RETURN, STATUS_SOLD,
-    # 'OUTBOUND': SQL 문자열 'OUTBOUND' 직접 사용 (하위호환)
+    # 'SOLD': SQL 문자열 'OUTBOUND' 직접 사용 (하위호환)
 )  # v7.5.0: 하드코딩 상수 중앙화
 import json
 import logging
@@ -286,7 +286,7 @@ class ReturnMixin:
                             result['skipped'] += 1
                             continue
 
-                    if tonbag['status'] not in ('PICKED', 'CONFIRMED', 'SHIPPED', 'OUTBOUND', 'SOLD', 'RESERVED'):
+                    if tonbag['status'] not in ('PICKED', 'CONFIRMED', 'SHIPPED', 'SOLD', 'RESERVED'):
                         # v7.2.0: OUTBOUND 추가 (구 SOLD 포함)
                         _rt05_msg = (
                             f"[RT-05][RETURN_INVALID_STATUS] 반품 불가 상태: "
@@ -369,7 +369,7 @@ class ReturnMixin:
                     # RESERVED 외 상태 반품 시에도 allocation_plan 잔존 레코드 정리
                     # 미정리 시 재출고 시 ALLOC_CONFLICT 오류 발생
                     # v9.1: OUTBOUND 추가 (신규 write 기준)
-                    if was_status in (STATUS_PICKED, STATUS_SOLD, 'OUTBOUND'):
+                    if was_status in (STATUS_PICKED, STATUS_SOLD):
                         try:
                             self.db.execute(
                                 "UPDATE allocation_plan "
@@ -386,7 +386,7 @@ class ReturnMixin:
                             logger.debug(f"[3] allocation_plan 정리 스킵: {_ae}")
 
                     # v6.0.1/v9.1: picking_table RETURNED (OUTBOUND 추가)
-                    if was_status in (STATUS_PICKED, STATUS_SOLD, 'OUTBOUND'):
+                    if was_status in (STATUS_PICKED, STATUS_SOLD):
                         try:
                             self.db.execute(
                                 "UPDATE picking_table SET status='RETURNED', sold_date=? "
@@ -395,12 +395,12 @@ class ReturnMixin:
                         except (sqlite3.OperationalError, ValueError, TypeError) as _pe:
                             logger.debug(f"[v6.0.1] picking_table RETURNED 스킵: {_pe}")
                     # v6.0.1/v9.1: sold_table RETURNED (OUTBOUND 포함)
-                    if was_status in (STATUS_SOLD, 'OUTBOUND'):
+                    if was_status in (STATUS_SOLD):
                         try:
                             self.db.execute(
                                 "UPDATE sold_table SET status='RETURNED', "
                                 "remark=COALESCE(remark,'')||? "
-                                "WHERE lot_no=? AND sub_lt=? AND status IN ('SOLD','OUTBOUND')",
+                                "WHERE lot_no=? AND sub_lt=? AND status IN ('SOLD')",
                                 (f" | 반품:{now} 사유:{reason}", lot_no, sub_lt))
                         except (sqlite3.OperationalError, ValueError, TypeError) as _se:
                             logger.debug(f"[v6.0.1] sold_table RETURNED 스킵: {_se}")

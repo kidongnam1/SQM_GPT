@@ -93,7 +93,7 @@ def _sales_order_dn_rows(con: sqlite3.Connection, sales_order_no: str) -> list:
                 COUNT(*) AS ct_plt
             FROM sold_table
             WHERE sales_order_no = ?
-              AND COALESCE(status, '') IN ('SOLD', 'OUTBOUND', 'CONFIRMED')
+              AND COALESCE(status, '') IN ('SOLD', 'CONFIRMED')
             GROUP BY lot_no, picking_no, sap_no, bl_no, customer, sku, delivery_date, COALESCE(is_sample, 0)
         )
         SELECT
@@ -194,7 +194,7 @@ def get_sales_order_nos(limit: int = QP(100, ge=1, le=500)):
             FROM sold_table
             WHERE sales_order_no IS NOT NULL
               AND TRIM(sales_order_no) != ''
-              AND COALESCE(status, '') IN ('SOLD', 'OUTBOUND', 'CONFIRMED')
+              AND COALESCE(status, '') IN ('SOLD', 'CONFIRMED')
             GROUP BY sales_order_no
             ORDER BY last_date DESC, sales_order_no DESC
             LIMIT ?

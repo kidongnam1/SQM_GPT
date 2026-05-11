@@ -1367,7 +1367,7 @@
               '<div style="color:var(--text-muted);font-size:.85rem">LOT ' + escapeHtml(d.lot_no||'-') + ' · ' + (d.picked_count||0) + '개 톤백 · ' + (d.total_weight_mt||0).toFixed(3) + ' MT · ' + escapeHtml(d.customer||'-') + '</div>' +
               '</div>';
             showToast('success', res.message || '출고 완료');
-            dbgLog('🟢','QUICK-OUTBOUND OK', res.message, '#66bb6a');
+            dbgLog('🟢','QUICK-SOLD OK', res.message, '#66bb6a');
             // refresh
             if (window.getCurrentRoute() === 'inventory' && typeof loadInventoryPage === 'function') loadInventoryPage();
             if (typeof loadKpi === 'function') loadKpi();
@@ -1380,7 +1380,7 @@
               (errs.length ? '<ul style="margin:8px 0 0 18px;color:var(--text-muted);font-size:.85rem">' + errs.map(function(e){return '<li>'+escapeHtml(e)+'</li>';}).join('') + '</ul>' : '') +
               '</div>';
             showToast('error', errMsg);
-            dbgLog('🔴','QUICK-OUTBOUND FAIL', errMsg, '#ef5350');
+            dbgLog('🔴','QUICK-SOLD FAIL', errMsg, '#ef5350');
             submitBtn.disabled = false;
             cancelBtn.disabled = false;
           }
@@ -2069,14 +2069,14 @@
   window.showQuickOutboundPasteModal = showQuickOutboundPasteModal;
 
   /* ===================================================
-     8i. F028 출고 확정 — PICKED → OUTBOUND
+     8i. F028 출고 확정 — PICKED → SOLD
      =================================================== */
   function showOutboundConfirmModal() {
     var html = [
       '<div style="max-width:640px">',
-      '  <h2 style="margin:0 0 12px 0">✅ 출고 확정 — PICKED → OUTBOUND</h2>',
+      '  <h2 style="margin:0 0 12px 0">✅ 출고 확정 — PICKED → SOLD</h2>',
       '  <p style="color:var(--text-muted);margin:0 0 12px 0;font-size:.9rem">',
-      '    PICKED 상태인 톤백을 실제 출고(OUTBOUND)로 확정합니다.',
+      '    PICKED 상태인 톤백을 실제 출고(SOLD)로 확정합니다.',
       '  </p>',
       '  <div style="display:grid;grid-template-columns:110px 1fr;gap:10px;align-items:center;margin-bottom:10px">',
       '    <label style="font-weight:600">LOT 번호</label>',
@@ -2143,7 +2143,7 @@
     cancel.addEventListener('click', function(){ document.getElementById('sqm-modal').style.display='none'; });
     submit.addEventListener('click', function(){
       var payload = { lot_no: lot.value.trim(), force_all: force.checked };
-      var msg = payload.lot_no ? ('LOT ' + payload.lot_no + ' 의 PICKED 톤백을 OUTBOUND 로 확정합니다.') :
+      var msg = payload.lot_no ? ('LOT ' + payload.lot_no + ' 의 PICKED 톤백을 SOLD 로 확정합니다.') :
                                   '⚠️ LOT 미지정 — 전체 PICKED 일괄 확정입니다! 매우 위험.';
       if (!confirm(msg + '\n계속하시겠습니까?')) return;
 
@@ -2159,7 +2159,7 @@
             '<div style="color:var(--text-muted);font-size:.85rem;margin-top:4px">LOT: ' + escapeHtml(d.lot_no||'-') + ' · 확정 <strong>' + (d.confirmed||0) + '</strong>개</div>' +
             '</div>';
           showToast('success', res.message || '확정 완료');
-          dbgLog('🟢','CONFIRM-OUTBOUND OK', res.message, '#66bb6a');
+          dbgLog('🟢','CONFIRM-SOLD OK', res.message, '#66bb6a');
           if (window.getCurrentRoute() === 'inventory' && typeof loadInventoryPage === 'function') loadInventoryPage();
           if (typeof loadKpi === 'function') loadKpi();
           loadSummary();
@@ -3282,7 +3282,7 @@
         if (!byProd[p]) byProd[p] = { inbound:0, outbound:0, return_count:0, move:0 };
         var t = (r.movement_type||'').toUpperCase();
         if (t === 'INBOUND') byProd[p].inbound += Number(r.quantity||r.weight||1);
-        else if (t === 'OUTBOUND') byProd[p].outbound += Number(r.quantity||r.weight||1);
+        else if (t === 'SOLD') byProd[p].outbound += Number(r.quantity||r.weight||1);
         else if (t === 'RETURN') byProd[p].return_count += Number(r.quantity||r.weight||1);
         else byProd[p].move += Number(r.quantity||r.weight||1);
       });
@@ -3619,7 +3619,7 @@
       }
       var prefer = rows.filter(function(r){
         var t = ((r.event_type || '') + ' ' + (String(r.event_data || ''))).toUpperCase();
-        return t.indexOf('PDF') >= 0 || t.indexOf('REPORT') >= 0 || t.indexOf('OUTBOUND') >= 0 || t.indexOf('INBOUND') >= 0;
+        return t.indexOf('PDF') >= 0 || t.indexOf('REPORT') >= 0 || t.indexOf('SOLD') >= 0 || t.indexOf('INBOUND') >= 0;
       });
       var show = prefer.length ? prefer.slice(0, 80) : rows.slice(0, 80);
       var tbl = '<table class="data-table"><thead><tr><th>시간</th><th>유형</th><th>요약</th></tr></thead><tbody>';

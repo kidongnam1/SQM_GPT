@@ -66,7 +66,7 @@ def cancel_inbound(payload: dict):
             return err_response(f"LOT '{lot_no}' 을(를) 찾을 수 없습니다")
 
         old_status = row["status"]
-        if old_status in ("OUTBOUND", "CANCELLED"):
+        if old_status in ("SOLD", "CANCELLED"):
             con.close()
             return err_response(f"'{old_status}' 상태는 취소 불가 (이미 출고/취소됨)")
 
@@ -254,7 +254,7 @@ def outbound_confirm(payload: dict):
             con.close()
             return err_response(f"LOT '{lot_no}' 없음")
 
-        if row["status"] == "OUTBOUND":
+        if row["status"] == "SOLD":
             con.close()
             return err_response(f"{lot_no} 이미 출고 완료 상태")
 
@@ -264,13 +264,13 @@ def outbound_confirm(payload: dict):
 
         weight_kg = row["current_weight"] or 0
         con.execute(
-            "UPDATE inventory SET status='OUTBOUND', sold_to=?, updated_at=? WHERE id=?",
+            "UPDATE inventory SET status='SOLD', sold_to=?, updated_at=? WHERE id=?",
             (customer or row["sold_to"], ts, row["id"])
         )
         con.execute("""
             UPDATE inventory_tonbag
-            SET status='OUTBOUND', outbound_date=?, updated_at=?
-            WHERE inventory_id=? AND status != 'OUTBOUND'
+            SET status='SOLD', outbound_date=?, updated_at=?
+            WHERE inventory_id=? AND status != 'SOLD'
         """, (ts[:10], ts, row["id"]))
 
         # stock_movement 기록
@@ -278,7 +278,7 @@ def outbound_confirm(payload: dict):
             INSERT INTO stock_movement
                 (lot_no, movement_type, qty_kg, customer,
                  movement_date, source_type, actor, remarks, created_at)
-            VALUES (?, 'OUTBOUND', ?, ?, ?, 'MANUAL', 'user', ?, ?)
+            VALUES (?, 'SOLD', ?, ?, ?, 'MANUAL', 'user', ?, ?)
         """, (lot_no, weight_kg, customer, ts[:10],
               f"출고확정: {customer or '고객미지정'}", ts))
 
@@ -294,7 +294,7 @@ def outbound_confirm(payload: dict):
         con.close()
         return ok_response(data={
             "lot_no": lot_no,
-            "status": "OUTBOUND",
+            "status": "SOLD",
             "weight_kg": weight_kg,
             "customer": customer,
             "message": f"{lot_no} 출고 확정 완료",
@@ -354,7 +354,7 @@ def _build_tonbag_workbook(rows):
         "AVAILABLE": "E8F5E9",
         "PICKED":    "FFF9C4",
         "RESERVED":  "E3F2FD",
-        "OUTBOUND":  "FAFAFA",
+        "SOLD":  "FAFAFA",
         "CANCELLED": "FFEBEE",
     }
     for r in rows:

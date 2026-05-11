@@ -93,8 +93,7 @@ def get_status_guide():
             {"status": "AVAILABLE",  "color": "#2e7d32", "label": "가용",     "desc": "출고 가능한 정상 재고"},
             {"status": "RESERVED",   "color": "#1565c0", "label": "예약됨",   "desc": "판매 배정(Allocation) 완료, 출고 대기"},
             {"status": "PICKED",     "color": "#e65100", "label": "선택됨",   "desc": "Picking List에 배정, 출고 진행 중"},
-            {"status": "OUTBOUND",   "color": "#6a1b9a", "label": "출고완료", "desc": "출고 처리 완료"},
-            {"status": "SOLD",       "color": "#37474f", "label": "판매완료", "desc": "최종 판매 확정"},
+            {"status": "SOLD",       "color": "#37474f", "label": "판매/출고완료", "desc": "출고 처리 완료 = 최종 판매 확정"},
             {"status": "RETURNED",   "color": "#c62828", "label": "반품",     "desc": "반품 입고 처리됨"},
         ],
         "tonbag_statuses": [

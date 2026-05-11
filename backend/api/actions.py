@@ -438,7 +438,7 @@ def _build_lot_workbook(rows):
         "AVAILABLE": PatternFill("solid", fgColor="E8F5E9"),
         "RESERVED":  PatternFill("solid", fgColor="E3F2FD"),
         "PICKED":    PatternFill("solid", fgColor="FFF3E0"),
-        "OUTBOUND":  PatternFill("solid", fgColor="F3E5F5"),
+        "SOLD":  PatternFill("solid", fgColor="F3E5F5"),
         "SOLD":      PatternFill("solid", fgColor="ECEFF1"),
         "RETURNED":  PatternFill("solid", fgColor="FFEBEE"),
     }

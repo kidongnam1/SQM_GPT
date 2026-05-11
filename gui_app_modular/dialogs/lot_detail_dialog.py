@@ -280,7 +280,7 @@ class LotDetailDialogMixin:
         sb_mv_x.pack(side='bottom', fill='x')
 
         type_icons = {
-            'INBOUND': '📥 입고', 'OUTBOUND': '📤 출고',
+            'INBOUND': '📥 입고', 'SOLD': '📤 출고',
             'RETURN': '🔄 반품', 'ADJUST': '⚙️ 조정'
         }
 

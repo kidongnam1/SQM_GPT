@@ -37,7 +37,6 @@ def _abbr_status(st: str) -> str:
         "RESERVED": "RSV",
         "PICKED": "PICK",
         "SOLD": "SOLD",
-        "OUTBOUND": "OUT",
         "SHIPPED": "SHP",
         "DEPLETED": "DEP",
         "RETURN": "RET",
@@ -75,7 +74,7 @@ def _compute_lot_state(
     if ns_total <= 0 and plan_mt > 0:
         return "FULL RSV"
     if ns_out_n > 0 and ns_avail_n == 0 and ns_rsv_n == 0 and ns_pick_n == 0 and ns_total > 0:
-        return "OUTBOUND"
+        return "SOLD"
     if ns_pick_n > 0 and ns_avail_n == 0 and ns_rsv_n == 0 and ns_out_n == 0 and ns_total > 0 and ns_pick_n == ns_total:
         return "PICKED"
     if ns_total > 0 and ns_rsv_n == ns_total and ns_avail_n == 0 and ns_pick_n == 0 and ns_out_n == 0:
@@ -133,8 +132,8 @@ class AllocationLotOverviewMixin:
                     SUM(CASE WHEN COALESCE(is_sample, 0) = 0 AND status = 'RESERVED' THEN COALESCE(weight, 0) ELSE 0 END) AS ns_rsv_kg,
                     SUM(CASE WHEN COALESCE(is_sample, 0) = 0 AND status = 'PICKED' THEN 1 ELSE 0 END) AS ns_pick_n,
                     SUM(CASE WHEN COALESCE(is_sample, 0) = 0 AND status = 'PICKED' THEN COALESCE(weight, 0) ELSE 0 END) AS ns_pick_kg,
-                    SUM(CASE WHEN COALESCE(is_sample, 0) = 0 AND status IN ('SOLD','OUTBOUND','SHIPPED','DEPLETED') THEN 1 ELSE 0 END) AS ns_out_n,
-                    SUM(CASE WHEN COALESCE(is_sample, 0) = 0 AND status IN ('SOLD','OUTBOUND','SHIPPED','DEPLETED') THEN COALESCE(weight, 0) ELSE 0 END) AS ns_out_kg,
+                    SUM(CASE WHEN COALESCE(is_sample, 0) = 0 AND status IN ('SOLD','SHIPPED','DEPLETED') THEN 1 ELSE 0 END) AS ns_out_n,
+                    SUM(CASE WHEN COALESCE(is_sample, 0) = 0 AND status IN ('SOLD','SHIPPED','DEPLETED') THEN COALESCE(weight, 0) ELSE 0 END) AS ns_out_kg,
                     SUM(CASE WHEN COALESCE(is_sample, 0) = 1 THEN 1 ELSE 0 END) AS sp_count
                 FROM inventory_tonbag
                 GROUP BY lot_no
@@ -287,7 +286,7 @@ class AllocationLotOverviewMixin:
         ttk.Entry(filt, textvariable=q_var, width=28).pack(side=tk.LEFT, padx=(0, 12))
         ttk.Label(filt, text="상태").pack(side=tk.LEFT, padx=(0, 4))
         st_var = tk.StringVar(value="전체")
-        states = ("전체", "AVAILABLE", "RESERVED", "PARTIAL", "FULL RSV", "PICKED", "OUTBOUND")
+        states = ("전체", "AVAILABLE", "RESERVED", "PARTIAL", "FULL RSV", "PICKED", "SOLD")
         ttk.Combobox(filt, textvariable=st_var, values=states, width=12, state="readonly").pack(
             side=tk.LEFT, padx=(0, 12)
         )
