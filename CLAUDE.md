@@ -2,7 +2,7 @@
 
 **작업 폴더:** `D:\program\SQM_inventory\SQM_v867_clean`
 **GitHub:** `https://github.com/kidongnam1/sqm_3` (main)
-**최종 갱신:** 2026-05-09
+**최종 갱신:** 2026-05-11
 
 ---
 
@@ -16,11 +16,25 @@ PyWebView 5 · FastAPI 0.104 · Vanilla JS · SQLite WAL · Python 3.11
 - **방지책 ④** — 세션 시작 시 py_compile + node --check 전수검사
 - 색상/폰트 → `design-tokens.css` 변수만 (하드코딩 금지)
 
-## CURRENT STATE (2026-05-09)
+## STATUS 설계 (확정 2026-05-11)
+```
+PENDING   → 포트 입항, 창고 미반입 (파싱 직후)
+AVAILABLE → 창고 반입 확정 (재고 집계 시작)
+RESERVED  → 배정됨
+PICKED    → 출고 작업 중 (취소 가능)
+SOLD      → 차량 출발 = 거래 종료 (OUTBOUND 흡수, 취소 불가)
+RETURN    → 반품
+```
+- `movement_type='OUTBOUND'` (stock_movement 이동 유형) — STATUS 아님, 유지
+- `port_date` / `inbound_type('DIRECT'|'BOND')` 컬럼 inventory 테이블에 추가됨
+
+## CURRENT STATE (2026-05-11)
 - ✅ LAYER 1 + 2 + 3 모두 완료 (90be151, 7cdcd29)
 - ✅ 발견 ①② + Title Transfer Date 라벨 (65cc27d, c83aac0)
 - ✅ CLAUDE.md 5분할 + 패치 자산화 (dfd7459, 7cdcd29)
 - ✅ Claude CLI 9개 플러그인 설치 (superpowers/bkit/codex/context7/code-review/code-simplifier/frontend-design/pyright-lsp/telegram)
+- ✅ PENDING 입고 대기 워크플로우 (053fa7a) — port_date/inbound_type 컬럼, /pending /confirm API
+- ✅ OUTBOUND→SOLD 통합 (b2d136e) — Python 40+파일 + JS 6파일, STATUS 6개로 단순화
 - 🎯 다음: Phase 6 EXE 빌드 (5/15-16 주말)
 
 ## REFERENCES (필요 시 로드)
