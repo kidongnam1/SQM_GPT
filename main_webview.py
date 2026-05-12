@@ -15,6 +15,9 @@ import sys
 import logging
 import traceback
 import json
+import queue as _queue_mod
+_DETACH_QUEUE = _queue_mod.Queue()
+_DETACHED_WINDOWS: dict = {}
 import ctypes as _ctypes
 
 # ─────────────────────────────────────────────────────────────
@@ -276,7 +279,7 @@ SPLASH_HTML = '''<!DOCTYPE html>
 </head>
 <body>
   <h1>SQM Inventory</h1>
-  <p class="sub">광양창고 시스템을 시작하는 중...</p>
+  <p class="sub">서버에 연결하는 중…</p>
   <div class="spinner"></div>
   <div class="ver">v8.6.7</div>
 </body>
@@ -404,6 +407,25 @@ def main():
                     log.exception("save_download_url 실패")
                     return {"ok": False, "error": str(e)}
 
+            def open_detached_window(self, key: str, title: str, url: str, width: int = 900, height: int = 700) -> dict:
+                """분리 창 열기 — Queue 방식으로 PyWebView 메인스레드에서 안전하게 처리."""
+                try:
+                    _DETACH_QUEUE.put({
+                        'action': 'open', 'key': key, 'title': title,
+                        'url': url, 'width': width, 'height': height
+                    })
+                    return {'ok': True}
+                except Exception as e:
+                    return {'ok': False, 'error': str(e)}
+
+            def close_detached_window(self, key: str) -> dict:
+                """분리 창 닫기."""
+                try:
+                    _DETACH_QUEUE.put({'action': 'close', 'key': key})
+                    return {'ok': True}
+                except Exception as e:
+                    return {'ok': False, 'error': str(e)}
+
         index_path = os.path.join(FRONTEND_DIR, 'index.html')
         if not os.path.exists(index_path):
             log.error(f"index.html 없음: {index_path}")
@@ -416,7 +438,7 @@ def main():
         _win_w, _win_h, _win_max = load_window_state()
         # [P1 PATCH] url= 대신 html=SPLASH_HTML 로 즉시 표시 (API 대기 없음).
         window = webview.create_window(
-            title='SQM Inventory v8.6.7 — 광양창고',
+            title='SQM Inventory v8.6.7',
             html=SPLASH_HTML,
             width=_win_w,
             height=_win_h,
@@ -574,6 +596,45 @@ def main():
             except Exception as e:
                 log.exception(f"on_window_started 실패: {e}")
 
+        # ── 분리 창 폴링 스레드 ───────────────────────────
+        import threading as _threading
+        def _poll_detach():
+            while True:
+                try:
+                    cmd = _DETACH_QUEUE.get(timeout=0.5)
+                    key = cmd.get('key', '')
+                    if cmd['action'] == 'open':
+                        if key in _DETACHED_WINDOWS:
+                            try:
+                                _DETACHED_WINDOWS[key].show()
+                                continue
+                            except Exception:
+                                pass
+                        try:
+                            win = webview.create_window(
+                                cmd['title'], cmd['url'],
+                                width=cmd.get('width', 900),
+                                height=cmd.get('height', 700),
+                                resizable=True
+                            )
+                            _DETACHED_WINDOWS[key] = win
+                        except Exception as ex:
+                            log.error('분리 창 생성 실패: %s', ex)
+                    elif cmd['action'] == 'close':
+                        if key in _DETACHED_WINDOWS:
+                            try:
+                                _DETACHED_WINDOWS[key].hide()
+                            except Exception:
+                                pass
+                except _queue_mod.Empty:
+                    continue
+                except Exception as ex:
+                    log.error('_poll_detach 오류: %s', ex)
+                    break
+
+        _poll_thread = _threading.Thread(target=_poll_detach, name='detach-poll', daemon=True)
+        _poll_thread.start()
+        log.info('분리 창 폴링 스레드 시작')
         log.info("PyWebView 창 시작 (Splash 즉시 표시 모드)")
         webview.start(on_window_started, debug=False)
         # 창이 닫히면 webview.start() 반환 → 프로세스 강제 종료

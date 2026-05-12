@@ -846,6 +846,7 @@
       sv('kpi-outbound-today-val', d.today_outbound_mt   !== undefined ? d.today_outbound_mt   : (d.outbound_today  || d.outbound  || '-'));
       sv('kpi-stock-lots-val',     d.current_stock_lots  !== undefined ? d.current_stock_lots  : (d.stock_lots      || d.lots      || '-'));
       sv('kpi-unassigned-val',     d.unassigned_locations !== undefined ? d.unassigned_locations : (d.unassigned_bags || d.unassigned|| '-'));
+      _updateWeightBadge();
     }).catch(function(){});
   }
 
@@ -2697,16 +2698,54 @@
     });
   }
 
+  function _sqmExtractModalHeadingText(html) {
+    if (!html || typeof html !== 'string') return '';
+    var m = html.match(/<h([123])[^>]*>([\s\S]*?)<\/h\1>/i);
+    if (!m) return '';
+    var tmp = document.createElement('div');
+    tmp.innerHTML = m[2];
+    var txt = (tmp.textContent || '').replace(/\s+/g, ' ').trim();
+    if (txt.length > 72) txt = txt.slice(0, 69) + '…';
+    return txt;
+  }
+  function _sqmSyncModalHeaderFromContent() {
+    var c = document.getElementById('sqm-modal-content');
+    var t = document.getElementById('sqm-modal-title');
+    if (!c || !t) return;
+    var ex = _sqmExtractModalHeadingText(c.innerHTML);
+    t.textContent = ex || 'SQM';
+  }
+  window._sqmSyncModalHeaderFromContent = _sqmSyncModalHeaderFromContent;
+  window._sqmSetModalTitleBar = function(text) {
+    var el = document.getElementById('sqm-modal-title');
+    if (!el || text == null) return;
+    var s = String(text).trim();
+    if (!s) return;
+    el.textContent = s.length > 80 ? s.slice(0, 77) + '…' : s;
+  };
+
   function ensureModal() {
     var m=document.getElementById('sqm-modal');
-    if (m) return m;
+    if (m) {
+      if (!document.getElementById('sqm-modal-title')) {
+        var hdr = document.getElementById('sqm-modal-header');
+        if (hdr) {
+          hdr.innerHTML =
+            '<span id="sqm-modal-title">SQM</span>'
+            + '<span id="sqm-modal-drag-hint" title="이 줄을 드래그하면 창 이동, 바깥 모서리를 잡으면 크기 조절">⋮⋮ 이동 · 크기</span>'
+            + '<button type="button" onclick="document.getElementById(\'sqm-modal\').style.display=\'none\'" style="position:absolute;top:3px;right:10px;background:none;border:none;font-size:1.4rem;cursor:pointer;color:var(--text-muted);">&#x2715;</button>';
+        }
+      }
+      return m;
+    }
     m=document.createElement('div');
     m.id='sqm-modal';
     m.style.cssText='display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;';
     m.innerHTML='<div id="sqm-modal-inner" style="background:var(--bg-card);border-radius:8px;width:min(1280px,92vw);max-width:92vw;min-height:200px;max-height:88vh;position:fixed;top:65px;left:50%;transform:translateX(-50%);overflow:visible;display:flex;flex-direction:column;">'
-      +'<div id="sqm-modal-header" onmousedown="(function(){var mi=document.getElementById(\'sqm-modal-inner\');if(mi)mi.style.zIndex=++(window._sqmZ);})()" style="flex-shrink:0;cursor:move;user-select:none;background:var(--bg-hover,rgba(0,0,0,.06));border-radius:8px 8px 0 0;border-bottom:1px solid var(--panel-border);padding:5px 48px 5px 12px;font-size:11px;color:var(--text-muted);display:flex;align-items:center;gap:6px;min-height:28px;position:relative;">'
-      +'<span style="opacity:.4;letter-spacing:3px;">&#x28FF;&#x28FF;</span>&nbsp;드래그: 이동 &nbsp;|&nbsp; 모서리: 크기 조절'
-      +'<button onclick="document.getElementById(\'sqm-modal\').style.display=\'none\'" style="position:absolute;top:3px;right:10px;background:none;border:none;font-size:1.4rem;cursor:pointer;color:var(--text-muted);">&#x2715;</button>'
+      +'<div id="sqm-modal-header" onmousedown="(function(){var mi=document.getElementById(\'sqm-modal-inner\');if(mi)mi.style.zIndex=++(window._sqmZ);})()" style="flex-shrink:0;cursor:move;user-select:none;background:var(--bg-hover,rgba(0,0,0,.06));border-radius:8px 8px 0 0;border-bottom:1px solid var(--panel-border);padding:5px 48px 5px 12px;display:flex;align-items:center;gap:8px;min-height:28px;position:relative;">'
+      +'<span id="sqm-modal-title">SQM</span>'
+      +'<span id="sqm-modal-drag-hint" title="이 줄을 드래그하면 창 이동, 바깥 모서리를 잡으면 크기 조절">⋮⋮ 이동 · 크기</span>'
+      +'<button type="button" onclick="document.getElementById(\'sqm-modal\').style.display=\'none\'" style="position:absolute;top:3px;right:10px;background:none;border:none;font-size:1.4rem;cursor:pointer;color:var(--text-muted);">&#x2715;</button>'
       +'</div>'
       +'<div id="sqm-modal-content" style="flex:1 1 auto;overflow:auto;padding:16px 20px;min-height:100px;"></div>'
       +'</div>';
@@ -2719,8 +2758,23 @@
   }
 
   function showDataModal(title, html) {
-    ensureModal().style.display='block';
-    document.getElementById('sqm-modal-content').innerHTML='<h2 style="margin-bottom:16px">'+escapeHtml(title)+'</h2>'+html;
+    if (html === undefined && typeof title === 'string') {
+      html = title;
+      title = '';
+    }
+    html = html == null ? '' : String(html);
+    var explicit = (title != null && String(title).trim()) ? String(title).trim() : '';
+    ensureModal().style.display = 'block';
+    document.getElementById('sqm-modal-content').innerHTML = html;
+    var barEl = document.getElementById('sqm-modal-title');
+    if (barEl) {
+      if (explicit) {
+        barEl.textContent = explicit.length > 80 ? explicit.slice(0, 77) + '…' : explicit;
+      } else {
+        _sqmSyncModalHeaderFromContent();
+      }
+    }
+    return document.getElementById('sqm-modal');
   }
 
   /* ===================================================
@@ -4072,8 +4126,10 @@
         '</div>'
       ].join('\n');
 
-      var modal = showDataModal(html);
-      document.getElementById('bma-close-btn').onclick = function() { modal.close(); };
+      showDataModal('', html);
+      document.getElementById('bma-close-btn').onclick = function() {
+        document.getElementById('sqm-modal').style.display = 'none';
+      };
 
       window._bmaRefresh = function() {
         var el = document.getElementById('bma-body');
@@ -4777,59 +4833,6 @@
   }
   window.showOutboundConfirmModal = showOutboundConfirmModal;
 
-  /* ===================================================
-     8i. 입고 취소 — LOT 선택 → POST /api/action2/inbound-cancel
-     =================================================== */
-  function showInboundCancelModal() {
-    var html = [
-      '<div style="max-width:480px">',
-      '  <h2 style="margin:0 0 12px 0">↩️ 입고 취소</h2>',
-      '  <p style="color:var(--text-muted);margin:0 0 16px 0;font-size:.9rem">',
-      '    입고된 LOT를 취소(CANCELLED)합니다. 톤백 포함 원복됩니다.',
-      '  </p>',
-      '  <div style="display:grid;grid-template-columns:100px 1fr;gap:10px;align-items:center;margin-bottom:16px">',
-      '    <label style="font-weight:600">LOT 번호</label>',
-      '    <input type="text" id="ic-lot" placeholder="예: L240101-001" style="padding:8px;background:var(--bg-hover);color:var(--text);border:1px solid var(--border);border-radius:6px;font-family:monospace">',
-      '    <label style="font-weight:600">사유</label>',
-      '    <input type="text" id="ic-reason" placeholder="취소 사유 (선택)" style="padding:8px;background:var(--bg-hover);color:var(--text);border:1px solid var(--border);border-radius:6px">',
-      '  </div>',
-      '  <div id="ic-result" style="margin-bottom:12px;min-height:24px"></div>',
-      '  <div style="display:flex;gap:8px;justify-content:flex-end">',
-      '    <button id="ic-cancel" class="btn btn-ghost">닫기</button>',
-      '    <button id="ic-submit" class="btn btn-primary">입고 취소</button>',
-      '  </div>',
-      '</div>'
-    ].join('\n');
-    showDataModal('', html);
-    var cancel = document.getElementById('ic-cancel');
-    var submit = document.getElementById('ic-submit');
-    var result = document.getElementById('ic-result');
-    cancel.addEventListener('click', function(){ document.getElementById('sqm-modal').style.display='none'; });
-    submit.addEventListener('click', function(){
-      var lot = document.getElementById('ic-lot').value.trim();
-      if (!lot) { showToast('warning', 'LOT 번호를 입력하세요'); return; }
-      if (!confirm('LOT ' + lot + ' 입고를 취소합니다. 계속할까요?')) return;
-      submit.disabled = true; cancel.disabled = true;
-      result.innerHTML = '<div style="padding:8px;color:var(--text-muted)">⏳ 처리 중...</div>';
-      apiPost('/api/action2/inbound-cancel', { lot_no: lot, reason: document.getElementById('ic-reason').value.trim() })
-        .then(function(res){
-          if (res && res.ok) {
-            result.innerHTML = '<div style="padding:12px;background:var(--bg-hover);border-radius:6px;border-left:4px solid var(--success)"><div style="font-weight:600">✅ ' + escapeHtml(res.message||'입고 취소 완료') + '</div></div>';
-            showToast('success', res.message || '입고 취소 완료');
-            if (typeof loadKpi === 'function') loadKpi();
-          } else {
-            result.innerHTML = '<div style="padding:12px;background:var(--bg-hover);border-radius:6px;border-left:4px solid var(--danger)"><div style="font-weight:600">❌ ' + escapeHtml((res&&(res.message||res.error||res.detail))||'실패') + '</div></div>';
-            showToast('error', (res&&res.message)||'실패');
-            submit.disabled = false; cancel.disabled = false;
-          }
-        })
-        .catch(function(e){
-          result.innerHTML = '<div style="padding:12px;color:var(--danger)">❌ ' + escapeHtml(e.message||String(e)) + '</div>';
-          submit.disabled = false; cancel.disabled = false;
-        });
-    });
-  }
-  window.showInboundCancelModal = showInboundCancelModal;
 
   /* ===================================================
      8j. 승인 대기 (Allocation Approval Queue)
@@ -4852,8 +4855,10 @@
         html += '</tbody></table>';
       }
       document.getElementById('sqm-modal-content').innerHTML = '<h2 style="margin-bottom:16px">✅ 승인 대기 (Allocation)</h2>' + html;
+      _sqmSyncModalHeaderFromContent();
     }).catch(function(e){
       document.getElementById('sqm-modal-content').innerHTML = '<h2>승인 대기</h2><div class="empty">조회 실패: ' + escapeHtml(e.message||String(e)) + '</div>';
+      _sqmSyncModalHeaderFromContent();
     });
   }
   window.showApprovalQueueModal = showApprovalQueueModal;
@@ -4867,6 +4872,7 @@
       var rows = extractRows(res);
       if (!rows.length) {
         document.getElementById('sqm-modal-content').innerHTML = '<h2>🔄 백업 복원</h2><div class="empty">사용 가능한 백업 파일이 없습니다</div>';
+        _sqmSyncModalHeaderFromContent();
         return;
       }
       var html = '<h2 style="margin-bottom:12px">🔄 백업 복원</h2>';
@@ -4879,6 +4885,7 @@
       html += '<div id="restore-result" style="margin:12px 0;min-height:24px"></div>';
       html += '<div style="display:flex;gap:8px;justify-content:flex-end"><button id="restore-cancel" class="btn btn-ghost">닫기</button><button id="restore-submit" class="btn btn-primary">복원 실행</button></div>';
       document.getElementById('sqm-modal-content').innerHTML = html;
+      _sqmSyncModalHeaderFromContent();
 
       document.getElementById('restore-cancel').addEventListener('click', function(){ document.getElementById('sqm-modal').style.display='none'; });
       document.getElementById('restore-submit').addEventListener('click', function(){
@@ -4906,6 +4913,7 @@
       });
     }).catch(function(e){
       document.getElementById('sqm-modal-content').innerHTML = '<h2>🔄 백업 복원</h2><div class="empty">백업 목록 조회 실패: ' + escapeHtml(e.message||String(e)) + '</div>';
+      _sqmSyncModalHeaderFromContent();
     });
   }
   window.showRestoreModal = showRestoreModal;
@@ -5103,8 +5111,9 @@
       apiPost('/api/action3/db-reset', { confirm: true })
         .then(function(res){
           if (res && res.ok) {
-            document.getElementById('dbr-result').innerHTML = '<div style="padding:12px;background:var(--bg-hover);border-radius:6px;border-left:4px solid var(--success)"><div style="font-weight:600">✅ DB 초기화 완료</div></div>';
+            document.getElementById('dbr-result').innerHTML = '<div style="padding:12px;background:var(--bg-hover);border-radius:6px;border-left:4px solid var(--success)"><div style="font-weight:600">✅ DB 초기화 완료 — 2초 후 새로고침...</div></div>';
             showToast('success', 'DB 초기화 완료');
+            setTimeout(function(){ location.reload(); }, 2000);
           } else {
             document.getElementById('dbr-result').innerHTML = '<div style="padding:12px;color:var(--danger)">❌ ' + escapeHtml((res&&(res.message||res.error||res.detail))||'실패') + '</div>';
             submit.disabled = false;
@@ -5721,8 +5730,10 @@
         html += '</tbody></table>';
       }
       document.getElementById('sqm-modal-content').innerHTML = '<h2 style="margin-bottom:16px">✅ 대량 이동 승인</h2>' + html;
+      _sqmSyncModalHeaderFromContent();
     }).catch(function(e){
       document.getElementById('sqm-modal-content').innerHTML = '<h2>대량 이동 승인</h2><div class="empty">조회 실패</div>';
+      _sqmSyncModalHeaderFromContent();
     });
   }
   window.showMoveApprovalQueueModal = showMoveApprovalQueueModal;
@@ -5808,6 +5819,7 @@
       var prods = Object.keys(byProd).sort();
       if (!prods.length) {
         document.getElementById('sqm-modal-content').innerHTML = '<h2>📋 품목별 재고 요약</h2><div class="empty">데이터가 없습니다</div>';
+        _sqmSyncModalHeaderFromContent();
         return;
       }
       var tbl = '<table class="data-table"><thead><tr><th>제품</th><th>LOT 수</th><th>톤백 수</th><th>총 중량(MT)</th></tr></thead><tbody>';
@@ -5817,8 +5829,10 @@
       });
       tbl += '</tbody></table>';
       document.getElementById('sqm-modal-content').innerHTML = '<h2 style="margin-bottom:16px">📋 품목별 재고 요약</h2><p style="color:var(--text-muted);font-size:.85rem;margin-bottom:12px">' + prods.length + '개 제품, ' + rows.length + '개 LOT</p>' + tbl;
+      _sqmSyncModalHeaderFromContent();
     }).catch(function(e){
       document.getElementById('sqm-modal-content').innerHTML = '<h2>품목별 재고 요약</h2><div class="empty">조회 실패</div>';
+      _sqmSyncModalHeaderFromContent();
     });
   }
   window.showProductSummaryModal = showProductSummaryModal;
@@ -5883,6 +5897,7 @@
       var prods = Object.keys(byProd).sort();
       if (!prods.length) {
         document.getElementById('sqm-modal-content').innerHTML = '<h2>품목별 입출고</h2><div class="empty">데이터가 없습니다</div>';
+        _sqmSyncModalHeaderFromContent();
         return;
       }
       var tbl = '<table class="data-table"><thead><tr><th>제품</th><th>입고</th><th>출고</th><th>반품</th><th>기타</th></tr></thead><tbody>';
@@ -5892,8 +5907,10 @@
       });
       tbl += '</tbody></table>';
       document.getElementById('sqm-modal-content').innerHTML = '<h2 style="margin-bottom:16px">📊 품목별 입출고 현황</h2>' + tbl;
+      _sqmSyncModalHeaderFromContent();
     }).catch(function(e){
       document.getElementById('sqm-modal-content').innerHTML = '<h2>품목별 입출고</h2><div class="empty">조회 실패</div>';
+      _sqmSyncModalHeaderFromContent();
     });
   }
   window.showProductMovementModal = showProductMovementModal;
@@ -6014,6 +6031,7 @@
         '</div>'
       ].join('\n');
       document.getElementById('sqm-modal-content').innerHTML = html;
+      _sqmSyncModalHeaderFromContent();
       bindPmHandlers();
     }
 
@@ -6023,6 +6041,7 @@
         renderPm(d);
       }).catch(function(e){
         document.getElementById('sqm-modal-content').innerHTML = '<h2>제품 마스터</h2><div class="empty">'+escapeHtml(e.message||String(e))+'</div>';
+        _sqmSyncModalHeaderFromContent();
       });
     }
 
@@ -6058,8 +6077,10 @@
         '<h3 style="margin:14px 0 8px;font-size:1rem">사유별</h3>', tbl1,
         '<h3 style="margin:14px 0 8px;font-size:1rem">월별 추이 (최근 12개월)</h3>', tbl2
       ].join('');
+      _sqmSyncModalHeaderFromContent();
     }).catch(function(e){
       document.getElementById('sqm-modal-content').innerHTML = '<h2>반품 통계</h2><div class="empty">'+escapeHtml(e.message||String(e))+'</div>';
+      _sqmSyncModalHeaderFromContent();
     });
   }
   window.showReturnStatisticsModal = showReturnStatisticsModal;
@@ -6098,12 +6119,98 @@
   }
   window.showAdvancedToolsHubModal = showAdvancedToolsHubModal;
 
+  /* ── AI 채팅 모달 ─────────────────────────────────────── */
+  function showAiChatModal() {
+    var panelId = 'sqm-ai-chat-panel';
+    if (document.getElementById(panelId)) {
+      document.getElementById(panelId).style.display = 'flex';
+      return;
+    }
+    var examples = ['전체 재고 현황', '제품별 재고', '저재고 LOT', '리튬카보네이트 재고', 'SAP별 현황'];
+    var exBtns = examples.map(function(q) {
+      return '<button type="button" class="btn btn-ghost" style="font-size:.78rem;padding:3px 8px" onclick="window._aiChatSend('+JSON.stringify(q)+')">' + escapeHtml(q) + '</button>';
+    }).join('');
+
+    var panel = document.createElement('div');
+    panel.id = panelId;
+    panel.style.cssText = 'position:fixed;right:20px;bottom:20px;width:420px;max-height:580px;'
+      + 'background:var(--bg-card,#1a2233);border:1px solid var(--border,#2a3a5c);border-radius:12px;'
+      + 'box-shadow:0 8px 32px rgba(0,0,0,.5);display:flex;flex-direction:column;z-index:9999;overflow:hidden';
+    panel.innerHTML =
+      '<div style="background:var(--primary,#2563eb);padding:10px 14px;display:flex;justify-content:space-between;align-items:center">'
+      + '<span style="font-weight:700;color:#fff">🤖 AI 재고 조회</span>'
+      + '<div style="display:flex;gap:4px;align-items:center">'
+      + '<button id="ai-detach-btn" style="background:transparent;border:1px solid rgba(255,255,255,.35);color:#fff;border-radius:4px;padding:2px 8px;cursor:pointer;font-size:13px" onclick="window._sqmDetachAiChat()" title="별도 창으로 분리">&#x29C9;</button>'
+      + '<button onclick="document.getElementById(\''+panelId+'\').style.display=\'none\'" style="background:none;border:none;color:#fff;font-size:1.2rem;cursor:pointer;line-height:1">×</button>'
+      + '</div>'
+      + '</div>'
+      + '<div id="ai-chat-history" style="flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:8px;min-height:200px">'
+      + '<div style="color:var(--text-muted);font-size:.84rem">안녕하세요! 재고를 자연어로 질문해보세요.</div>'
+      + '</div>'
+      + '<div style="padding:6px 10px;border-top:1px solid var(--border,#2a3a5c);display:flex;flex-wrap:wrap;gap:4px">' + exBtns + '</div>'
+      + '<div style="padding:10px;border-top:1px solid var(--border,#2a3a5c);display:flex;gap:8px">'
+      + '<input id="ai-chat-input" type="text" placeholder="질문을 입력하세요..." autocomplete="off"'
+      + ' style="flex:1;padding:8px 10px;background:var(--bg-hover,#0d1b2e);color:var(--text,#e2e8f0);border:1px solid var(--border,#2a3a5c);border-radius:6px;font-size:.9rem">'
+      + '<button onclick="window._aiChatSend()" class="btn btn-primary" style="padding:8px 14px">전송</button>'
+      + '</div>';
+    document.body.appendChild(panel);
+
+    document.getElementById('ai-chat-input').addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') window._aiChatSend();
+    });
+  }
+
+  window._aiChatSend = function(preset) {
+    var inp = document.getElementById('ai-chat-input');
+    var msg = preset || (inp ? inp.value.trim() : '');
+    if (!msg) return;
+    if (inp && !preset) inp.value = '';
+
+    var hist = document.getElementById('ai-chat-history');
+    if (!hist) return;
+
+    // 사용자 말풍선
+    var uDiv = document.createElement('div');
+    uDiv.style.cssText = 'align-self:flex-end;background:var(--primary,#2563eb);color:#fff;padding:7px 12px;border-radius:10px 10px 2px 10px;max-width:85%;font-size:.88rem';
+    uDiv.textContent = msg;
+    hist.appendChild(uDiv);
+
+    // 로딩
+    var aDiv = document.createElement('div');
+    aDiv.style.cssText = 'align-self:flex-start;background:var(--bg-hover,#0d1b2e);color:var(--text,#e2e8f0);padding:7px 12px;border-radius:10px 10px 10px 2px;max-width:85%;font-size:.88rem';
+    aDiv.textContent = '⏳ 조회 중…';
+    hist.appendChild(aDiv);
+    hist.scrollTop = hist.scrollHeight;
+
+    apiPost('/api/ai/chat', { message: msg }).then(function(res) {
+      aDiv.innerHTML = '';
+      var answer = (res && res.answer) ? res.answer : '응답 없음';
+      // 줄바꿈 처리
+      answer.split('\n').forEach(function(line, i) {
+        if (i > 0) aDiv.appendChild(document.createElement('br'));
+        aDiv.appendChild(document.createTextNode(line));
+      });
+      if (res && res.row_count > 0) {
+        var meta = document.createElement('div');
+        meta.style.cssText = 'margin-top:5px;font-size:.75rem;color:var(--text-muted)';
+        meta.textContent = '📊 ' + res.row_count + '건 · ' + (res.elapsed_ms||0) + 'ms';
+        aDiv.appendChild(meta);
+      }
+      hist.scrollTop = hist.scrollHeight;
+    }).catch(function(e) {
+      aDiv.style.color = 'var(--danger,#f87171)';
+      aDiv.textContent = '❌ 오류: ' + (e.message || String(e));
+      hist.scrollTop = hist.scrollHeight;
+    });
+  };
+
   function showAiToolsHubModal() {
     var h = [
       '<div style="max-width:420px;padding:4px 0">',
       '  <h2 style="margin:0 0 12px 0">🤖 AI / 선사 도구</h2>',
       '  <p style="color:var(--text-muted);font-size:.86rem;margin-bottom:16px">자주 쓰는 항목을 모았습니다.</p>',
       '  <div style="display:flex;flex-direction:column;gap:10px">',
+      '    <button type="button" class="btn btn-primary" id="aihub-chat">💬 AI 재고 채팅</button>',
       '    <button type="button" class="btn btn-primary" id="aihub-carrier">🚢 선사 프로파일 (BL 등록)</button>',
       '    <button type="button" class="btn btn-primary" id="aihub-gemini-set">🔐 Gemini API 설정</button>',
       '    <button type="button" class="btn btn-ghost" id="aihub-gemini-test">🧪 Gemini 연결 테스트</button>',
@@ -6112,6 +6219,7 @@
       '</div>'
     ].join('\n');
     showDataModal('', h);
+    document.getElementById('aihub-chat').addEventListener('click', function(){ document.getElementById('sqm-modal').style.display='none'; showAiChatModal(); });
     document.getElementById('aihub-carrier').addEventListener('click', function(){ document.getElementById('sqm-modal').style.display='none'; showCarrierProfileModal(); });
     document.getElementById('aihub-gemini-set').addEventListener('click', function(){ document.getElementById('sqm-modal').style.display='none'; showGeminiApiSettingsModal(); });
     document.getElementById('aihub-gemini-test').addEventListener('click', function(){ document.getElementById('sqm-modal').style.display='none'; showGeminiApiTestModal(); });
@@ -6209,6 +6317,7 @@
       var rows = extractRows(res);
       if (!rows.length) {
         document.getElementById('sqm-modal-content').innerHTML = '<h2>📋 보고서·작업 이력</h2><div class="empty">감사 로그가 없습니다</div>';
+        _sqmSyncModalHeaderFromContent();
         return;
       }
       var prefer = rows.filter(function(r){
@@ -6230,8 +6339,10 @@
         '<p style="color:var(--text-muted);font-size:.85rem;margin-bottom:10px">audit_log 기준 최근 ' + show.length + '건 (PDF·보고서·입출고 관련 우선 표시)</p>',
         tbl
       ].join('');
+      _sqmSyncModalHeaderFromContent();
     }).catch(function(e){
       document.getElementById('sqm-modal-content').innerHTML = '<h2>이력</h2><div class="empty">조회 실패</div>';
+      _sqmSyncModalHeaderFromContent();
     });
   }
   window.showReportHistoryAuditModal = showReportHistoryAuditModal;
@@ -6267,8 +6378,10 @@
         }).join('')+'</tbody></table>';
       }
       document.getElementById('sqm-modal-content').innerHTML='<h2 style="margin-bottom:16px">'+escapeHtml(title)+'</h2>'+html;
+      _sqmSyncModalHeaderFromContent();
     }).catch(function(e){
       document.getElementById('sqm-modal-content').innerHTML='<h2>'+escapeHtml(title)+'</h2><div class="empty">Load failed: '+escapeHtml(e.message||String(e))+'</div>';
+      _sqmSyncModalHeaderFromContent();
     });
   }
 
@@ -6281,8 +6394,10 @@
         return '<tr><td style="font-weight:600;width:40%">'+escapeHtml(kv[0])+'</td><td>'+escapeHtml(String(kv[1]))+'</td></tr>';
       }).join('')+'</tbody></table>';
       document.getElementById('sqm-modal-content').innerHTML='<h2 style="margin-bottom:16px">LOT Detail: '+escapeHtml(lotNo)+'</h2>'+html;
+      _sqmSyncModalHeaderFromContent();
     }).catch(function(e){
       document.getElementById('sqm-modal-content').innerHTML='<h2>LOT Detail: '+escapeHtml(lotNo)+'</h2><div class="empty">Load failed: '+escapeHtml(e.message||String(e))+'</div>';
+      _sqmSyncModalHeaderFromContent();
     });
   };
 
@@ -6359,7 +6474,6 @@
     /* v864.2 menu_registry: _bulk_import_inventory_simple — 동일 모달 */
     'onBulkImportInventorySimple': {m:'JS', u:'inbound-upload', lbl:'엑셀 파일 수동 입고'},
     'onInboundList':     {m:'JS',   u:'inbound',                                  lbl:'입고 목록'},
-    'onInboundCancel':   {m:'JS',   u:'inbound-cancel',                            lbl:'입고 취소'},
     'onCarrierProfile':  {m:'JS',   u:'carrier-profile',                          lbl:'선사 프로파일 관리'},
 
     /* ── 출고 메뉴 ── */
@@ -6476,8 +6590,6 @@
     'onBlCarrierRegister': {m:'JS', u:'carrier-profile',                           lbl:'🚢 선사 BL 등록 도구'},
     'onBlCarrierAnalyze':  {m:'JS', u:'carrier-profile',                           lbl:'🔬 선사 패턴 분석'},
     'onGeminiToggle':      {m:'JS', u:'gemini-toggle',                             lbl:'🔀 Gemini AI 사용'},
-    /* 채팅 UI 미포함 시 API 설정으로 안내 (키 등록 후 사용) */
-    'onAiChat':            {m:'JS', u:'gemini-api-settings',                       lbl:'💬 AI 채팅'},
     'onGeminiApiSettings': {m:'JS', u:'gemini-api-settings',                       lbl:'🔐 Gemini API 설정'},
     'onGeminiApiTest':     {m:'JS', u:'gemini-api-test',                           lbl:'🧪 Gemini API 테스트'},
 
@@ -6572,10 +6684,6 @@
       }
       if (conf.u === 'outbound-confirm') {
         showOutboundConfirmModal();
-        return;
-      }
-      if (conf.u === 'inbound-cancel') {
-        showInboundCancelModal();
         return;
       }
       if (conf.u === 'approval-queue') {
@@ -6781,6 +6889,7 @@
         var action = el.dataset.action;
         if (action==='toggle-theme'||action==='theme-toggle') { toggleTheme(); return; }
         if (action==='refresh-all') { renderPage(_currentRoute||'dashboard'); return; }
+        if (action==='show-weight-panel') { window.showWeightPanel(); return; }
         closeAllMenus();
         dispatchAction(action);
       });
@@ -6885,6 +6994,14 @@
     document.addEventListener('keydown', function(ev){
       if (ev.key === 'Escape') {
         closeAllMenus();
+        return;
+      }
+      if (ev.key === '?' && !ev.ctrlKey && !ev.metaKey && !ev.altKey) {
+        var active = document.activeElement;
+        if (!active || (active.tagName !== 'INPUT' && active.tagName !== 'TEXTAREA')) {
+          ev.preventDefault();
+          dispatchAction('onShortcuts');
+        }
         return;
       }
       if (ev.key==='F5'&&!ev.ctrlKey&&!ev.metaKey){
@@ -7187,5 +7304,129 @@
       .catch(function(e){ showToast('❌ 저장 오류: ' + e.message, 'error'); });
   }
   // ═══════════════════════════════════════════════════════════════════
+
+  /* ── 분리 창 헬퍼 ───────────────────────────────────────────────── */
+  /* ── ⚖️ 무게 패널: 재고 가치(current) + PICKED 포함 토글 ── */
+  var _weightCache = { availMT: 0, pickedMT: 0, inclPicked: false };
+
+  function _updateWeightBadge() {
+    Promise.all([
+      apiGet('/api/dashboard/stats').catch(function(){ return {}; }),
+      apiGet('/api/outbound/picked-summary').catch(function(){ return []; })
+    ]).then(function(results) {
+      var stats = results[0];
+      var pickedRows = Array.isArray(results[1]) ? results[1] : (results[1].data || []);
+      var d = stats.data || stats || {};
+      // total_weight_mt = 전체 재고 (PENDING 제외, PICKED 포함)
+      var totalMT = parseFloat(d.total_weight_mt || 0);
+      var pickedKg = pickedRows.reduce(function(s, r) { return s + (parseFloat(r.total_kg) || 0); }, 0);
+      var pickedMT = Math.round(pickedKg) / 1000;
+      var availMT = Math.round((totalMT - pickedMT) * 1000) / 1000;
+      _weightCache.availMT = availMT;
+      _weightCache.pickedMT = pickedMT;
+      var label = document.getElementById('weight-nav-label');
+      var badge = document.getElementById('weight-picked-badge');
+      var pickedNav = document.getElementById('weight-picked-nav');
+      if (label) label.textContent = (_weightCache.inclPicked ? totalMT : availMT).toFixed(3) + ' MT';
+      if (badge) badge.style.display = pickedMT > 0 ? 'inline' : 'none';
+      if (pickedNav) pickedNav.textContent = pickedMT.toFixed(3);
+    }).catch(function() {});
+  }
+
+  window.showWeightPanel = function() {
+    var old = document.getElementById('sqm-weight-panel');
+    if (old) { old.remove(); return; }
+    var panel = document.createElement('div');
+    panel.id = 'sqm-weight-panel';
+    panel.style.cssText = 'position:fixed;top:50px;right:16px;z-index:8000;background:var(--surface,#1e293b);'
+      + 'border:1px solid var(--border,#334155);border-radius:10px;padding:16px 20px;min-width:260px;'
+      + 'box-shadow:0 4px 24px rgba(0,0,0,0.5);';
+    var availMT = _weightCache.availMT;
+    var pickedMT = _weightCache.pickedMT;
+    var inclPicked = _weightCache.inclPicked;
+    var header = document.createElement('div');
+    header.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:14px';
+    var title = document.createElement('span');
+    title.style.cssText = 'font-size:14px;font-weight:700;color:var(--text);flex:1';
+    title.textContent = '\u2696\ufe0f \ubb34\uac8c \ud604\ud669';
+    var closeBtn = document.createElement('button');
+    closeBtn.style.cssText = 'background:transparent;border:none;color:var(--text-muted);cursor:pointer;font-size:16px;line-height:1;padding:0';
+    closeBtn.textContent = '\u00d7';
+    closeBtn.onclick = function() { panel.remove(); };
+    header.appendChild(title);
+    header.appendChild(closeBtn);
+    var row1 = document.createElement('div');
+    row1.style.cssText = 'margin-bottom:8px;font-size:13px;color:var(--text-muted)';
+    row1.innerHTML = '\uc7ac\uace0 \uac00\uce58 (AVAILABLE+RESERVED): <b style="color:var(--text);font-size:15px">'
+      + availMT.toFixed(3) + ' MT</b>';
+    var row2 = document.createElement('div');
+    row2.style.cssText = 'margin-bottom:12px;font-size:13px;color:var(--text-muted)';
+    row2.innerHTML = 'PICKED (\ucc3d\uace0 \ub0b4 \ub300\uae30): <b style="color:#fb923c;font-size:15px">'
+      + pickedMT.toFixed(3) + ' MT</b>';
+    var cbRow = document.createElement('label');
+    cbRow.style.cssText = 'display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;color:var(--text-muted);'
+      + 'padding:8px 10px;background:var(--bg,#0f172a);border-radius:6px;border:1px solid var(--border,#334155);margin-bottom:10px';
+    var cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.checked = inclPicked;
+    cb.onchange = function() {
+      _weightCache.inclPicked = cb.checked;
+      _updateWeightBadge();
+      var navLabel = document.getElementById('weight-nav-label');
+      if (navLabel) {
+        var disp = cb.checked ? (_weightCache.availMT + _weightCache.pickedMT) : _weightCache.availMT;
+        navLabel.textContent = disp.toFixed(3) + ' MT';
+      }
+      total.textContent = (cb.checked ? availMT + pickedMT : availMT).toFixed(3) + ' MT';
+    };
+    cbRow.appendChild(cb);
+    cbRow.appendChild(document.createTextNode('PICKED \ud3ec\ud568 (\ucc3d\uace0 \uc2e4\ubb3c \uc810\uac80\uc6a9)'));
+    var totalLabel = document.createElement('div');
+    totalLabel.style.cssText = 'font-size:11px;color:var(--text-muted);padding-top:8px;border-top:1px solid var(--border,#334155)';
+    totalLabel.textContent = '\ud569\uacc4: ';
+    var total = document.createElement('b');
+    total.style.color = 'var(--text)';
+    total.textContent = (inclPicked ? availMT + pickedMT : availMT).toFixed(3) + ' MT';
+    totalLabel.appendChild(total);
+    panel.appendChild(header);
+    panel.appendChild(row1);
+    panel.appendChild(row2);
+    panel.appendChild(cbRow);
+    panel.appendChild(totalLabel);
+    document.body.appendChild(panel);
+    _updateWeightBadge();
+    setTimeout(function() {
+      document.addEventListener('click', function rm(e) {
+        if (!panel.contains(e.target) && e.target.id !== 'weight-panel-btn') {
+          panel.remove();
+          document.removeEventListener('click', rm);
+        }
+      });
+    }, 50);
+  };
+
+  window._updateWeightBadge = _updateWeightBadge;
+
+  window._sqmDetachAiChat = function() {
+    var API = window.SQM_API_BASE || 'http://127.0.0.1:8765';
+    var url = API + '/frontend/detached/ai_chat.html';
+    if (window.pywebview && window.pywebview.api && window.pywebview.api.open_detached_window) {
+      window.pywebview.api.open_detached_window('ai_chat', 'SQM AI Chat', url, 900, 650);
+    } else {
+      window.open(url, 'sqm_ai_chat', 'width=900,height=650');
+    }
+    var panel = document.getElementById('sqm-ai-chat-panel');
+    if (panel) panel.style.display = 'none';
+  };
+
+  window._sqmDetachIntegrity = function() {
+    var API = window.SQM_API_BASE || 'http://127.0.0.1:8765';
+    var url = API + '/frontend/detached/integrity.html';
+    if (window.pywebview && window.pywebview.api && window.pywebview.api.open_detached_window) {
+      window.pywebview.api.open_detached_window('integrity', '정합성 검사', url, 1000, 700);
+    } else {
+      window.open(url, 'sqm_integrity', 'width=1000,height=700');
+    }
+  };
 
 })();
