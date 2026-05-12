@@ -145,7 +145,7 @@ def get_dashboard_stats():
         total_tbags = c.execute("SELECT COUNT(*) FROM inventory_tonbag").fetchone()[0]
         stock_lots  = c.execute("SELECT COUNT(*) FROM inventory WHERE status='AVAILABLE'").fetchone()[0]
         sold_lots   = c.execute("SELECT COUNT(*) FROM inventory WHERE status IN ('SOLD','RESERVED','PICKED')").fetchone()[0]
-        total_wt    = c.execute("SELECT COALESCE(SUM(current_weight),0) FROM inventory").fetchone()[0]
+        total_wt    = c.execute("SELECT COALESCE(SUM(current_weight),0) FROM inventory WHERE status != 'PENDING'").fetchone()[0]
         # v9.4 [AVAIL-FIX]: 톤백 레벨 status 기준 무게 집계 (LOT 레벨 오버카운트 수정)
         avail_wt    = c.execute("SELECT COALESCE(SUM(weight),0) FROM inventory_tonbag WHERE status='AVAILABLE'").fetchone()[0]
         reserved_wt = c.execute("SELECT COALESCE(SUM(weight),0) FROM inventory_tonbag WHERE status='RESERVED'").fetchone()[0]
@@ -230,29 +230,51 @@ def get_dashboard_stats():
                 "weight_mt":  round(float(row[9]) / 1000.0, 2),
             })
 
-        # ── 정합성 요약 (총입고 = 현재재고 + 출고누계) ──
-        # 샘플 톤백도 inventory.initial_weight에 포함되므로 전체를 샘플 포함 기준으로 통일한다.
-        # stock_movement INBOUND는 기존 데이터에 샘플 포함/제외 이력이 섞일 수 있어 기준값으로 쓰지 않는다.
+        # ── 정합성 요약 (총입고 = PENDING대기 + 현재재고 + 출고누계) ──
+        # BUG FIX (v8.6.8): total_inbound_kg → 전체 initial_weight 기준, pending_kg 분리 표시
+        # PENDING 톤백은 창고 미반입 → current_stock_kg 제외, pending_kg로 별도 집계
         total_inbound_kg = c.execute("""
             SELECT COALESCE(SUM(initial_weight), 0) FROM inventory
         """).fetchone()[0]
 
-        # 현재 재고 중량 (샘플 포함: AVAILABLE + RESERVED + PICKED + RETURN)
+        # PENDING 대기 중량 — 창고 미반입 (정합성 계산에서 별도 분리)
+        pending_kg = c.execute("""
+            SELECT COALESCE(SUM(weight), 0) FROM inventory_tonbag
+            WHERE status = 'PENDING'
+        """).fetchone()[0]
+
+        # 현재 재고 중량 — AVAILABLE + RESERVED + RETURN, 샘플 포함
         current_stock_kg = c.execute("""
             SELECT COALESCE(SUM(weight), 0) FROM inventory_tonbag
-            WHERE status IN ('AVAILABLE', 'RESERVED', 'PICKED', 'RETURN')
+            WHERE status IN ('AVAILABLE', 'RESERVED', 'RETURN')
         """).fetchone()[0]
 
-        # 출고 누계 중량 (샘플 포함: OUTBOUND + SOLD 상태 톤백)
+        # 출고 작업 중 (PICKED: 차량 미출발, 취소 가능) — 별도 집계
+        picked_kg = c.execute("""
+            SELECT COALESCE(SUM(weight), 0) FROM inventory_tonbag
+            WHERE status = 'PICKED'
+        """).fetchone()[0]
+
+        # 출고 누계 (SOLD 전용 — OUTBOUND/SHIPPED/CONFIRMED는 SOLD로 통합됨, b2d136e)
         outbound_total_kg = c.execute("""
             SELECT COALESCE(SUM(weight), 0) FROM inventory_tonbag
-            WHERE status IN ('SOLD', 'SHIPPED', 'CONFIRMED')
+            WHERE status = 'SOLD'
         """).fetchone()[0]
 
-        diff_kg = round(float(total_inbound_kg) - float(current_stock_kg) - float(outbound_total_kg), 1)
+        # diff = 총입고 - PENDING대기 - 현재재고 - PICKED - 출고누계 → 이상적으로 0
+        diff_kg = round(
+            float(total_inbound_kg)
+            - float(pending_kg)
+            - float(current_stock_kg)
+            - float(picked_kg)
+            - float(outbound_total_kg),
+            1,
+        )
         integrity = {
             "total_inbound_kg":  round(float(total_inbound_kg), 1),
+            "pending_kg":        round(float(pending_kg), 1),
             "current_stock_kg":  round(float(current_stock_kg), 1),
+            "picked_kg":         round(float(picked_kg), 1),
             "outbound_total_kg": round(float(outbound_total_kg), 1),
             "diff_kg":           diff_kg,
             "ok":                abs(diff_kg) <= 1.0,
@@ -263,6 +285,7 @@ def get_dashboard_stats():
             """
             SELECT COALESCE(SUM(net_weight), 0), COALESCE(SUM(current_weight), 0)
             FROM inventory
+            WHERE status != 'PENDING'
             """
         ).fetchone()
         _nw_sum = float(_nw_sum or 0)
@@ -271,7 +294,7 @@ def get_dashboard_stats():
             """
             SELECT COALESCE(SUM(weight), 0) FROM inventory_tonbag
             WHERE COALESCE(is_sample, 0) = 1
-              AND status IN ('AVAILABLE', 'RESERVED', 'PICKED', 'RETURN')
+              AND status IN ('AVAILABLE', 'RESERVED', 'RETURN')
             """
         ).fetchone()[0]
         lot_weight_summary = {

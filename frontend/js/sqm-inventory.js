@@ -716,7 +716,7 @@
     c.innerHTML = '<div class="loading-spinner" style="padding:40px;text-align:center;color:var(--text-muted)">⏳ Available 재고 로딩 중...</div>';
 
     // /api/inventory?status=AVAILABLE 호출 — 기존 인벤토리 API 재활용
-    apiGet('/api/inventory?status=AVAILABLE&limit=500').then(function(res) {
+    apiGet('/api/inventory?status=AVAILABLE&limit=5000').then(function(res) {
       if (window.getCurrentRoute() !== route) return;
       var rows = Array.isArray(res) ? res : (res.data || res.rows || res.items || []);
       if (!rows.length) {
@@ -874,13 +874,17 @@
   window.availCancelSelected = function() {
     var checked = Array.from(document.querySelectorAll('.avail-cb:checked'));
     if (!checked.length) { showToast('warn', '취소할 LOT를 선택하세요'); return; }
-    var lots = checked.map(function(cb) { return cb.dataset.lot; });
-    if (!confirm('⚠️ 선택 취소 (AVAILABLE → PENDING)\n\n' + lots.length + '개 LOT:\n' + lots.join('\n') + '\n\n입고 확정을 취소합니다. 계속하시겠습니까?')) return;
+    var lots = Array.from(new Set(checked.map(function(cb) { return cb.dataset.lot; }).filter(Boolean)));
+    if (!confirm('⚠️ 선택 취소 (AVAILABLE → PENDING)\n\n' + lots.length + '개 LOT:\n' + lots.slice(0,20).join('\n') + (lots.length > 20 ? '\n... (외 ' + (lots.length-20) + '개)' : '') + '\n\n입고 확정을 취소합니다. 계속하시겠습니까?')) return;
     var done = 0, failed = [];
     function next() {
       if (done + failed.length === lots.length) {
-        if (failed.length) showToast('error', '❌ 실패 ' + failed.length + '건: ' + failed.join(', '));
-        else showToast('success', '↩️ ' + done + '건 → PENDING 복구 완료');
+        if (failed.length) {
+          console.error('[availCancelSelected] 실패 LOT:', failed);
+          alert('⚠️ 취소 실패 LOT ' + failed.length + '건:\n\n' + failed.join('\n') + '\n\n이 LOT들은 AVAILABLE 상태로 남아 있거나\nRESERVED/PICKED 톤백이 있어 취소 불가합니다.\n취소 완료: ' + done + '건');
+        } else {
+          showToast('success', '↩️ ' + done + '건 전량 → PENDING 복구 완료');
+        }
         window.renderPage('available');
         return;
       }

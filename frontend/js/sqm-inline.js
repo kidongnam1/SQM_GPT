@@ -991,13 +991,19 @@
     html += '<h3 style="margin:0 0 8px 0;font-size:15px;color:'+color+'">'+icon+' \uC815\uD569\uC131 \uAC80\uC99D \u2014 '+label+'</h3>';
     html += '<div style="display:flex;gap:24px;flex-wrap:wrap;font-size:13px;color:var(--text-primary,#e0e0e0)">';
     html += '<div>\uCD1D\uC785\uACE0(initial): <b>'+fmtW(data.total_inbound_kg)+'</b></div>';
+    if (data.pending_kg != null && data.pending_kg > 0) {
+      html += '<div style="color:#94a3b8">\u23F3 PENDING\uB300\uAE30: <b>'+fmtW(data.pending_kg)+'</b></div>';
+    }
     html += '<div>\uD604\uC7AC\uC7AC\uACE0(\uD1A4\uBC31\uD569): <b>'+fmtW(data.current_stock_kg)+'</b></div>';
     html += '<div>\uCD9C\uACE0\uB204\uACC4(\uD1A4\uBC31\uD569): <b>'+fmtW(data.outbound_total_kg)+'</b></div>';
     html += '<div>\uCC28\uC774: <b style="color:'+color+'">'+fmtN(data.diff_kg)+' kg</b></div>';
     html += '</div>';
+    if (!ok && data.diff_kg > 1) {
+      html += '<div style="margin-top:6px;font-size:12px;color:#f59e0b">\u26A0\uFE0F \uBD88\uC77C\uCE58 \uAC10\uC9C0 \u2014 <a href="javascript:void(0)" style="color:#60a5fa;text-decoration:underline" onclick="window._runIntegrityDiagnostic()">\uC9C4\uB2E8 \uC2E4\uD589</a>\uC73C\uB85C \uC6D0\uC778 \uD655\uC778</div>';
+    }
     if (lotW && lotW.sum_net_weight_kg !== undefined) {
       html += '<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border-color,#333);font-size:12px;color:var(--text-muted,#888);line-height:1.5">';
-      html += '<b style="color:var(--text-primary,#e0e0e0)">LOT \uC900\uC911\uB7C9 \uD569 vs \uD604\uC7AC\uC911\uB7C9 \uD569</b> (Excel LOT \uBAA9\uB85D\uACFC \uB3D9\uC77C \uAE30\uC900)<br>';
+      html += '<b style="color:var(--text-primary,#e0e0e0)">LOT \uC21C\uC911\uB7C9 \uD569 vs \uD604\uC7AC\uC911\uB7C9 \uD569</b> (Excel LOT \uBAA9\uB85D\uACFC \uB3D9\uC77C \uAE30\uC900)<br>';
       html += '\uC21C\uC911\uB7C9 \uD569: <b style="color:#e0e0e0">'+fmtW(lotW.sum_net_weight_kg)+'</b>';
       html += ' \u00B7 \uD604\uC7AC\uC911\uB7C9 \uD569: <b style="color:#e0e0e0">'+fmtW(lotW.sum_current_weight_kg)+'</b>';
       html += ' \u00B7 \uCC28\uC774(\uC0D8\uD50C\uB4F1 \uCD94\uC815): <b style="color:#f59e0b">'+fmtN(lotW.gap_net_minus_current_kg)+' kg</b>';
@@ -1009,6 +1015,46 @@
     html += '</div>';
     el.innerHTML = html;
   }
+
+  window._runIntegrityDiagnostic = function() {
+    var win = window.open('', 'sqm_diag', 'width=900,height=600');
+    if (!win) { showToast('warn', '\uD31D\uC5C5 \uCC28\uB2E8\uB428 \u2014 \uBE0C\uB77C\uC6B0\uC800 \uC124\uC815 \uD655\uC778'); return; }
+    win.document.write('<html><head><title>\uC815\uD569\uC131 \uC9C4\uB2E8</title><style>body{font-family:monospace;background:#0f172a;color:#e0e0e0;padding:16px}table{border-collapse:collapse;width:100%;font-size:12px}th,td{padding:6px 10px;border:1px solid #334155;text-align:right}th{background:#1e293b;text-align:center}.ok{color:#22c55e}.bad{color:#ef4444}.warn{color:#f59e0b}</style></head><body><h2 style="color:#60a5fa">\uC815\uD569\uC131 \uC9C4\uB2E8 \uB85C\uB529 \uC911...</h2></body></html>');
+    win.document.close();
+    apiGet('/api/integrity/diagnostic').then(function(res) {
+      if (!res || !res.success) { win.document.body.innerHTML = '<h2 style="color:#ef4444">\uC9C4\uB2E8 \uC2E4\uD328: ' + (res && res.message || '\uC54C \uC218 \uC5C6\uC74C') + '</h2>'; return; }
+      var d = res.data;
+      var b = d.balance;
+      var html = '<h2 style="color:#60a5fa">\uC815\uD569\uC131 \uC9C4\uB2E8 \uACB0\uACFC <small style="font-size:12px;color:#94a3b8">\u2014 ' + new Date().toLocaleString() + '</small></h2>';
+      html += '<h3 style="color:#94a3b8">\u25B6 \uC804\uCCB4 \uBB34\uAC8C \uADE0\uD615</h3>';
+      html += '<table><tr><th>\uCD1D\uC785\uACE0(initial)</th><th>PENDING\uB300\uAE30</th><th>\uD604\uC7AC\uC7AC\uACE0</th><th>\uCD9C\uACE0\uB204\uACC4</th><th>\uADE0\uD615</th></tr>';
+      var sumOther = (b.pending_mt||0) + (b.stock_mt||0) + (b.sold_mt||0);
+      var diff = ((b.total_initial_mt||0) - sumOther).toFixed(3);
+      var diffClass = Math.abs(parseFloat(diff)) <= 0.001 ? 'ok' : 'bad';
+      html += '<tr><td>'+b.total_initial_mt+' MT</td><td class="warn">'+b.pending_mt+' MT</td><td>'+b.stock_mt+' MT</td><td>'+b.sold_mt+' MT</td><td class="'+diffClass+'">\uCC28\uC774: '+diff+' MT</td></tr></table>';
+      html += '<h3 style="color:#94a3b8;margin-top:16px">\u25B6 \uC0C1\uD0DC\uBCC4 \uC694\uC57D (initial_weight vs \uD1A4\uBC31\uD569\uACC4)</h3>';
+      html += '<table><tr><th>inventory \uC0C1\uD0DC</th><th>LOT \uC218</th><th>initial(MT)</th><th>\uD1A4\uBC31\uD569(MT)</th><th>\uCC28\uC774(MT)</th></tr>';
+      (d.by_status||[]).forEach(function(r) {
+        var cls = Math.abs(parseFloat(r.diff_mt)) <= 0.001 ? 'ok' : 'bad';
+        html += '<tr><td style="text-align:left">'+r.inv_status+'</td><td>'+r.lot_cnt+'</td><td>'+r.initial_mt+'</td><td>'+r.tonbag_mt+'</td><td class="'+cls+'">'+r.diff_mt+'</td></tr>';
+      });
+      html += '</table>';
+      if (d.orphan_count > 0) {
+        html += '<h3 style="color:#ef4444;margin-top:16px">\u25B6 \uBD88\uC77C\uCE58 LOT \uBAA9\uB85D ('+d.orphan_count+'\uAC74, \uC0C1\uC704 100\uAC1C)</h3>';
+        html += '<table><tr><th>LOT</th><th>\uC0C1\uD0DC</th><th>\uC81C\uD488</th><th>initial</th><th>\uD1A4\uBC31\uD569</th><th>\uCC28\uC774</th><th>PENDING\uBC31</th><th>AVAIL\uBC31</th><th>SOLD\uBC31</th><th>\uC804\uCCB4\uBC31</th></tr>';
+        d.orphan_lots.forEach(function(r) {
+          var cls = parseFloat(r.diff_mt) > 0.001 ? 'bad' : 'warn';
+          html += '<tr><td style="text-align:left">'+r.lot_no+'</td><td>'+r.inv_status+'</td><td style="text-align:left">'+r.product+'</td>';
+          html += '<td>'+r.initial_mt+'</td><td>'+r.tonbag_total_mt+'</td><td class="'+cls+'">'+r.diff_mt+'</td>';
+          html += '<td class="warn">'+r.pending_bags+'</td><td>'+r.avail_bags+'</td><td>'+r.sold_bags+'</td><td>'+r.total_bags+'</td></tr>';
+        });
+        html += '</table>';
+      } else {
+        html += '<h3 style="color:#22c55e;margin-top:16px">\u2705 \uBD88\uC77C\uCE58 LOT \uC5C6\uC74C \u2014 initial_weight vs \uD1A4\uBC31\uD569 \uC644\uC804 \uC77C\uCE58</h3>';
+      }
+      win.document.body.innerHTML = html;
+    }).catch(function(e) { win.document.body.innerHTML = '<h2 style="color:#ef4444">API \uC624\uB958: ' + e.message + '</h2>'; });
+  };
 
   /* ===================================================
      7a. PAGE: Inventory

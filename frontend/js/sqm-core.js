@@ -547,6 +547,40 @@
       case 'C-b': e.preventDefault(); dispatchAction('onOnBackup'); break;
       case 'C-e': e.preventDefault(); dispatchAction('onExport'); break;
       case 'C-i': e.preventDefault(); dispatchAction('onIntegrityCheck'); break;
+      case 'C-a': e.preventDefault(); (function(){
+        var r = _currentRoute;
+        if (r === 'available') {
+          var cbs = document.querySelectorAll('.avail-cb');
+          var allChk = cbs.length > 0 && Array.from(cbs).every(function(c){return c.checked;});
+          cbs.forEach(function(c){c.checked = !allChk;});
+          var mCb = document.getElementById('avail-select-all');
+          if (mCb) mCb.checked = !allChk;
+          showToast('info', (!allChk ? '✅ ' : '☐ ') + cbs.length + '개 선택' + (!allChk ? '' : ' 해제'));
+        } else if (r === 'allocation') {
+          var allocCbs = document.querySelectorAll('#alloc-summary-table input[type="checkbox"]:not(#alloc-select-all)');
+          var allAllocChk = allocCbs.length > 0 && Array.from(allocCbs).every(function(c){return c.checked;});
+          if (window.allocToggleAll) window.allocToggleAll(!allAllocChk);
+          var mAlloc = document.getElementById('alloc-select-all');
+          if (mAlloc) mAlloc.checked = !allAllocChk;
+          showToast('info', (!allAllocChk ? '✅ ' : '☐ ') + allocCbs.length + '개 선택' + (!allAllocChk ? '' : ' 해제'));
+        } else if (r === 'pending') {
+          var pCbs = document.querySelectorAll('.pending-cb');
+          var allPChk = pCbs.length > 0 && Array.from(pCbs).every(function(c){return c.checked;});
+          pCbs.forEach(function(c){c.checked = !allPChk;});
+          var mPend = document.getElementById('pending-select-all');
+          if (mPend) mPend.checked = !allPChk;
+          showToast('info', (!allPChk ? '✅ ' : '☐ ') + pCbs.length + '개 선택' + (!allPChk ? '' : ' 해제'));
+        }
+      })(); break;
+      case 'C-Delete': e.preventDefault(); (function(){
+        var r = _currentRoute;
+        if (r === 'available' && window.availCancelSelected) { window.availCancelSelected(); }
+        else if (r === 'allocation' && window.allocCancelSelected) { window.allocCancelSelected(); }
+        else if (r === 'picked' && window.allocRevertStep) { window.allocRevertStep('PICKED'); }
+        else if ((r === 'outbound' || r === 'sold') && window.allocRevertStep) { window.allocRevertStep('SOLD'); }
+        else if (r === 'return') { showToast('info', 'Return 탭 전체 취소: 준비 중'); }
+        else { showToast('warn', '이 탭은 Ctrl+Delete 지원 없음'); }
+      })(); break;
     }
   });
 
@@ -912,7 +946,7 @@
       el.classList.remove('active-parent');
     });
     // 자식 라우트 선택 시 부모(Inventory) 버튼 강조
-    var _childRoutes = {'available':'inventory','allocation':'inventory','picked':'inventory','return':'inventory'};
+    var _childRoutes = {'pending':'inventory','available':'inventory','allocation':'inventory','picked':'inventory','return':'inventory'};
     var _parent = _childRoutes[route];
     if (_parent) {
       document.querySelectorAll('[data-route="' + _parent + '"]').forEach(function(el){
@@ -930,6 +964,7 @@
     switch (route) {
       case 'dashboard':  loadDashboard();     break;
       case 'inventory':  window.loadInventoryPage();  break;
+      case 'pending':   window.loadPendingPage();   break;
       case 'available':  window.loadAvailablePage();  break;  // v9.5 신규
       case 'allocation': window.loadAllocationPage(); break;
       case 'picked':     window.loadPickedPage();     break;
@@ -1261,7 +1296,11 @@
 
       /* 1행: 일반 톤백 */
       html += '<tr style="' + borderTop + '">';
-      html += '<td style="text-align:left;padding:6px 10px;font-weight:700">' + escapeHtml(prod) + '</td>';
+      html += '<td style="text-align:left;padding:6px 10px;font-weight:700">'
+            + '<span style="cursor:pointer;color:#60a5fa;text-decoration:underline dotted" '
+            + 'title="클릭 → LOT별 상세 재고" '
+            + 'onclick="window.showProductLotDetail(\'' + prod.replace(/\\/g,'\\\\').replace(/'/g,"\\'") + '\')">'
+            + escapeHtml(prod) + '</span></td>';
       html += cv(n.available,  false);
       html += cv(n.reserved,   false);
       html += cv(n.picked,     false);
@@ -1287,6 +1326,104 @@
     html += '</tbody></table></div>';
     el.innerHTML = html;
   }
+
+  /* -- 제품별 LOT 드릴다운 모달 -- */
+  window.showProductLotDetail = function(productName) {
+    var STATUS_ORDER = ['PENDING','AVAILABLE','RESERVED','PICKED','SOLD','RETURN'];
+    var STATUS_COLOR = {
+      PENDING:'#94a3b8', AVAILABLE:'#22c55e', RESERVED:'#3b82f6',
+      PICKED:'#f59e0b',  SOLD:'#ef4444',      RETURN:'#8b5cf6'
+    };
+    var STATUS_LABEL = {
+      PENDING:'⏳ PENDING (입항대기)', AVAILABLE:'✅ AVAILABLE (판매가능)',
+      RESERVED:'📋 RESERVED (배분확정)', PICKED:'📦 PICKED (피킹완료)',
+      SOLD:'🚛 SOLD (출고완료)',       RETURN:'↩️ RETURN (반품)'
+    };
+
+    /* 로딩 스피너 먼저 */
+    if (window.showDataModal) {
+      window.showDataModal('', '<div style="padding:30px;text-align:center;color:var(--text-muted,#888)">⏳ ' + escapeHtml(productName) + ' 로딩 중...</div>');
+    }
+
+    apiGet('/api/inventory?product=' + encodeURIComponent(productName) + '&limit=500')
+      .then(function(rows) {
+        /* 상태별 그룹핑 */
+        var groups = {};
+        STATUS_ORDER.forEach(function(s) { groups[s] = []; });
+        rows.forEach(function(r) {
+          var s = (r.status || '').toUpperCase();
+          if (!groups[s]) groups[s] = [];
+          groups[s].push(r);
+        });
+
+        /* 상단 요약 뱃지 */
+        var summaryHtml = '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px">';
+        STATUS_ORDER.forEach(function(s) {
+          var grp = groups[s];
+          var totalMt = grp.reduce(function(a, r) { return a + (r.balance || 0); }, 0);
+          var opacity = grp.length ? '1' : '0.35';
+          summaryHtml += '<div style="padding:6px 14px;border-radius:8px;background:var(--bg-card,#1e1e2e);'
+            + 'border:1px solid ' + STATUS_COLOR[s] + ';min-width:100px;opacity:' + opacity + '">'
+            + '<div style="color:' + STATUS_COLOR[s] + ';font-weight:700;font-size:11px;letter-spacing:0.5px">' + s + '</div>'
+            + '<div style="font-size:20px;font-weight:800;line-height:1.2">' + grp.length + '</div>'
+            + '<div style="font-size:10px;color:var(--text-muted,#888)">LOT · ' + totalMt.toFixed(3) + ' MT</div>'
+            + '</div>';
+        });
+        summaryHtml += '</div>';
+
+        /* 상태별 테이블 */
+        var tableHtml = '';
+        STATUS_ORDER.forEach(function(s) {
+          var grp = groups[s];
+          if (!grp.length) return;
+          tableHtml += '<div style="margin-bottom:18px">';
+          tableHtml += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;padding:4px 8px;'
+            + 'border-left:3px solid ' + STATUS_COLOR[s] + ';background:var(--bg-hover,rgba(255,255,255,0.03))">'
+            + '<span style="color:' + STATUS_COLOR[s] + ';font-weight:700;font-size:13px">' + (STATUS_LABEL[s] || s) + '</span>'
+            + '<span style="color:var(--text-muted,#888);font-size:12px">(' + grp.length + ' LOT)</span>'
+            + '</div>';
+          tableHtml += '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">';
+          tableHtml += '<thead><tr style="background:var(--bg-header,#2a2a3e);color:var(--fg,#e0e0e0)">'
+            + '<th style="padding:5px 8px;text-align:left;font-weight:600">LOT NO</th>'
+            + '<th style="padding:5px 8px;text-align:left;font-weight:600">Container</th>'
+            + '<th style="padding:5px 8px;text-align:left;font-weight:600">BL</th>'
+            + '<th style="padding:5px 8px;text-align:right;font-weight:600">Net(MT)</th>'
+            + '<th style="padding:5px 8px;text-align:right;font-weight:600">잔량(MT)</th>'
+            + '<th style="padding:5px 8px;text-align:right;font-weight:600">Bags</th>'
+            + '<th style="padding:5px 8px;text-align:left;font-weight:600">입고일</th>'
+            + '<th style="padding:5px 8px;text-align:left;font-weight:600">위치</th>'
+            + '</tr></thead><tbody>';
+          grp.forEach(function(r, i) {
+            var bg = i % 2 ? 'background:var(--bg-hover,rgba(255,255,255,0.03))' : '';
+            tableHtml += '<tr style="' + bg + '">'
+              + '<td style="padding:4px 8px;font-family:Consolas,monospace;font-size:11px">' + escapeHtml(r.lot || '') + '</td>'
+              + '<td style="padding:4px 8px;font-size:11px">' + escapeHtml(r.container || '') + '</td>'
+              + '<td style="padding:4px 8px;font-size:11px">' + escapeHtml(r.bl || '') + '</td>'
+              + '<td style="padding:4px 8px;text-align:right">' + (r.net || 0).toFixed(3) + '</td>'
+              + '<td style="padding:4px 8px;text-align:right;color:' + STATUS_COLOR[s] + ';font-weight:600">' + (r.balance || 0).toFixed(3) + '</td>'
+              + '<td style="padding:4px 8px;text-align:right">' + (r.total_bags || r.avail_bags || 0) + '</td>'
+              + '<td style="padding:4px 8px;font-size:11px">' + escapeHtml(r.date || '') + '</td>'
+              + '<td style="padding:4px 8px;font-size:11px">' + escapeHtml(r.location || '') + '</td>'
+              + '</tr>';
+          });
+          tableHtml += '</tbody></table></div></div>';
+        });
+
+        var html = '<div style="min-width:680px">'
+          + '<h2 style="margin:0 0 14px;font-size:16px">📦 ' + escapeHtml(productName) + ' — LOT별 재고 현황</h2>'
+          + summaryHtml + tableHtml
+          + '<div style="display:flex;justify-content:flex-end;margin-top:8px">'
+          + '<button class="btn btn-ghost" onclick="document.getElementById(\'sqm-modal\').style.display=\'none\'">닫기</button>'
+          + '</div></div>';
+
+        var el = document.getElementById('sqm-modal-content');
+        if (el) el.innerHTML = html;
+      })
+      .catch(function(e) {
+        var el = document.getElementById('sqm-modal-content');
+        if (el) el.innerHTML = '<div style="color:#ef4444;padding:20px">❌ 오류: ' + escapeHtml(String(e)) + '</div>';
+      });
+  };
 
   /* -- 정합성 요약 -- */
   function renderIntegrity(data, lotW) {
