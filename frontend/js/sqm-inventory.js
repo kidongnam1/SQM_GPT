@@ -283,7 +283,58 @@
       { icon:'🚀', label:'즉시 출고 진입', kbd:'O',       color:'#42a5f5', fn:function(){ window.invQuickOutbound(lot); } },
       { icon:'🔄', label:'반품 진입',      kbd:'R',       color:'#ef5350', fn:function(){ window.invQuickReturn(lot); } },
       { icon:'📊', label:'LOT 이력 보기', kbd:'H',       color:'#66bb6a', fn:function(){ window.invShowLotHistory(lot); } },
+      '-',
+      { icon:'↩️', label:'PENDING으로 되돌리기', color:'#f59e0b', fn:function(){ window.revertToPending(lot); } },
     ]);
+  };
+
+  window.revertToPending = function(lot) {
+    if (!lot) return;
+    var ov = document.createElement('div');
+    ov.id = 'revert-pending-overlay';
+    ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:10000;display:flex;align-items:center;justify-content:center';
+    var box = document.createElement('div');
+    box.style.cssText = 'background:var(--surface,#1e293b);border:1px solid var(--border,#334155);border-radius:12px;padding:24px;min-width:320px;max-width:400px';
+    var h3 = document.createElement('h3');
+    h3.style.cssText = 'margin:0 0 12px;font-size:15px;color:var(--text)';
+    h3.textContent = '↩️ PENDING으로 되돌리기';
+    var desc = document.createElement('p');
+    desc.style.cssText = 'margin:0 0 16px;font-size:13px;color:var(--text-muted);white-space:pre-line';
+    var strong = document.createElement('strong');
+    strong.style.cssText = 'color:var(--text);font-family:monospace';
+    strong.textContent = lot;
+    desc.appendChild(document.createTextNode('입고 취소: '));
+    desc.appendChild(strong);
+    desc.appendChild(document.createTextNode(' → PENDING 복구. inbound_date 초기화 / RESERVED·PICKED·SOLD 톤백 없어야 합니다.'));
+    var btnRow = document.createElement('div');
+    btnRow.style.cssText = 'display:flex;gap:8px;justify-content:flex-end';
+    var cancelBtn = document.createElement('button');
+    cancelBtn.className = 'btn btn-ghost';
+    cancelBtn.textContent = '취소';
+    cancelBtn.onclick = function() { ov.remove(); };
+    var confirmBtn = document.createElement('button');
+    confirmBtn.className = 'btn btn-primary';
+    confirmBtn.style.background = '#f59e0b';
+    confirmBtn.textContent = '확인 — PENDING 복구';
+    confirmBtn.dataset.lot = lot;
+    confirmBtn.onclick = function() {
+      var l = this.dataset.lot;
+      ov.remove();
+      apiPost('/api/inbound/revert/' + encodeURIComponent(l), {})
+        .then(function() {
+          showToast('success', '↩️ ' + l + ' → PENDING 복구 완료');
+          if (window.loadAvailablePage) window.loadAvailablePage();
+        })
+        .catch(function(e) { showToast('error', '실패: ' + (e.message || e)); });
+    };
+    btnRow.appendChild(cancelBtn);
+    btnRow.appendChild(confirmBtn);
+    box.appendChild(h3);
+    box.appendChild(desc);
+    box.appendChild(btnRow);
+    ov.appendChild(box);
+    document.body.appendChild(ov);
+    cancelBtn.focus();
   };
 
   window.invCopyLot = function(lot) {
@@ -438,6 +489,141 @@
   /* ===================================================
      PENDING 입고 대기 목록 (참고용 — 재고 집계 제외)
      =================================================== */
+  window._pendingViewMode = window._pendingViewMode || 'lot';
+
+  function _pendingModeBtn(val, label, current) {
+    var active = val === current
+      ? 'background:var(--accent,#3b82f6);color:#fff;border-color:var(--accent,#3b82f6);'
+      : 'background:var(--surface,#1e293b);color:var(--text-muted);border-color:var(--border,#334155);';
+    return '<button class="btn" style="font-size:12px;padding:4px 10px;' + active + '" '
+      + 'onclick="window._pendingViewMode=\'' + val + '\';window.loadPendingPage()">' + label + '</button>';
+  }
+
+  function _pendingToday() {
+    return new Date().toISOString().slice(0, 10);
+  }
+
+  function _pendingGroupId(prefix, idx) {
+    return prefix + '-' + idx;
+  }
+
+  function _pendingGroupLotsAttr(lots) {
+    return escapeHtml(JSON.stringify(lots.filter(Boolean)));
+  }
+
+  function _renderPendingLotRows(rows) {
+    var html = '<div style="overflow-x:auto"><table class="data-table"><thead><tr>'
+      + '<th><input type="checkbox" id="pending-select-all" onchange="window.pendingToggleAll(this)"></th>'
+      + '<th>LOT</th><th>Product</th><th>Grade</th>'
+      + '<th>Qty</th><th>Unit</th><th>BL No</th><th>Container</th><th>Vessel</th>'
+      + '<th>Arrival Date</th><th>등록일</th><th style="width:50px">⚙️</th>'
+      + '</tr></thead><tbody>';
+    html += rows.map(function(r) {
+      return '<tr>'
+        + '<td style="text-align:center"><input type="checkbox" class="pending-cb" data-lot="' + escapeHtml(r.lot_no||'') + '"></td>'
+        + '<td class="mono-cell" style="color:#94a3b8;font-weight:600">' + escapeHtml(r.lot_no||'') + '</td>'
+        + '<td><span class="tag">' + escapeHtml(r.product||'-') + '</span></td>'
+        + '<td class="mono-cell">' + escapeHtml(r.grade||'-') + '</td>'
+        + '<td class="mono-cell" style="text-align:right">' + (r.quantity!=null?fmtN(r.quantity):(r.net_weight!=null?fmtN(r.net_weight):'-')) + '</td>'
+        + '<td class="mono-cell">' + escapeHtml(r.unit||'-') + '</td>'
+        + '<td class="mono-cell">' + escapeHtml(r.bl_no||'-') + '</td>'
+        + '<td class="mono-cell">' + escapeHtml(r.container_no||'-') + '</td>'
+        + '<td class="mono-cell">' + escapeHtml(r.vessel||'-') + '</td>'
+        + '<td class="mono-cell">' + escapeHtml(r.arrival_date||'-') + '</td>'
+        + '<td class="mono-cell" style="color:var(--text-muted)">' + escapeHtml((r.created_at||'').slice(0,10)) + '</td>'
+        + '<td style="text-align:center"><button class="btn btn-ghost" style="padding:2px 8px;font-size:13px" '
+        + 'onclick="window.showPendingActionMenu(event,' + JSON.stringify(r.lot_no) + ')">⋯</button></td>'
+        + '</tr>';
+    }).join('');
+    return html + '</tbody></table></div>';
+  }
+
+  function _renderPendingGroupRows(rows, opts) {
+    var groups = {};
+    rows.forEach(function(r) {
+      var key = opts.key(r);
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(r);
+    });
+
+    var keys = Object.keys(groups).sort(function(a, b) {
+      if (a.indexOf('미지정') >= 0) return 1;
+      if (b.indexOf('미지정') >= 0) return -1;
+      return a.localeCompare(b);
+    });
+    var today = _pendingToday();
+    var html = '';
+
+    keys.forEach(function(key, idx) {
+      var lots = groups[key];
+      var lotNos = lots.map(function(r){ return r.lot_no; });
+      var groupId = _pendingGroupId(opts.prefix, idx);
+      var inputId = 'date-' + groupId;
+      var defaultDate = opts.defaultDate ? opts.defaultDate(key, lots, today) : today;
+      var summary = opts.summary ? opts.summary(key, lots) : '';
+
+      html += '<div style="margin-bottom:12px;border:1px solid var(--border,#334155);border-radius:8px;overflow:hidden">'
+        + '<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--surface,#1e293b);cursor:pointer;flex-wrap:wrap" '
+        + 'onclick="window._togglePendingGroup(\'' + groupId + '\')">'
+        + '<strong style="color:var(--text);font-family:monospace">' + escapeHtml(key) + '</strong>'
+        + '<span style="font-size:12px;color:var(--text-muted)">' + lots.length + ' LOT</span>'
+        + (summary ? '<span style="font-size:11px;color:var(--text-muted)">' + escapeHtml(summary) + '</span>' : '')
+        + '<input type="date" id="' + inputId + '" value="' + escapeHtml(defaultDate) + '" max="' + today + '" '
+        + 'style="padding:4px 8px;background:var(--bg,#0f172a);border:1px solid var(--border,#334155);border-radius:4px;color:var(--text);font-size:12px;margin-left:auto" '
+        + 'onclick="event.stopPropagation()">'
+        + '<button class="btn" style="background:#22c55e;color:#fff;font-size:12px;padding:4px 10px;white-space:nowrap" '
+        + 'data-lots="' + _pendingGroupLotsAttr(lotNos) + '" data-date-input="' + inputId + '" '
+        + 'onclick="event.stopPropagation();window.confirmPendingGroupFromButton(this)">✅ 전체 확정</button>'
+        + '</div>'
+        + '<div id="' + groupId + '" style="display:none">'
+        + '<table class="data-table" style="margin:0"><thead><tr>'
+        + '<th>LOT</th><th>Product</th><th>Qty</th><th>BL No</th><th>Container</th><th>Vessel</th><th>Arrival</th><th style="width:50px">⚙️</th>'
+        + '</tr></thead><tbody>';
+
+      lots.forEach(function(r) {
+        html += '<tr style="background:rgba(148,163,184,0.04)">'
+          + '<td class="mono-cell" style="color:#94a3b8;font-weight:600">' + escapeHtml(r.lot_no||'') + '</td>'
+          + '<td><span class="tag">' + escapeHtml(r.product||'-') + '</span></td>'
+          + '<td class="mono-cell" style="text-align:right">' + (r.quantity!=null?fmtN(r.quantity):(r.net_weight!=null?fmtN(r.net_weight):'-')) + '</td>'
+          + '<td class="mono-cell">' + escapeHtml(r.bl_no||'-') + '</td>'
+          + '<td class="mono-cell">' + escapeHtml(r.container_no||'-') + '</td>'
+          + '<td class="mono-cell">' + escapeHtml(r.vessel||'-') + '</td>'
+          + '<td class="mono-cell">' + escapeHtml(r.arrival_date||'-') + '</td>'
+          + '<td style="text-align:center"><button class="btn btn-ghost" style="padding:1px 8px;font-size:12px" '
+          + 'onclick="window.showPendingActionMenu(event,' + JSON.stringify(r.lot_no) + ')">⋯</button></td>'
+          + '</tr>';
+      });
+
+      html += '</tbody></table></div></div>';
+    });
+
+    return html;
+  }
+
+  function _renderPendingByContainer(rows) {
+    return _renderPendingGroupRows(rows, {
+      prefix: 'pc',
+      key: function(r) { return r.container_no || '(컨테이너 미지정)'; },
+      summary: function(key, lots) {
+        var arrivals = Array.from(new Set(lots.map(function(r){ return r.arrival_date || '-'; }))).slice(0, 3);
+        return '도착 ' + arrivals.join(', ');
+      }
+    });
+  }
+
+  function _renderPendingByDate(rows) {
+    return _renderPendingGroupRows(rows, {
+      prefix: 'pd',
+      key: function(r) { return r.arrival_date || '(날짜 미지정)'; },
+      defaultDate: function(key, lots, today) {
+        return /^\d{4}-\d{2}-\d{2}$/.test(key) && key <= today ? key : today;
+      },
+      summary: function(key, lots) {
+        return Array.from(new Set(lots.map(function(r){ return r.container_no || '?'; }))).slice(0, 5).join(', ');
+      }
+    });
+  }
+
   function loadPendingPage() {
     var route = 'pending';
     if (window.getCurrentRoute() !== route) return;
@@ -448,40 +634,28 @@
     apiGet('/api/inbound/pending').then(function(res) {
       if (window.getCurrentRoute() !== route) return;
       var rows = Array.isArray(res) ? res : (res.data || res.rows || []);
-      if (!rows.length) {
-        c.innerHTML = '<div class="empty" style="padding:60px;text-align:center;color:var(--text-muted)">⏳ 입고 대기 중인 화물 없음</div>';
-        return;
-      }
+      var mode = window._pendingViewMode || 'lot';
       var html = '<section style="padding:12px 16px">'
-        + '<div style="display:flex;align-items:center;gap:12px;margin-bottom:8px;flex-wrap:wrap">'
+        + '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap">'
         + '<h2 style="margin:0;font-size:16px;color:#94a3b8">⏳ Pending — 포트 입항 대기 (참고용, 재고 미포함)</h2>'
         + '<span style="font-size:12px;color:var(--text-muted)">' + rows.length + ' LOT</span>'
-        + '<button class="btn btn-ghost" style="font-size:12px;margin-left:auto" onclick="window.loadPendingPage()">🔄 새로고침</button>'
-        + '<button class="btn" style="background:var(--accent,#3b82f6);color:#fff;font-size:12px;padding:4px 12px" onclick="window.bulkConfirmPending()">✅ 선택 일괄 확정</button>'
+        + '<div style="display:flex;gap:4px;margin-left:auto">'
+        + _pendingModeBtn('lot', 'LOT별', mode)
+        + _pendingModeBtn('container', '컨테이너별', mode)
+        + _pendingModeBtn('date', '날짜별', mode)
         + '</div>'
-        + '<div style="overflow-x:auto"><table class="data-table"><thead><tr>'
-        + '<th><input type="checkbox" id="pending-select-all" onchange="window.pendingToggleAll(this)"></th>'
-        + '<th>LOT</th><th>Product</th><th>Grade</th>'
-        + '<th>Qty</th><th>Unit</th><th>BL No</th><th>Vessel</th>'
-        + '<th>Arrival Date</th><th>등록일</th><th style="width:50px">⚙️</th>'
-        + '</tr></thead><tbody>';
-      html += rows.map(function(r, i) {
-        return '<tr>'
-          + '<td style="text-align:center"><input type="checkbox" class="pending-cb" data-lot="' + escapeHtml(r.lot_no||'') + '"></td>'
-          + '<td class="mono-cell" style="color:#94a3b8;font-weight:600">' + escapeHtml(r.lot_no||'') + '</td>'
-          + '<td><span class="tag">' + escapeHtml(r.product||'-') + '</span></td>'
-          + '<td class="mono-cell">' + escapeHtml(r.grade||'-') + '</td>'
-          + '<td class="mono-cell" style="text-align:right">' + (r.quantity!=null?fmtN(r.quantity):'-') + '</td>'
-          + '<td class="mono-cell">' + escapeHtml(r.unit||'-') + '</td>'
-          + '<td class="mono-cell">' + escapeHtml(r.bl_no||'-') + '</td>'
-          + '<td class="mono-cell">' + escapeHtml(r.vessel||'-') + '</td>'
-          + '<td class="mono-cell">' + escapeHtml(r.arrival_date||'-') + '</td>'
-          + '<td class="mono-cell" style="color:var(--text-muted)">' + escapeHtml((r.created_at||'').slice(0,10)) + '</td>'
-          + '<td style="text-align:center"><button class="btn btn-ghost" style="padding:2px 8px;font-size:13px" '
-          + 'onclick="window.showPendingActionMenu(event,' + JSON.stringify(r.lot_no) + ')">⋯</button></td>'
-          + '</tr>';
-      }).join('');
-      html += '</tbody></table></div></section>';
+        + '<button class="btn btn-ghost" style="font-size:12px" onclick="window.loadPendingPage()">🔄 새로고침</button>'
+        + '<button class="btn" style="background:var(--accent,#3b82f6);color:#fff;font-size:12px;padding:4px 12px" onclick="window.bulkConfirmPending()">✅ 선택 일괄 확정</button>'
+        + '</div>';
+      if (!rows.length) {
+        html += '<div class="empty" style="padding:60px;text-align:center;color:var(--text-muted)">⏳ 입고 대기 중인 화물 없음</div></section>';
+        c.innerHTML = html;
+        return;
+      }
+      if (mode === 'container') html += _renderPendingByContainer(rows);
+      else if (mode === 'date') html += _renderPendingByDate(rows);
+      else html += _renderPendingLotRows(rows);
+      html += '</section>';
       c.innerHTML = html;
       setTimeout(function(){ if(window.enhanceDataTables) enhanceDataTables(c); }, 0);
     }).catch(function(e) {
@@ -489,6 +663,47 @@
     });
   }
   window.loadPendingPage = loadPendingPage;
+
+  window._togglePendingGroup = function(id) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    el.style.display = el.style.display === 'none' ? 'block' : 'none';
+  };
+
+  window.confirmPendingGroupFromButton = function(btn) {
+    var lots = [];
+    try {
+      lots = JSON.parse(btn.getAttribute('data-lots') || '[]');
+    } catch (e) {
+      lots = [];
+    }
+    var dateInputId = btn.getAttribute('data-date-input');
+    var dateEl = dateInputId ? document.getElementById(dateInputId) : null;
+    var inboundDate = dateEl ? dateEl.value : '';
+    if (!lots.length) { showToast('warning', '확정할 LOT이 없습니다'); return; }
+    if (!inboundDate || !/^\d{4}-\d{2}-\d{2}$/.test(inboundDate)) {
+      showToast('error', '입고 날짜를 올바르게 입력해 주세요'); return;
+    }
+    if (inboundDate > _pendingToday()) {
+      showToast('error', '미래 날짜는 입력할 수 없습니다'); return;
+    }
+    if (!confirm('✅ ' + lots.length + '개 LOT를 AVAILABLE로 확정합니다.\n입고일: ' + inboundDate + '\n\n계속하시겠습니까?')) return;
+    btn.disabled = true;
+    btn.textContent = '진행 중...';
+    var done = 0, errs = [];
+    function next(i) {
+      if (i >= lots.length) {
+        if (errs.length) showToast('warning', '완료 ' + done + '건 / 실패 ' + errs.length + '건: ' + errs.join(', '));
+        else showToast('success', '✅ ' + done + '건 입고 확정 완료');
+        window.loadPendingPage();
+        return;
+      }
+      apiPost('/api/inbound/confirm/' + encodeURIComponent(lots[i]), { inbound_date: inboundDate })
+        .then(function() { done++; next(i + 1); })
+        .catch(function() { errs.push(lots[i]); next(i + 1); });
+    }
+    next(0);
+  };
 
   /* ===================================================
      7a-2. PAGE: Available (AVAILABLE 톤백 필터 뷰) — v9.5
@@ -532,17 +747,23 @@
         if (r.picked_mt != null && !isNaN(Number(r.picked_mt))) sumPickedMt += Number(r.picked_mt);
       });
       var html = '<section style="padding:12px 16px">'
-        + '<div style="display:flex;align-items:center;gap:12px;margin-bottom:8px;flex-wrap:wrap">'
+        + '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap">'
         + '<h2 style="margin:0;font-size:16px;color:#22c55e">✅ Available 재고 — 판매 가능 물량</h2>'
         + '<span style="font-size:12px;color:var(--text-muted)">' + rows.length + ' LOT · Balance ' + fmtN(sumBal) + ' MT</span>'
         + '<button class="btn btn-ghost" style="font-size:12px;margin-left:auto" onclick="window.loadAvailablePage()">🔄 새로고침</button>'
         + '</div>'
+        + '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap">'
+        + '<button class="btn" style="background:#ef4444;color:#fff;font-weight:700;padding:5px 14px;border:none;border-radius:6px;cursor:pointer;font-size:13px" onclick="window.availCancelSelected()">✕ 선택 취소 (→PENDING)</button>'
+        + '<span style="font-size:12px;color:var(--text-muted);padding:4px 10px;background:var(--bg-hover,rgba(255,255,255,0.05));border-radius:6px">↩️ 단계 되돌리기: <b style="color:#f59e0b">AVAILABLE → PENDING</b></span>'
+        + '</div>'
         + '<div style="overflow-x:auto"><table class="data-table"><thead><tr>'
+        + '<th style="width:28px;text-align:center"><input type="checkbox" id="avail-select-all" onchange="window.availToggleAll(this)" title="전체 선택"></th>'
         + '<th>#</th><th style="text-align:center">LOT</th><th style="width:32px;text-align:center">+</th><th>SAP</th><th>BL</th><th>Product</th>'
-        + '<th>Status</th><th>Balance(MT)</th><th>NET(MT)</th><th>Container</th>'
+        + '<th>Status</th><th style="text-align:center;color:#f59e0b" title="입고취소 → PENDING">↩️</th>'
+        + '<th>Balance(MT)</th><th>NET(MT)</th><th>Container</th>'
         + '<th>MXBG</th><th>Available</th><th>Reserved</th><th>Packed</th><th>Total Bags</th><th>Remain Bags</th><th>AV</th><th>VR</th><th>AR</th><th>Invoice</th>'
         + '<th>Ship</th><th>Arrival</th><th>WH</th><th>Customs</th>'
-        + '<th>Inbound(MT)</th><th>Location</th><th></th>'
+        + '<th>Inbound(MT)</th><th>Location</th>'
         + '</tr></thead><tbody>';
       html += rows.map(function(r, i) {
         var lotKey = escapeHtml(r.lot||'');
@@ -579,8 +800,10 @@
             '<td colspan="8" style="color:#555">—</td>' +
             '</tr>';
         }
+        var lotSafe = (r.lot||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
         var mainRow =
           '<tr style="' + (hasSample ? 'border-left:3px solid #22c55e' : '') + '">'
+          + '<td style="text-align:center;padding:3px 6px"><input type="checkbox" class="avail-cb" data-lot="' + lotKey + '"></td>'
           + '<td class="mono-cell" style="color:var(--text-muted)">' + (i+1) + '</td>'
           + '<td class="mono-cell cell-left" style="color:var(--accent);font-weight:600;padding:6px 10px">' + lotKey + '</td>'
           + '<td style="text-align:center;padding:3px 4px;width:32px"><button class="btn btn-ghost btn-xs" data-lot="' + lotKey + '" onclick="window.showInvActionMenu(this)" style="font-size:15px;padding:0 4px;letter-spacing:1px" title="추가기능">⋯</button></td>'
@@ -588,6 +811,7 @@
           + '<td class="mono-cell">' + escapeHtml(r.bl||'') + '</td>'
           + '<td><span class="tag">' + escapeHtml(r.product||'') + '</span></td>'
           + '<td><span class="tag" style="background:rgba(34,197,94,0.15);color:#22c55e">✅ AVAILABLE</span></td>'
+          + '<td style="text-align:center;padding:2px 4px"><button class="btn btn-ghost btn-xs" onclick="window.revertToPending(\'' + lotSafe + '\')" title="입고 취소 → PENDING" style="color:#f59e0b;font-size:13px;padding:1px 5px;border:1px solid #f59e0b55">↩️</button></td>'
           + '<td class="mono-cell" style="text-align:right">' + (r.balance!=null?fmtN(r.balance):'-') + '</td>'
           + '<td class="mono-cell" style="text-align:right">' + (r.net!=null?fmtN(r.net):'-') + '</td>'
           + '<td class="mono-cell">' + escapeHtml(r.container||'') + '</td>'
@@ -612,12 +836,12 @@
           + '<td class="mono-cell">' + escapeHtml(r.customs||'') + '</td>'
           + '<td class="mono-cell" style="text-align:right">' + (r.initial_weight!=null?fmtN(r.initial_weight):'-') + '</td>'
           + '<td><span class="tag">' + escapeHtml(r.location||'-') + '</span></td>'
-          + '<td></td>'
           + '</tr>';
         return mainRow + sampleRow;
       }).join('');
       html += '</tbody><tfoot><tr style="background:var(--panel);font-weight:700">';
-      html += '<td colspan="6" style="text-align:right;padding:8px 10px">합계 (' + rows.length + ' LOT)</td>';
+      html += '<td colspan="8" style="text-align:right;padding:8px 10px">합계 (' + rows.length + ' LOT)</td>';
+      html += '<td></td>';
       html += '<td class="mono-cell" style="text-align:right">' + fmtN(sumBal) + '</td>';
       html += '<td class="mono-cell" style="text-align:right">' + fmtN(sumNet) + '</td>';
       html += '<td colspan="2"></td>';
@@ -641,6 +865,32 @@
     });
   }
   window.loadAvailablePage = loadAvailablePage;
+
+  window.availToggleAll = function(masterCb) {
+    var cbs = document.querySelectorAll('.avail-cb');
+    cbs.forEach(function(cb) { cb.checked = masterCb.checked; });
+  };
+
+  window.availCancelSelected = function() {
+    var checked = Array.from(document.querySelectorAll('.avail-cb:checked'));
+    if (!checked.length) { showToast('warn', '취소할 LOT를 선택하세요'); return; }
+    var lots = checked.map(function(cb) { return cb.dataset.lot; });
+    if (!confirm('⚠️ 선택 취소 (AVAILABLE → PENDING)\n\n' + lots.length + '개 LOT:\n' + lots.join('\n') + '\n\n입고 확정을 취소합니다. 계속하시겠습니까?')) return;
+    var done = 0, failed = [];
+    function next() {
+      if (done + failed.length === lots.length) {
+        if (failed.length) showToast('error', '❌ 실패 ' + failed.length + '건: ' + failed.join(', '));
+        else showToast('success', '↩️ ' + done + '건 → PENDING 복구 완료');
+        window.renderPage('available');
+        return;
+      }
+      var lot = lots[done + failed.length];
+      apiPost('/api/inbound/revert/' + encodeURIComponent(lot), {})
+        .then(function() { done++; next(); })
+        .catch(function(e) { failed.push(lot); next(); });
+    }
+    next();
+  };
   /* ===================================================
      7b. PAGE: Allocation
      =================================================== */

@@ -2220,12 +2220,22 @@ def get_pending_inbound():
     """PENDING 상태 LOT 목록 반환 — 포트 입항 후 창고 미반입 화물."""
     try:
         db = _open_db()
-        rows = db.execute("""
-            SELECT lot_no, product, net_weight, port_date, inbound_type,
-                   arrival_date, bl_no, vessel, created_at
+        # 안전 조회: port_date/inbound_type 컬럼이 아직 없을 수 있음
+        inv_cols = {r[1].lower() for r in db.execute("PRAGMA table_info(inventory)").fetchall()}
+        has_port_date = "port_date" in inv_cols
+        has_inbound_type = "inbound_type" in inv_cols
+        select_cols = "lot_no, product, net_weight, container_no"
+        if has_port_date:
+            select_cols += ", port_date"
+        if has_inbound_type:
+            select_cols += ", inbound_type"
+        select_cols += ", arrival_date, bl_no, vessel, created_at"
+        order_col = "COALESCE(port_date, created_at)" if has_port_date else "created_at"
+        rows = db.execute(f"""
+            SELECT {select_cols}
             FROM inventory
             WHERE status = 'PENDING'
-            ORDER BY COALESCE(port_date, created_at) DESC
+            ORDER BY {order_col} DESC
         """).fetchall()
         db.close()
         return {"success": True, "data": [dict(r) for r in rows], "count": len(rows)}
@@ -2261,11 +2271,20 @@ def confirm_inbound(lot_no: str, payload: dict = {}):
                 400, f"{lot_no}: PENDING 상태가 아님 (현재: {dict(row)['status']})"
             )
         ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        db.execute("""
-            UPDATE inventory
-            SET status='AVAILABLE', inbound_date=?, inbound_type=?, updated_at=?
-            WHERE lot_no=? AND status='PENDING'
-        """, (inbound_date, inbound_type, ts, lot_no))
+        # inbound_type 컬럼 존재 여부 체크
+        inv_cols = {r[1].lower() for r in db.execute("PRAGMA table_info(inventory)").fetchall()}
+        if "inbound_type" in inv_cols:
+            db.execute("""
+                UPDATE inventory
+                SET status='AVAILABLE', inbound_date=?, inbound_type=?, updated_at=?
+                WHERE lot_no=? AND status='PENDING'
+            """, (inbound_date, inbound_type, ts, lot_no))
+        else:
+            db.execute("""
+                UPDATE inventory
+                SET status='AVAILABLE', inbound_date=?, updated_at=?
+                WHERE lot_no=? AND status='PENDING'
+            """, (inbound_date, ts, lot_no))
         db.execute("""
             UPDATE inventory_tonbag
             SET status='AVAILABLE', updated_at=?
@@ -2285,4 +2304,57 @@ def confirm_inbound(lot_no: str, payload: dict = {}):
         raise
     except Exception as e:
         logger.error(f"POST /confirm/{lot_no} error: {e}")
+        raise HTTPException(500, str(e))
+
+
+# ── AVAILABLE → PENDING 입고 취소 ──────────────────────────────────────────────────────
+@router.post("/revert/{lot_no}", summary="↩️ 입고 취소 (AVAILABLE → PENDING)")
+def revert_to_pending(lot_no: str):
+    """
+    AVAILABLE → PENDING 전환. 실수로 입고 확정한 경우 취소 시 호출.
+    안전체크: RESERVED/PICKED/SOLD 톤백이 없어야 취소 가능.
+    """
+    try:
+        db = _open_db()
+        row = db.execute(
+            "SELECT id, status FROM inventory WHERE lot_no=?", (lot_no,)
+        ).fetchone()
+        if not row:
+            db.close()
+            raise HTTPException(404, f"{lot_no} 없음")
+        if dict(row)["status"] != "AVAILABLE":
+            db.close()
+            raise HTTPException(
+                400, f"{lot_no}: AVAILABLE 상태가 아님 (현재: {dict(row)['status']})"
+            )
+        blocked = db.execute(
+            "SELECT COUNT(*) FROM inventory_tonbag WHERE lot_no=? AND status IN ('RESERVED','PICKED','SOLD')",
+            (lot_no,)
+        ).fetchone()[0]
+        if blocked:
+            db.close()
+            raise HTTPException(
+                400, f"{lot_no}: RESERVED/PICKED/SOLD 톤백 {blocked}개 존재 — 취소 불가"
+            )
+        ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        db.execute(
+            "UPDATE inventory SET status='PENDING', inbound_date=NULL, updated_at=? WHERE lot_no=? AND status='AVAILABLE'",
+            (ts, lot_no)
+        )
+        db.execute(
+            "UPDATE inventory_tonbag SET status='PENDING', updated_at=? WHERE lot_no=? AND status='AVAILABLE'",
+            (ts, lot_no)
+        )
+        db.commit()
+        db.close()
+        logger.info(f"[revert-pending] {lot_no} AVAILABLE → PENDING")
+        return {
+            "success": True,
+            "lot_no": lot_no,
+            "message": f"{lot_no} → PENDING 되돌리기 완료",
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"POST /revert/{lot_no} error: {e}")
         raise HTTPException(500, str(e))
