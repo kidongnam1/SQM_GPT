@@ -73,7 +73,7 @@ class DatabaseSchemaMixin:
                 product TEXT,
                 product_code TEXT,
                 origin TEXT DEFAULT 'Chile',
-                destination TEXT DEFAULT '광양',
+                destination TEXT DEFAULT 'GY',
                 ship_date DATE,
                 arrival_date DATE,
                 total_net_weight REAL,
@@ -112,7 +112,7 @@ class DatabaseSchemaMixin:
                 arrival_date DATE,
                 stock_date DATE,
                 salar_invoice_no TEXT,
-                warehouse TEXT DEFAULT '광양',
+                warehouse TEXT DEFAULT 'GY',
                 status TEXT DEFAULT 'AVAILABLE',
                 sold_to TEXT,
                 sale_ref TEXT,
@@ -130,6 +130,11 @@ class DatabaseSchemaMixin:
                 currency TEXT DEFAULT '',
                 unit_price REAL DEFAULT 0,
                 remarks TEXT,
+                -- v8.6.8: 팔레트 구성 (셀 점유 계산용)
+                --   'A' = 1,000kg 1pack  (셀 1개에 톤백 1개)
+                --   'B' =   500kg 1pack  (셀 1개에 톤백 1개, 특수)
+                --   'C' =   500kg 2pack  (셀 1개에 톤백 2개)
+                packing_type TEXT DEFAULT '',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )

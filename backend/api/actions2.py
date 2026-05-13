@@ -43,72 +43,6 @@ def _root() -> str:
     return os.path.dirname(os.path.dirname(here))
 
 
-# ── F003: 입고 취소 ─────────────────────────────────────────────
-@router.post("/inbound-cancel", summary="↩️ 입고 취소 (F003-alt)")
-def cancel_inbound(payload: dict):
-    """
-    payload: { lot_no: str, reason: str (optional) }
-    입고된 LOT을 CANCELLED 상태로 변경 + audit_log 기록
-    """
-    lot_no = (payload.get("lot_no") or "").strip()
-    reason = (payload.get("reason") or "사용자 취소").strip()
-    if not lot_no:
-        raise HTTPException(400, "lot_no 필수")
-
-    try:
-        con = _db()
-        row = con.execute(
-            "SELECT id, status FROM inventory WHERE lot_no=?", (lot_no,)
-        ).fetchone()
-
-        if not row:
-            con.close()
-            return err_response(f"LOT '{lot_no}' 을(를) 찾을 수 없습니다")
-
-        old_status = row["status"]
-        if old_status in ("SOLD", "CANCELLED"):
-            con.close()
-            return err_response(f"'{old_status}' 상태는 취소 불가 (이미 출고/취소됨)")
-
-        inv_id = row["id"]
-        ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-        con.execute(
-            "UPDATE inventory SET status='CANCELLED', updated_at=? WHERE id=?",
-            (ts, inv_id)
-        )
-        con.execute(
-            "UPDATE inventory_tonbag SET status='CANCELLED', updated_at=? WHERE inventory_id=?",
-            (ts, inv_id)
-        )
-        # audit_log 기록
-        con.execute("""
-            INSERT INTO audit_log (event_type, event_data, user_note, created_by, created_at)
-            VALUES ('INBOUND_CANCEL', ?, ?, 'system', ?)
-        """, (
-            f'{{"lot_no":"{lot_no}","old_status":"{old_status}"}}',
-            reason, ts
-        ))
-        # stock_movement 기록
-        con.execute("""
-            INSERT INTO stock_movement
-                (lot_no, movement_type, qty_kg, source_type, actor, remarks, created_at)
-            VALUES (?, 'CANCEL', 0, 'MANUAL', 'user', ?, ?)
-        """, (lot_no, f"입고취소: {reason}", ts))
-
-        con.commit()
-        con.close()
-        return ok_response(data={
-            "lot_no": lot_no,
-            "old_status": old_status,
-            "new_status": "CANCELLED",
-            "message": f"{lot_no} 입고 취소 완료",
-        })
-    except Exception as e:
-        logger.error("inbound-cancel error: %s", e)
-        return err_response(str(e))
-
-
 # ── F006: 위치 이동 (톤백 단위) ─────────────────────────────────
 @router.post("/inventory-move", summary="🔀 위치 이동 (F006-alt)")
 def inventory_move(payload: dict):
@@ -308,10 +242,26 @@ def outbound_confirm(payload: dict):
 def _tonbag_sql(lot_no_filter: Optional[str]) -> tuple:
     """톤백 리스트 공통 SQL 반환."""
     base = """
-        SELECT t.sap_no, t.bl_no, i.container_no, i.product,
+        SELECT COALESCE(NULLIF(TRIM(COALESCE(t.sap_no, '')), ''), i.sap_no),
+               COALESCE(NULLIF(TRIM(COALESCE(t.bl_no,  '')), ''), i.bl_no),
+               i.container_no, i.product,
                t.tonbag_uid, t.sub_lt, t.tonbag_no, t.weight,
-               t.status, t.location, t.inbound_date,
-               t.picked_to, t.sale_ref, t.remarks,
+               t.status,
+               COALESCE(
+                   NULLIF(TRIM(COALESCE(t.location, '')), ''),
+                   NULLIF(TRIM(COALESCE(i.location, '')), '')
+               ),
+               COALESCE(
+                   NULLIF(TRIM(COALESCE(t.inbound_date, '')), ''),
+                   NULLIF(TRIM(COALESCE(i.inbound_date, '')), ''),
+                   NULLIF(TRIM(COALESCE(i.stock_date, '')), ''),
+                   NULLIF(TRIM(COALESCE(i.arrival_date, '')), '')
+               ),
+               t.picked_to, t.sale_ref,
+               COALESCE(
+                   NULLIF(TRIM(COALESCE(t.remarks, '')), ''),
+                   NULLIF(TRIM(COALESCE(i.remarks, '')), '')
+               ),
                i.warehouse
         FROM inventory_tonbag t
         LEFT JOIN inventory i ON i.id = t.inventory_id
@@ -354,8 +304,8 @@ def _build_tonbag_workbook(rows):
         "AVAILABLE": "E8F5E9",
         "PICKED":    "FFF9C4",
         "RESERVED":  "E3F2FD",
-        "SOLD":  "FAFAFA",
-        "CANCELLED": "FFEBEE",
+        "SOLD":   "FAFAFA",
+        "RETURN": "FFEBEE",
     }
     for r in rows:
         ws.append(list(r))
@@ -364,9 +314,7 @@ def _build_tonbag_workbook(rows):
         fill   = PatternFill("solid", fgColor=color)
         for cell in ws[ws.max_row]:
             cell.fill = fill
-            # 숫자(int/float)는 기본 정렬, 나머지는 가운데
-            if not isinstance(cell.value, (int, float)):
-                cell.alignment = center
+            cell.alignment = center
 
     # 열 너비: SAP,BL,Container,제품명,UID,SubLT,#,중량,상태,위치,입고일,출고,SaleRef,비고,창고
     widths = [12, 14, 16, 22, 20, 8, 10, 12, 12, 12, 12, 14, 14, 20, 10]
@@ -402,6 +350,35 @@ def export_tonbag_excel(lot_no: Optional[str] = QP(None)):
         )
     except Exception as e:
         logger.error("export-tonbag-excel error: %s", e)
+        raise HTTPException(500, str(e))
+
+
+# ── 톤백 리스트 JSON (v8.6.8 — 화면 테이블 렌더용) ────────────────────────
+_TONBAG_LIST_JSON_HEADERS = [
+    "sap_no", "bl_no", "container_no", "product",
+    "tonbag_uid", "sub_lt", "tonbag_no", "weight_kg",
+    "status", "location", "inbound_date", "sold_to",
+    "sale_ref", "remarks", "warehouse",
+]
+
+
+@router.get("/tonbag-list-json", summary="🎒 톤백 리스트 JSON (화면 렌더용 v8.6.8)")
+def tonbag_list_json(lot_no: Optional[str] = QP(None)):
+    """`/api/action2/export-tonbag-excel` 와 동일 SQL을 JSON 으로 반환."""
+    try:
+        sql, params = _tonbag_sql(lot_no)
+        con = _db()
+        rows = con.execute(sql, params).fetchall()
+        con.close()
+        data = []
+        for r in rows:
+            data.append({k: r[i] for i, k in enumerate(_TONBAG_LIST_JSON_HEADERS)})
+        return {"ok": True, "data": {
+            "rows": data, "count": len(data),
+            "headers": _TONBAG_LIST_JSON_HEADERS, "lot_no": lot_no,
+        }}
+    except Exception as e:
+        logger.error("tonbag-list-json error: %s", e)
         raise HTTPException(500, str(e))
 
 

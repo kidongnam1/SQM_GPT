@@ -450,7 +450,7 @@ class InboundMixin(InventoryBaseMixin):
                           do_data=None, invoice_data=None) -> Dict:
         """LOT 데이터 준비 (v3.8.8: dict/PackingData/dataclass 모두 지원).
 
-        변수 구분 (혼동 방지): arrival_date=입항일(날짜 YYYY-MM-DD), warehouse=창고(예: 광양),
+        변수 구분 (혼동 방지): arrival_date=입항일(날짜 YYYY-MM-DD), warehouse=창고(예: GY),
         free_time_date=con_return=컨테이너 반납일, free_time=일수(반납일-입항일).
 
         v8.7.0: invoice_data 파라미터 명시 추가 — 기존엔 process_inbound에서만 받고
@@ -565,6 +565,11 @@ class InboundMixin(InventoryBaseMixin):
             'current_weight': weight,
             'picked_weight': 0,
             'mxbg_pallet': bag_count,
+            # v8.6.8: 팔레트 구성 (셀 점유 계산용)
+            #   'A' = 1,000kg 1pack / 'B' = 500kg 1pack 특수 / 'C' = 500kg 2pack
+            'packing_type': (lambda v: v if v in ('A', 'B', 'C') else '')(
+                str(packing.get('packing_type') or '').strip().upper()
+            ),
             # v8.7.0 Phase 2: BL/Invoice/DO 파생 필드
             'voyage': str(_voyage or ''),
             'do_no': str(_do_no or ''),
@@ -591,7 +596,7 @@ class InboundMixin(InventoryBaseMixin):
             sd = self._safe_parse_date(packing['ship_date'])
             lot_data['ship_date'] = sd.strftime('%Y-%m-%d') if sd else ''
         
-        # 입항일(arrival_date): 파싱된 값만 사용. 모를 때는 반드시 비움 — warehouse('광양')와 혼동 금지
+        # 입항일(arrival_date): 파싱된 값만 사용. 모를 때는 반드시 비움 — warehouse('GY')와 혼동 금지
         arrival_date = None
         if do_data and do_data.get('arrival_date'):
             arrival_date = self._safe_parse_date(do_data.get('arrival_date'))

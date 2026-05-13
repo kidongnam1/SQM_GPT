@@ -82,6 +82,50 @@ class DatabaseMigrationMixin:
         # Phase 4-A 회귀 강화 패치
         self._migrate_v872_inventory_weight_floor_insert()  # v8.7.2 P1: INSERT 경로 음수 방지 트리거
         self._migrate_v872_sold_table_dedup_index()         # v8.7.2 P4: sold_table 중복 방지 인덱스
+        self._migrate_v868_pending_workflow_columns()        # v8.6.8: PENDING 워크플로우 컬럼 (port_date, inbound_type)
+        self._migrate_v868_packing_type_column()             # v8.6.8: 팔레트 구성 (1pack/2pack) 컬럼
+
+    def _migrate_v868_packing_type_column(self) -> None:
+        """
+        v8.6.8: inventory.packing_type 컬럼 추가.
+
+        팔레트 구성 (셀 점유 계산용):
+          - 'A' = 1,000kg 1pack (1팔레트 1톤백)
+          - 'B' =   500kg 1pack (1팔레트 1톤백, 특수)
+          - 'C' =   500kg 2pack (1팔레트 2톤백)
+          - ''  = 미설정 (기본값)
+
+        파싱 단계의 onestop_pallet_tab.js 가 자동 판별 + 사용자 확인 후
+        DB 업로드 시 이 컬럼에 저장.
+        멱등성: 컬럼 존재 여부 체크 후 추가.
+        """
+        try:
+            cols = {r[1].lower() for r in self.execute("PRAGMA table_info(inventory)").fetchall()}
+            if "packing_type" not in cols:
+                self.execute("ALTER TABLE inventory ADD COLUMN packing_type TEXT DEFAULT ''")
+                logger.info("[v8.6.8] inventory.packing_type 컬럼 추가")
+        except Exception as e:
+            logger.warning(f"[v8.6.8] packing_type 컬럼 마이그레이션 실패: {e}")
+
+    def _migrate_v868_pending_workflow_columns(self) -> None:
+        """
+        v8.6.8: inventory 테이블에 port_date, inbound_type 컬럼 추가.
+
+        PENDING 워크플로우 지원:
+          - port_date: 포트 입항일 (파싱 시점 기록)
+          - inbound_type: 입고 유형 ('DIRECT' | 'BOND')
+        멱등성: 컬럼 존재 여부 체크 후 추가.
+        """
+        try:
+            cols = {r[1].lower() for r in self.execute("PRAGMA table_info(inventory)").fetchall()}
+            if "port_date" not in cols:
+                self.execute("ALTER TABLE inventory ADD COLUMN port_date TEXT")
+                logger.info("[v8.6.8] inventory.port_date 컬럼 추가")
+            if "inbound_type" not in cols:
+                self.execute("ALTER TABLE inventory ADD COLUMN inbound_type TEXT DEFAULT 'DIRECT'")
+                logger.info("[v8.6.8] inventory.inbound_type 컬럼 추가")
+        except Exception as e:
+            logger.warning(f"[v8.6.8] PENDING 워크플로우 컬럼 마이그레이션 실패: {e}")
 
     def _migrate_v633_allocation_export_type(self) -> None:
         """
@@ -1659,7 +1703,7 @@ class DatabaseMigrationMixin:
 
         컬럼 13개:
           template_id       — PK (예: CATL_CIF)
-          template_name     — 표시명 (예: 🏭 CATL — CIF 광양)
+          template_name     — 표시명 (예: 🏭 CATL — CIF GY)
           customer          — 거래처명 (picking_table.customer)
           customer_code     — sold_to 코드 (allocation_plan.sold_to)
           port_loading      — 선적항 (PickingListMeta.port_loading)

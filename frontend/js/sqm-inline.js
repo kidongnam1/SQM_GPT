@@ -6824,7 +6824,12 @@
         return;
       }
       if (conf.u === 'export-tonbag-simple-dl') {
-        sqmDownloadFileUrl(API + '/api/action2/export-tonbag-excel', conf.lbl);
+        /* v8.6.8: 엑셀 바로 다운로드 → 화면 테이블 + 우상단 [엑셀 다운] 버튼 */
+        if (typeof window.showTonbagListModal === 'function') {
+          window.showTonbagListModal();
+        } else {
+          sqmDownloadFileUrl(API + '/api/action2/export-tonbag-excel', conf.lbl);
+        }
         return;
       }
       if (conf.u === 'product-summary') {
@@ -6852,7 +6857,12 @@
         return;
       }
       if (conf.u === 'export-lot-excel-dl') {
-        sqmDownloadFileUrl(API + '/api/action/export-lot-excel', conf.lbl);
+        /* v8.6.8: 엑셀 바로 다운로드 → 화면 테이블 + 우상단 [엑셀 다운] 버튼 */
+        if (typeof window.showLotListModal === 'function') {
+          window.showLotListModal();
+        } else {
+          sqmDownloadFileUrl(API + '/api/action/export-lot-excel', conf.lbl);
+        }
         return;
       }
       if (conf.u === 'product-master') {

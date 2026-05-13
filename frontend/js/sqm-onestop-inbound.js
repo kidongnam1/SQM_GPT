@@ -5,7 +5,7 @@
    Dependencies (provided by sqm-inline.js):
      showToast, escapeHtml, apiPost, apiGet,
      _makeDraggableResizable, _bringToFront, showDataModal,
-     loadInventoryPage, loadKpi, _currentRoute, API
+     loadInventoryPage, loadKpi, getCurrentRoute(via window), API
    ======================================================================= */
 (function () {
   'use strict';
@@ -144,6 +144,13 @@
       + '<button class="btn btn-primary" id="onestop-save-btn" onclick="window.onestopSaveDb()" disabled>📤 DB 업로드</button>'
       + '</div>';
     p.appendChild(hdr); p.appendChild(bdy);
+    /* v8.6.8: 팔레트 구성 탭 — 자동/사용자 확인 + 셀 점유 사전 계산 */
+    if (typeof window.getPalletTabButtonHtml === 'function') {
+      hdr.insertAdjacentHTML('beforeend', window.getPalletTabButtonHtml());
+    }
+    if (typeof window.getPalletTabPanelHtml === 'function') {
+      p.insertAdjacentHTML('beforeend', window.getPalletTabPanelHtml());
+    }
     document.body.appendChild(p);
     _makeDraggableResizable(p, hdr);
     _parseResultPanel = p;
@@ -220,10 +227,15 @@
       '  <div class="onestop-actions">',
       '    <button class="btn" onclick="window.onestopMultiPick()">📁 멀티 선택</button>',
       '    <button class="btn" onclick="window.onestopSkipDo()">📋 D/O 나중에</button>',
-      '    <button class="btn btn-primary" id="onestop-parse-btn" onclick="window.onestopParseStart()" disabled>▶ 파싱 시작</button>',
+      '<style>@keyframes _sqm-blink-yellow{0%,100%{background:#FFD700;box-shadow:0 0 6px #FFD700aa}50%{background:#ffe85c;box-shadow:0 0 14px #FFD700}}</style>',
+      '    <button class="btn" id="onestop-parse-btn" onclick="window.onestopParseStart()" disabled'
+        + ' style="color:#333;font-weight:700;border:1px solid #c8a800;animation:_sqm-blink-yellow 1.1s ease-in-out infinite">▶ 파싱 시작</button>',
       '    <button class="btn" id="onestop-reparse-btn" onclick="window.onestopParseRedo()" disabled>↻ 다시 파싱</button>',
-      '    <label id="onestop-gemini-label" style="display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--text-muted);cursor:pointer;margin-left:4px" title="좌표 파싱과 Gemini AI 파싱을 동시에 실행하여 결과를 비교합니다">'
-        + '<input type="checkbox" id="onestop-gemini-check" style="cursor:pointer"> 🤖 Gemini 비교</label>',
+      '    <label id="onestop-gemini-label" title="좌표 파싱과 Gemini AI 파싱을 동시에 실행하여 결과를 비교합니다"'
+        + ' style="display:inline-flex;align-items:center;gap:5px;cursor:pointer;margin-left:4px;'
+        + 'padding:6px 12px;border-radius:6px;border:1px solid #c8a800;font-size:13px;font-weight:700;color:#333;'
+        + 'animation:_sqm-blink-yellow 1.1s ease-in-out infinite 0.55s">'
+        + '<input type="checkbox" id="onestop-gemini-check" style="cursor:pointer;accent-color:#333"> 🤖 Gemini 비교</label>',
       '    <span class="hint" id="onestop-hint">💡 최소 Packing List를 선택하세요</span>',
       '  </div>',
       /* 진행 상태 */
@@ -240,6 +252,18 @@
     ].join('\n');
 
     showDataModal('', html);
+    /* 이전 세션에서 선택된 DB 템플릿이 있으면 레이블 복원 */
+    if (window._onestopBagWeight !== null) {
+      var _rLbl = document.getElementById('onestop-db-tpl-label');
+      if (_rLbl) {
+        _rLbl.style.color = 'var(--success,#4caf50)';
+        _rLbl.style.borderColor = 'var(--success,#4caf50)';
+        _rLbl.textContent = window._onestopDbTemplateName
+          ? ('✅ ' + window._onestopDbTemplateName + ' · 🏋️ ' + window._onestopBagWeight + 'kg'
+             + (window._onestopGeminiHint ? ' · 💬 힌트있음' : ''))
+          : ('✅ 이전 선택 유지 · 🏋️ ' + window._onestopBagWeight + 'kg');
+      }
+    }
     _onestopLoadCarriers();
   }
   window.showOneStopInboundModal = showOneStopInboundModal;
@@ -366,7 +390,7 @@
     var ft = prompt('📋 D/O 수동 입력 (1/3) — Free Time (일수)\n\n예: 7\n(취소 → 전체 입력 취소)', cur.free_time || '');
     if (ft === null) return;
     ft = String(ft || '').trim();
-    var wh = prompt('📋 D/O 수동 입력 (2/3) — 창고명\n\n예: 광양창고\n(빈값 허용)', cur.warehouse || '');
+    var wh = prompt('📋 D/O 수동 입력 (2/3) — 창고명\n\n예: GY\n(빈값 허용)', cur.warehouse || '');
     if (wh === null) return;
     wh = String(wh || '').trim();
     var ar = prompt('📋 D/O 수동 입력 (3/3) — 도착일 (YYYY-MM-DD)\n\n예: 2026-04-20\n(빈값 허용)', cur.arrival_date || '');
@@ -552,6 +576,10 @@
 
   window.onestopCarrierChange = function(carrier) {
     window._onestopActiveTemplate = null;
+    /* carrier 바뀌면 profile 자동 적용 초기화 (명시 DB 템플릿 선택은 유지) */
+    if (!window._onestopDbTemplateId) {
+      window._onestopBagWeight = null;
+    }
     var lbl = document.getElementById('onestop-tpl-label');
     if (lbl) { lbl.textContent = '미선택'; lbl.style.color = 'var(--text-muted)'; lbl.style.fontWeight = 'normal'; }
     var tRow = document.getElementById('onestop-template-row');
@@ -911,6 +939,10 @@
         var _cEl2 = document.getElementById('onestop-carrier');
         _openParseResultWindow(_cEl2 ? _cEl2.value : '', rows.length);
         _onestopRenderPreview(_onestopState.previewRows);
+        /* v8.6.8: 팔레트 구성 자동 판별 + 500kg 강제확인 게이트 초기화 */
+        if (typeof window.onestopPalletInitFromRows === 'function') {
+          window.onestopPalletInitFromRows();
+        }
         if (_showCompareAfterPreview) {
           _showGeminiComparePanel(d.coord_rows, d.gemini_rows);
         }
@@ -1259,7 +1291,7 @@
             '<div style="color:var(--success);font-weight:700">💾 DB 저장 완료 — 성공 ' + (d.success_count || 0) + '건 / 실패 ' + (d.fail_count || 0) + '건</div>' +
             errHtml + '</div>';
           showToast(d.fail_count ? 'warn' : 'success', 'DB 저장: 성공 ' + d.success_count + '건 / 실패 ' + d.fail_count + '건');
-          if (_currentRoute === 'inventory' && typeof loadInventoryPage === 'function') loadInventoryPage();
+          if (window.getCurrentRoute && window.getCurrentRoute() === 'inventory' && typeof loadInventoryPage === 'function') loadInventoryPage();
           if (typeof loadKpi === 'function') loadKpi();
         } else {
           var msg = (res && (res.message || res.error)) || 'DB 저장 실패';

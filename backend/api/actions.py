@@ -397,12 +397,70 @@ def restore_backup(body: dict = {}):
 
 
 # ── F035: LOT 리스트 Excel 내보내기 ──────────────────────────
+
+# LOT Excel: 입고일(inbound_date) 미입력 시 stock_date·도착일 순으로 표시,
+# 선박·D/O·비고는 inventory 비었을 때 document_do / document_bl / document_pl 에서 보강
+_LOT_LIST_EXCEL_SQL = """
+            SELECT i.sap_no, i.bl_no, i.container_no, i.product,
+                   i.lot_no, i.lot_sqm,
+                   i.net_weight, i.current_weight, i.tonbag_count,
+                   i.status,
+                   COALESCE(
+                       NULLIF(TRIM(COALESCE(i.inbound_date, '')), ''),
+                       NULLIF(TRIM(COALESCE(i.stock_date, '')), ''),
+                       NULLIF(TRIM(COALESCE(i.arrival_date, '')), '')
+                   ),
+                   i.arrival_date,
+                   i.warehouse,
+                   COALESCE(
+                       NULLIF(TRIM(COALESCE(i.vessel, '')), ''),
+                       (SELECT NULLIF(TRIM(COALESCE(d.vessel, '')), '')
+                          FROM document_do d
+                         WHERE d.lot_no = i.lot_no AND TRIM(COALESCE(d.lot_no, '')) != ''
+                         ORDER BY d.id DESC LIMIT 1),
+                       (SELECT NULLIF(TRIM(COALESCE(d.vessel, '')), '')
+                          FROM document_do d
+                         WHERE d.bl_no = i.bl_no AND TRIM(COALESCE(i.bl_no, '')) != ''
+                         ORDER BY d.id DESC LIMIT 1),
+                       (SELECT NULLIF(TRIM(COALESCE(b.vessel, '')), '')
+                          FROM document_bl b
+                         WHERE b.bl_no = i.bl_no AND TRIM(COALESCE(i.bl_no, '')) != ''
+                         ORDER BY b.id DESC LIMIT 1),
+                       (SELECT NULLIF(TRIM(COALESCE(p.vessel, '')), '')
+                          FROM document_pl p
+                         WHERE p.lot_no = i.lot_no AND TRIM(COALESCE(p.lot_no, '')) != ''
+                         ORDER BY p.id DESC LIMIT 1)
+                   ),
+                   COALESCE(
+                       NULLIF(TRIM(COALESCE(i.do_no, '')), ''),
+                       (SELECT NULLIF(TRIM(COALESCE(d.do_no, '')), '')
+                          FROM document_do d
+                         WHERE d.lot_no = i.lot_no AND TRIM(COALESCE(d.lot_no, '')) != ''
+                         ORDER BY d.id DESC LIMIT 1),
+                       (SELECT NULLIF(TRIM(COALESCE(d.do_no, '')), '')
+                          FROM document_do d
+                         WHERE d.bl_no = i.bl_no AND TRIM(COALESCE(i.bl_no, '')) != ''
+                         ORDER BY d.id DESC LIMIT 1)
+                   ),
+                   COALESCE(
+                       NULLIF(TRIM(COALESCE(i.remarks, '')), ''),
+                       (SELECT NULLIF(TRIM(COALESCE(p.footer_note, '')), '')
+                          FROM document_pl p
+                         WHERE p.lot_no = i.lot_no AND TRIM(COALESCE(p.lot_no, '')) != ''
+                         ORDER BY p.id DESC LIMIT 1)
+                   )
+              FROM inventory i
+          ORDER BY COALESCE(i.inbound_date, i.stock_date, i.arrival_date) DESC, i.lot_no
+"""
+
+
 def _build_lot_workbook(rows):
     """
     LOT 재고현황 공통 워크북 빌더.
     컬럼 순서: SAP NO, BL NO, Container, 제품명, LOT NO, LOT SQM,
                순중량(kg), 현재중량(kg), 톤백수, 상태, 입고일, 도착일,
                창고, 선박, D/O NO, 비고
+    (입고일·선박·D/O·비고는 export 시 SQL에서 stock_date / document_do·bl·pl 로 보강)
     """
     import openpyxl
     from openpyxl.styles import PatternFill, Font, Border, Side, Alignment
@@ -438,9 +496,8 @@ def _build_lot_workbook(rows):
         "AVAILABLE": PatternFill("solid", fgColor="E8F5E9"),
         "RESERVED":  PatternFill("solid", fgColor="E3F2FD"),
         "PICKED":    PatternFill("solid", fgColor="FFF3E0"),
-        "SOLD":  PatternFill("solid", fgColor="F3E5F5"),
-        "SOLD":      PatternFill("solid", fgColor="ECEFF1"),
-        "RETURNED":  PatternFill("solid", fgColor="FFEBEE"),
+        "SOLD":   PatternFill("solid", fgColor="ECEFF1"),
+        "RETURN": PatternFill("solid", fgColor="FFEBEE"),
     }
     body_font = Font(name="맑은 고딕", size=9)
 
@@ -453,8 +510,7 @@ def _build_lot_workbook(rows):
             cell.font = body_font
             cell.border = border
             # 숫자(int/float)는 기본 정렬, 나머지는 가운데
-            if not isinstance(val, (int, float)):
-                cell.alignment = center
+            cell.alignment = center
             if row_fill:
                 cell.fill = row_fill
 
@@ -478,15 +534,7 @@ def export_lot_excel():
     """inventory 전체 → .xlsx 임시 파일 → FileResponse (브라우저 다운로드)."""
     try:
         con = _db()
-        rows = con.execute("""
-            SELECT sap_no, bl_no, container_no, product,
-                   lot_no, lot_sqm,
-                   net_weight, current_weight, tonbag_count,
-                   status, inbound_date, arrival_date,
-                   warehouse, vessel, do_no, remarks
-            FROM inventory
-            ORDER BY inbound_date DESC, lot_no
-        """).fetchall()
+        rows = con.execute(_LOT_LIST_EXCEL_SQL).fetchall()
         con.close()
 
         wb = _build_lot_workbook(rows)
@@ -533,15 +581,7 @@ def open_lot_excel():
     """LOT 재고현황 Excel 생성 → exports/ 저장 → os.startfile() 열기."""
     try:
         con = _db()
-        rows = con.execute("""
-            SELECT sap_no, bl_no, container_no, product,
-                   lot_no, lot_sqm,
-                   net_weight, current_weight, tonbag_count,
-                   status, inbound_date, arrival_date,
-                   warehouse, vessel, do_no, remarks
-            FROM inventory
-            ORDER BY inbound_date DESC, lot_no
-        """).fetchall()
+        rows = con.execute(_LOT_LIST_EXCEL_SQL).fetchall()
         con.close()
 
         wb = _build_lot_workbook(rows)
@@ -561,6 +601,36 @@ def open_lot_excel():
         return ok_response({"filename": fname, "path": out_path, "rows": len(rows), "opened": True})
     except Exception as e:
         logger.error("open-lot-excel error: %s", e)
+        return err_response(str(e))
+
+
+# ── LOT 리스트 JSON (v8.6.8 — 화면 테이블 렌더용) ────────────────────────
+_LOT_LIST_JSON_HEADERS = [
+    "sap_no", "bl_no", "container_no", "product",
+    "lot_no", "lot_sqm",
+    "net_weight", "current_weight", "tonbag_count",
+    "status", "inbound_date", "arrival_date",
+    "warehouse", "vessel", "do_no", "remarks",
+]
+
+
+@router.get("/lot-list-json", summary="📋 LOT 리스트 JSON (화면 렌더용 v8.6.8)")
+def lot_list_json():
+    """
+    `/api/action/export-lot-excel` 와 동일 SQL을 JSON 으로 반환.
+    프론트엔드 재고 메뉴에서 화면 테이블 + 우상단 [엑셀 다운로드] 흐름용.
+    """
+    try:
+        con = _db()
+        rows = con.execute(_LOT_LIST_EXCEL_SQL).fetchall()
+        con.close()
+        data = []
+        for r in rows:
+            data.append({k: r[i] for i, k in enumerate(_LOT_LIST_JSON_HEADERS)})
+        return ok_response({"rows": data, "count": len(data),
+                            "headers": _LOT_LIST_JSON_HEADERS})
+    except Exception as e:
+        logger.error("lot-list-json error: %s", e)
         return err_response(str(e))
 
 
