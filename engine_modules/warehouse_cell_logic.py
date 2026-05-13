@@ -568,7 +568,127 @@ def check_cell_invariants(db, location: str, enforce: bool = False) -> Dict:
 
 
 # ─────────────────────────────────────────────────────────────────────
-# 9. 단독 실행 — 셀 수 / 자동 판별 / 위치 검증 테스트
+# 9. 위치 형식 마이그레이션 분석 (v8.6.8 — 옛 형식 → 신규 형식)
+# ─────────────────────────────────────────────────────────────────────
+#
+# 옛 형식 패턴 (v8.6.7 이전):
+#   A-01-01      (3파트: 구역-열-층)
+#   A-01-01-10   (4파트: 구역-열-층-칸)
+#   - 구역: 영문 1자 (A~Z)
+#   - 각 토큰 숫자
+#
+# 신규 형식 (v8.6.8 확정):
+#   G5-04-01-07  (G + 동(5/6) - 칸(01~16) - 열(01~31) - 층(01~07))
+#
+# 두 형식은 토큰 의미 자체가 다르므로 자동 변환 불가 — 매핑 필요.
+
+OLD_RE_3 = re.compile(r'^[A-Z]-\d{1,3}-\d{1,3}$')
+OLD_RE_4 = re.compile(r'^[A-Z]-\d{1,3}-\d{1,3}-\d{1,3}$')
+
+
+def classify_location_format(loc: str) -> str:
+    """
+    위치 문자열 형식 분류.
+
+    Returns: 'NEW' | 'OLD_3' | 'OLD_4' | 'EMPTY' | 'INVALID'
+    """
+    s = str(loc or '').strip().upper()
+    if not s:
+        return 'EMPTY'
+    if CELL_RE.match(s):
+        return 'NEW'
+    if OLD_RE_4.match(s):
+        return 'OLD_4'
+    if OLD_RE_3.match(s):
+        return 'OLD_3'
+    return 'INVALID'
+
+
+def analyze_location_formats(db, sample_per_kind: int = 10) -> Dict:
+    """
+    현재 DB의 location 형식 분포 분석.
+
+    inventory_tonbag.location 과 inventory.location 양쪽 모두 측정.
+    옛 형식이 얼마나 남아있는지 파악해서 마이그레이션 필요 여부 판단.
+
+    Args:
+      db:               sqlite3 connection or self.db (execute 메서드 보유)
+      sample_per_kind:  분류 결과 샘플 N개씩 함께 반환 (디버깅)
+
+    Returns:
+      {
+        'tonbag': {
+          'total': int,
+          'by_kind': {NEW: n, OLD_3: n, OLD_4: n, EMPTY: n, INVALID: n},
+          'samples': {OLD_3: [loc1, loc2, ...], ...},
+          'invalid_status_breakdown': {AVAILABLE: n, ...},  # 활성 톤백 중 옛 형식
+        },
+        'inventory': {...같은 구조},
+        'distinct_old_locations': int,    # 옛 형식의 unique location 수
+        'distinct_old_examples':  [str],  # 마이그레이션 매핑 대상 후보
+      }
+    """
+    result = {
+        'tonbag':                {'total': 0, 'by_kind': {}, 'samples': {}, 'invalid_status_breakdown': {}},
+        'inventory':             {'total': 0, 'by_kind': {}, 'samples': {}},
+        'distinct_old_locations': 0,
+        'distinct_old_examples':  [],
+    }
+
+    # 1) inventory_tonbag 분석
+    try:
+        rows = db.execute(
+            "SELECT COALESCE(location,'') AS loc, COALESCE(status,'') AS st "
+            "FROM inventory_tonbag"
+        ).fetchall()
+    except Exception as e:
+        logger.warning(f'[analyze] tonbag 조회 실패: {e}')
+        rows = []
+
+    tb = result['tonbag']
+    tb['total'] = len(rows)
+    distinct_old = set()
+    for r in rows:
+        loc = r[0] if not hasattr(r, 'keys') else r['loc']
+        st  = r[1] if not hasattr(r, 'keys') else r['st']
+        kind = classify_location_format(loc)
+        tb['by_kind'][kind] = tb['by_kind'].get(kind, 0) + 1
+        if kind in ('OLD_3', 'OLD_4'):
+            distinct_old.add(loc.strip().upper())
+            if st:
+                tb['invalid_status_breakdown'][st] = tb['invalid_status_breakdown'].get(st, 0) + 1
+        if kind in ('OLD_3', 'OLD_4', 'INVALID'):
+            sl = tb['samples'].setdefault(kind, [])
+            if loc and len(sl) < sample_per_kind and loc not in sl:
+                sl.append(loc)
+
+    # 2) inventory 분석
+    try:
+        rows2 = db.execute("SELECT COALESCE(location,'') FROM inventory").fetchall()
+    except Exception as e:
+        logger.warning(f'[analyze] inventory 조회 실패: {e}')
+        rows2 = []
+
+    inv = result['inventory']
+    inv['total'] = len(rows2)
+    for r in rows2:
+        loc = r[0]
+        kind = classify_location_format(loc)
+        inv['by_kind'][kind] = inv['by_kind'].get(kind, 0) + 1
+        if kind in ('OLD_3', 'OLD_4', 'INVALID'):
+            sl = inv['samples'].setdefault(kind, [])
+            if loc and len(sl) < sample_per_kind and loc not in sl:
+                sl.append(loc)
+            if kind in ('OLD_3', 'OLD_4'):
+                distinct_old.add(loc.strip().upper())
+
+    result['distinct_old_locations'] = len(distinct_old)
+    result['distinct_old_examples']  = sorted(distinct_old)[:50]
+    return result
+
+
+# ─────────────────────────────────────────────────────────────────────
+# 10. 단독 실행 — 셀 수 / 자동 판별 / 위치 검증 테스트
 # ─────────────────────────────────────────────────────────────────────
 if __name__ == '__main__':
     print('[GY Logis 창고 셀 수]')

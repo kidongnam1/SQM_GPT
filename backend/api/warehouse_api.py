@@ -153,6 +153,36 @@ def api_cell_grid(dong: int = Query(..., description='5 또는 6'),
 
 
 # ─────────────────────────────────────────────────────────────────────
+# GET /api/warehouse/migrate-analyze
+#   현재 DB 위치 형식 분포 (옛/신/INVALID/EMPTY)
+# ─────────────────────────────────────────────────────────────────────
+@router.get('/migrate-analyze', summary='📊 위치 형식 분포 분석 (마이그레이션 사전 점검)')
+def api_migrate_analyze():
+    """
+    inventory_tonbag.location + inventory.location 의 형식 분포를 측정.
+    옛 형식이 얼마나 남아있는지 파악해서 마이그레이션 진행 여부 판단.
+
+    형식 분류:
+      NEW    — v8.6.8 신규 (G5-04-01-07)
+      OLD_3  — 3파트 (A-01-01)
+      OLD_4  — 4파트 (A-01-01-10)
+      EMPTY  — NULL/빈 문자열
+      INVALID — 알 수 없는 형식
+    """
+    try:
+        from engine_modules.warehouse_cell_logic import analyze_location_formats
+        con = _db()
+        try:
+            data = analyze_location_formats(con)
+        finally:
+            con.close()
+        return ok_response(data)
+    except Exception as e:
+        logger.error('migrate-analyze error: %s', e)
+        return err_response(str(e))
+
+
+# ─────────────────────────────────────────────────────────────────────
 # GET /api/warehouse/half-cells
 #   현재 HALF 상태인 모든 셀 + 잔여 톤백 목록
 # ─────────────────────────────────────────────────────────────────────
