@@ -262,6 +262,18 @@ class TonbagMixin:
                 f"reason={rc} op={operator}"
             )
 
+            # v8.6.8: 셀 무결성 비파괴 검증 — 이동 후 from/to 셀 모두 점검
+            try:
+                from engine_modules.warehouse_cell_logic import check_cell_invariants
+                for chk_loc in {from_loc, to_loc}:
+                    if not chk_loc:
+                        continue
+                    rep = check_cell_invariants(self.db, chk_loc)
+                    if not rep['ok']:
+                        result.setdefault('cell_warnings', []).extend(rep['warnings'])
+            except Exception as _e:
+                logger.debug(f"[MOVE] cell_invariants 체크 건너뜀: {_e}")
+
         except (sqlite3.OperationalError, sqlite3.IntegrityError, OSError) as e:
             result['error'] = str(e)
             logger.error(f"Location update error: {e}")

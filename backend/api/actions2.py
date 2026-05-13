@@ -97,12 +97,25 @@ def inventory_move(payload: dict):
               f"위치이동: {from_loc or '(없음)'} → {to_loc}", ts))
 
         con.commit()
+        # v8.6.8: 이동 직후 from/to 셀 모두 비파괴 검증
+        _cell_warnings = []
+        try:
+            from engine_modules.warehouse_cell_logic import check_cell_invariants
+            for _loc in {from_loc, to_loc}:
+                if not _loc:
+                    continue
+                rep = check_cell_invariants(con, _loc, enforce=False)
+                if not rep['ok']:
+                    _cell_warnings.extend(rep['warnings'])
+        except Exception as _e:
+            logger.debug(f"[inventory-move] cell_invariants 건너뜀: {_e}")
         con.close()
         return ok_response(data={
             "lot_no": lot_no,
             "from_location": from_loc,
             "to_location": to_loc,
             "tonbags_updated": updated,
+            "cell_warnings": _cell_warnings,
             "message": f"{lot_no} → {to_loc} 이동 완료 ({updated}개 톤백)",
         })
     except Exception as e:
@@ -151,11 +164,21 @@ def allocate_location(payload: dict):
             f"위치배정: {old_loc or '없음'} → {location}", ts
         ))
         con.commit()
+        # v8.6.8: 위치 배정 직후 셀 무결성 비파괴 검증 (입고→첫 매핑 지점)
+        _cell_warnings = []
+        try:
+            from engine_modules.warehouse_cell_logic import check_cell_invariants
+            rep = check_cell_invariants(con, location, enforce=False)
+            if not rep['ok']:
+                _cell_warnings = rep['warnings']
+        except Exception as _e:
+            logger.debug(f"[allocate] cell_invariants 건너뜀: {_e}")
         con.close()
         return ok_response(data={
             "lot_no": lot_no,
             "old_location": old_loc,
             "new_location": location,
+            "cell_warnings": _cell_warnings,
             "message": f"{lot_no} → '{location}' 배정 완료",
         })
     except Exception as e:

@@ -331,16 +331,15 @@ class ReturnMixin:
                     # v7.2.0: 반품 시 AVAILABLE 직접복귀 → RETURN 상태 경유
                     # location 지정 후 finalize_return_to_available() 호출로 AVAILABLE 전환
                     self.db.execute("""
-                        UPDATE inventory_tonbag 
+                        UPDATE inventory_tonbag
                         SET status = 'RETURN',
-                            return_date = ?,
                             outbound_date = NULL,
                             picked_date = NULL,
                             picked_to = NULL,
                             sale_ref = NULL,
                             updated_at = ?
                         WHERE lot_no = ? AND sub_lt = ?
-                    """, (now, now, lot_no, sub_lt))
+                    """, (now, lot_no, sub_lt))
 
                     # v5.9.3: RESERVED였으면 allocation_plan도 CANCELLED 처리
                     if was_reserved:
@@ -483,6 +482,29 @@ class ReturnMixin:
                             )
 
                 result['success'] = result['returned'] > 0
+
+                # v8.6.8: 반품 후 영향 받은 셀 무결성 비파괴 검증
+                try:
+                    from engine_modules.warehouse_cell_logic import check_cell_invariants
+                    affected_lots = {
+                        str(it.get('lot_no') or '').strip()
+                        for it in return_data
+                        if str(it.get('lot_no') or '').strip()
+                    }
+                    if affected_lots:
+                        ph = ','.join('?' * len(affected_lots))
+                        loc_rows = self.db.execute(
+                            f"SELECT DISTINCT location FROM inventory_tonbag "
+                            f"WHERE lot_no IN ({ph}) AND location IS NOT NULL "
+                            f"AND TRIM(location) != ''",
+                            tuple(affected_lots)
+                        ).fetchall()
+                        for (loc,) in loc_rows:
+                            rep = check_cell_invariants(self.db, loc)
+                            if not rep['ok']:
+                                result.setdefault('cell_warnings', []).extend(rep['warnings'])
+                except Exception as _e:
+                    logger.debug(f"[RETURN] cell_invariants 체크 건너뜀: {_e}")
 
         except (ValueError, TypeError, AttributeError,
                 sqlite3.OperationalError, sqlite3.IntegrityError) as e:

@@ -118,6 +118,20 @@ def _run_db_migrations():
         )""")
         con.commit()
 
+        # 창고 표기 통일: 레거시 한글 창고명 → GY (아래 튜플은 DB에만 존재할 수 있는 과거 값; UI에 노출되지 않음)
+        try:
+            _legacy_wh = ("\uad11\uc591", "\uad11\uc591\ucc3d\uace0", "\uad11\uc591 \ucc3d\uace0")
+            cur = con.execute(
+                "UPDATE inventory SET warehouse = 'GY' "
+                "WHERE TRIM(COALESCE(warehouse,'')) IN (?,?,?)",
+                _legacy_wh,
+            )
+            if cur.rowcount:
+                logging.info("[Migration] inventory.warehouse → GY: %s rows", cur.rowcount)
+            con.commit()
+        except Exception as _wh_e:
+            logging.debug("[Migration] warehouse 일괄 갱신 스킵: %s", _wh_e)
+
         con.close()
     except Exception as e:
         logging.warning(f"[Migration] DB 마이그레이션 실패: {e}")
@@ -383,6 +397,14 @@ try:
 except Exception as e:
     logging.warning(f"product_master router load failed: {e}")
 
+# v8.6.8: Warehouse cell state API (창고 셀 점유 동적 조회)
+try:
+    from backend.api.warehouse_api import router as warehouse_api_router
+    app.include_router(warehouse_api_router)
+    logging.info("warehouse_api router loaded OK")
+except Exception as e:
+    logging.warning(f"warehouse_api router load failed: {e}")
+
 try:
     from backend.api.report_templates import router as report_templates_router
     app.include_router(report_templates_router)
@@ -396,6 +418,13 @@ try:
     logging.info("ai_gemini router loaded OK (/api/ai/*)")
 except Exception as e:
     logging.warning(f"ai_gemini router load failed: {e}")
+
+try:
+    from backend.api.ai_pl_parser import router as ai_pl_parser_router
+    app.include_router(ai_pl_parser_router)
+    logging.info("ai_pl_parser router loaded OK (/api/ai/parse-pl)")
+except Exception as e:
+    logging.warning(f"ai_pl_parser router load failed: {e}")
 
 # v866: 재고조정 (자연어 파서 + DB/엑셀 실행)
 try:
@@ -675,7 +704,7 @@ def _sample_inventory(page=1, page_size=50):
          "balance": 500.0, "net": 500.0, "container": "CRXU1234567",
          "mxbg_pallet": 20, "avail_bags": 1000,
          "invoice_no": "", "ship_date": "", "arrival_date": "2026-04-21",
-         "con_return": "", "free_time": 0, "wh": "광양", "customs": "",
+         "con_return": "", "free_time": 0, "wh": "GY", "customs": "",
          "initial_weight": 500.0, "outbound_weight": 0.0,
          "date": "2026-04-21", "location": "A-01",
          "sale_ref": "", "customer": "", "remarks": ""},

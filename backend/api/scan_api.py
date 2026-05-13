@@ -70,8 +70,8 @@ async def scan_confirm_outbound(payload: dict):
         r = dict(row)
         today = datetime.date.today().isoformat()
         conn.execute(
-            "UPDATE inventory_tonbag SET status=?, sold_date=? WHERE id=?",
-            ("SOLD", today, r["id"])
+            "UPDATE inventory_tonbag SET status=?, outbound_date=?, updated_at=? WHERE id=?",
+            ("SOLD", today, today, r["id"])
         )
         remaining = conn.execute(
             "SELECT COUNT(*) FROM inventory_tonbag "
@@ -110,8 +110,8 @@ async def scan_return(payload: dict):
         prev = r["status"]
         today = datetime.date.today().isoformat()
         conn.execute(
-            "UPDATE inventory_tonbag SET status=?, return_date=?, return_reason=? WHERE id=?",
-            ("RETURN", today, reason, r["id"])
+            "UPDATE inventory_tonbag SET status=?, remarks=?, updated_at=? WHERE id=?",
+            ("RETURN", reason or "반품", today, r["id"])
         )
         conn.commit()
         conn.close()
@@ -143,11 +143,24 @@ async def scan_move(payload: dict):
         prev = r.get("location") or "-"
         conn.execute("UPDATE inventory_tonbag SET location=? WHERE id=?", (to_loc, r["id"]))
         conn.commit()
+        # v8.6.8: 스캔 이동 직후 from/to 셀 모두 비파괴 검증
+        _cell_warnings = []
+        try:
+            from engine_modules.warehouse_cell_logic import check_cell_invariants
+            for _loc in {prev, to_loc}:
+                if not _loc or _loc == '-':
+                    continue
+                rep = check_cell_invariants(conn, _loc, enforce=False)
+                if not rep['ok']:
+                    _cell_warnings.extend(rep['warnings'])
+        except Exception as _e:
+            log.debug(f"[scan_move] cell_invariants 건너뜀: {_e}")
         conn.close()
         return dict(success=True,
                     message=uid + ": " + prev + " -> " + to_loc + " 위치 변경 완료",
                     data=dict(sub_lt=r["sub_lt"], lot_no=r["lot_no"],
-                              from_location=prev, to_location=to_loc, status=r["status"]))
+                              from_location=prev, to_location=to_loc, status=r["status"],
+                              cell_warnings=_cell_warnings))
     except Exception as e:
         log.error("scan_move error: %s", e)
         return dict(success=False, message=str(e), data=None)

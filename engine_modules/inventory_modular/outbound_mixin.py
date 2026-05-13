@@ -3102,6 +3102,21 @@ class OutboundMixin(InventoryBaseMixin):
             # 6) 사후검증: LOT_TOTAL_MISMATCH + SAMPLE_POLICY
             self._co_run_post_checks(touched_lots, result)
 
+            # v8.6.8: 출고 확정 후 출고된 톤백의 location 셀 무결성 비파괴 검증
+            try:
+                from engine_modules.warehouse_cell_logic import check_cell_invariants
+                checked = set()
+                for tb in tonbags:
+                    loc = (tb.get('location') or '').strip().upper()
+                    if not loc or loc in checked:
+                        continue
+                    checked.add(loc)
+                    rep = check_cell_invariants(self.db, loc)
+                    if not rep['ok']:
+                        result.setdefault('cell_warnings', []).extend(rep['warnings'])
+            except Exception as _e:
+                logger.debug(f"[CONFIRM_OUTBOUND] cell_invariants 체크 건너뜀: {_e}")
+
         except (ValueError, TypeError, sqlite3.Error) as e:
             logger.error(f"출고 확정 오류: {e}")
             result['errors'].append(str(e))
