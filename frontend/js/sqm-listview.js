@@ -67,6 +67,7 @@
     { k: 'weight_kg',    h: '중량(kg)',    w: 90,  align: 'right', num: true },
     { k: 'status',       h: '상태',        w: 90,  align: 'center', badge: 'status' },
     { k: 'location',     h: '위치',        w: 130, mono: true },
+    { k: 'cell_state',   h: '셀 상태',     w: 110, align: 'center', badge: 'cell' },
     { k: 'inbound_date', h: '입고일',      w: 100, align: 'center' },
     { k: 'sold_to',      h: '출고대상',    w: 130 },
     { k: 'sale_ref',     h: 'Sale Ref',   w: 130 },
@@ -85,6 +86,15 @@
     DEPLETED:  { bg: '#37474f', fg: '#cfd8dc' },
     SHIPPED:   { bg: '#212121', fg: '#9e9e9e' },
   };
+  /* v8.6.8: 셀 상태 배지 */
+  var CELL_STATE_COLORS = {
+    EMPTY:    { bg: '#37474f', fg: '#b0bec5', icon: '⬜' },
+    OCCUPIED: { bg: '#1b5e20', fg: '#a5d6a7', icon: '🟦' },
+    HALF:     { bg: '#f57f17', fg: '#fff9c4', icon: '🟨' },
+    OVER:     { bg: '#b71c1c', fg: '#ffcdd2', icon: '⚠' },
+    MIXED:    { bg: '#b71c1c', fg: '#ffcdd2', icon: '⚠' },
+    UNKNOWN:  { bg: '#212121', fg: '#9e9e9e', icon: '?' },
+  };
 
   function _formatCell(val, col) {
     if (val == null || val === '') return '';
@@ -97,6 +107,12 @@
       return '<span style="display:inline-block;padding:1px 8px;border-radius:10px;'
         + 'background:' + c.bg + ';color:' + c.fg + ';font-size:10px;font-weight:700;">'
         + _esc(val) + '</span>';
+    }
+    if (col.badge === 'cell') {
+      var c2 = CELL_STATE_COLORS[String(val).toUpperCase()] || CELL_STATE_COLORS.UNKNOWN;
+      return '<span style="display:inline-block;padding:1px 8px;border-radius:10px;'
+        + 'background:' + c2.bg + ';color:' + c2.fg + ';font-size:10px;font-weight:700;">'
+        + c2.icon + ' ' + _esc(val) + '</span>';
     }
     return _esc(val);
   }
@@ -125,6 +141,9 @@
       + '  <input id="sqm-listview-filter" type="text" placeholder="🔎 빠른 검색 (LOT/제품/SAP/BL...)" '
       +       'style="margin-left:auto;padding:4px 10px;background:var(--bg);color:var(--fg);'
       +             'border:1px solid var(--border);border-radius:6px;font-size:12px;width:240px;">'
+      + '  <button id="sqm-listview-half" class="btn" '
+      +       'style="padding:4px 10px;font-size:12px;background:#f57f17;color:#fff;border:none;'
+      +             'border-radius:6px;display:none;font-weight:700;">🟨 HALF 셀 처리</button>'
       + '  <button id="sqm-listview-excel" class="btn btn-primary" '
       +       'style="padding:4px 12px;font-size:12px;">📥 엑셀 다운로드</button>'
       + '  <button id="sqm-listview-refresh" class="btn" style="padding:4px 10px;font-size:12px;">↻ 새로고침</button>'
@@ -203,6 +222,8 @@
     var body = document.getElementById('sqm-listview-body');
     var foot = document.getElementById('sqm-listview-foot');
     var cnt  = document.getElementById('sqm-listview-count');
+    var halfBtn = document.getElementById('sqm-listview-half');
+    if (halfBtn) halfBtn.style.display = 'none';
     body.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:40px;">⏳ 로딩 중...</div>';
     cnt.textContent = '';
     foot.textContent = '';
@@ -265,7 +286,23 @@
         .then(function(res) {
           var rows = (res && res.data && res.data.rows) || res.rows || [];
           allRows = rows;
-          cnt.textContent = '— ' + rows.length + ' 건';
+          /* v8.6.8: HALF 셀 톤백 카운트 → 버튼 활성화 */
+          var halfTb = rows.filter(function(r) {
+            return String(r.cell_state || '').toUpperCase() === 'HALF';
+          }).length;
+          var halfBtn = document.getElementById('sqm-listview-half');
+          if (halfBtn) {
+            if (halfTb > 0) {
+              halfBtn.style.display = 'inline-block';
+              halfBtn.textContent = '🟨 HALF 셀 처리 (' + halfTb + ')';
+              halfBtn.onclick = function() {
+                if (typeof window.showCase3Queue === 'function') window.showCase3Queue();
+              };
+            } else {
+              halfBtn.style.display = 'none';
+            }
+          }
+          cnt.textContent = '— ' + rows.length + ' 건' + (halfTb ? ' · HALF ' + halfTb + '톤백' : '');
           _renderTable(TONBAG_COLS, rows, body);
           foot.textContent = '※ 엑셀 다운로드는 우상단 버튼 사용 · 전체 ' + rows.length + ' 톤백';
         })

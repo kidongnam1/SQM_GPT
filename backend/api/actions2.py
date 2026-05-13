@@ -387,18 +387,53 @@ _TONBAG_LIST_JSON_HEADERS = [
 
 @router.get("/tonbag-list-json", summary="🎒 톤백 리스트 JSON (화면 렌더용 v8.6.8)")
 def tonbag_list_json(lot_no: Optional[str] = QP(None)):
-    """`/api/action2/export-tonbag-excel` 와 동일 SQL을 JSON 으로 반환."""
+    """`/api/action2/export-tonbag-excel` 와 동일 SQL을 JSON 으로 반환.
+
+    v8.6.8: 각 행에 cell_state(EMPTY/OCCUPIED/HALF/...) 함께 반환.
+            location 별로 1회 계산 후 캐시.
+    """
     try:
         sql, params = _tonbag_sql(lot_no)
         con = _db()
-        rows = con.execute(sql, params).fetchall()
-        con.close()
+        try:
+            rows = con.execute(sql, params).fetchall()
+
+            # location 별 셀 상태 캐시 (warehouse_cell_logic 동적 계산)
+            cell_state_cache: dict = {}
+            try:
+                from engine_modules.warehouse_cell_logic import get_cell_state
+                _locs = {str((r[9] if len(r) > 9 else '') or '').strip().upper() for r in rows}
+                _locs.discard('')
+                for _loc in _locs:
+                    try:
+                        st = get_cell_state(con, _loc)
+                        cell_state_cache[_loc] = {
+                            'state':        st['state'],
+                            'capacity':     st['capacity'],
+                            'active_count': st['active_count'],
+                            'packing_type': st['packing_type'],
+                        }
+                    except Exception as _e:
+                        logger.debug(f"cell_state fail {_loc}: {_e}")
+            except Exception as _e:
+                logger.debug(f"warehouse_cell_logic 미사용: {_e}")
+        finally:
+            con.close()
+
         data = []
         for r in rows:
-            data.append({k: r[i] for i, k in enumerate(_TONBAG_LIST_JSON_HEADERS)})
+            row_dict = {k: r[i] for i, k in enumerate(_TONBAG_LIST_JSON_HEADERS)}
+            _loc = str(row_dict.get('location') or '').strip().upper()
+            cs = cell_state_cache.get(_loc) if _loc else None
+            row_dict['cell_state']        = (cs or {}).get('state', '')
+            row_dict['cell_capacity']     = (cs or {}).get('capacity', 0)
+            row_dict['cell_active_count'] = (cs or {}).get('active_count', 0)
+            data.append(row_dict)
+
         return {"ok": True, "data": {
             "rows": data, "count": len(data),
-            "headers": _TONBAG_LIST_JSON_HEADERS, "lot_no": lot_no,
+            "headers": _TONBAG_LIST_JSON_HEADERS + ['cell_state', 'cell_capacity', 'cell_active_count'],
+            "lot_no": lot_no,
         }}
     except Exception as e:
         logger.error("tonbag-list-json error: %s", e)

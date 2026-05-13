@@ -4855,6 +4855,10 @@
             '</div>';
           showToast('success', res.message || '확정 완료');
           dbgLog('🟢','CONFIRM-SOLD OK', res.message, '#66bb6a');
+          /* v8.6.8: CASE 3 — 부분 출고 잔여 톤백 자동 다이얼로그 */
+          if (d.half_cells && d.half_cells.length && typeof window.showCase3Dialog === 'function') {
+            setTimeout(function() { window.showCase3Dialog(d.half_cells); }, 200);
+          }
           if (_currentRoute === 'inventory' && typeof loadInventoryPage === 'function') loadInventoryPage();
           if (typeof loadKpi === 'function') loadKpi();
           loadSummary();

@@ -3102,10 +3102,13 @@ class OutboundMixin(InventoryBaseMixin):
             # 6) 사후검증: LOT_TOTAL_MISMATCH + SAMPLE_POLICY
             self._co_run_post_checks(touched_lots, result)
 
-            # v8.6.8: 출고 확정 후 출고된 톤백의 location 셀 무결성 비파괴 검증
+            # v8.6.8: 출고 확정 후 셀 무결성 비파괴 검증 + HALF 셀(CASE 3) 감지
             try:
-                from engine_modules.warehouse_cell_logic import check_cell_invariants
+                from engine_modules.warehouse_cell_logic import (
+                    check_cell_invariants, get_cell_state,
+                )
                 checked = set()
+                half_cells = []      # CASE 3 — 잔여 톤백 처리 다이얼로그 대상
                 for tb in tonbags:
                     loc = (tb.get('location') or '').strip().upper()
                     if not loc or loc in checked:
@@ -3114,6 +3117,18 @@ class OutboundMixin(InventoryBaseMixin):
                     rep = check_cell_invariants(self.db, loc)
                     if not rep['ok']:
                         result.setdefault('cell_warnings', []).extend(rep['warnings'])
+                    state = get_cell_state(self.db, loc)
+                    if state['state'] == 'HALF':
+                        # 잔여 톤백 정보를 클라이언트에 전달 (STAY/MOVE 다이얼로그용)
+                        half_cells.append({
+                            'location':      loc,
+                            'packing_type':  state['packing_type'],
+                            'capacity':      state['capacity'],
+                            'active_count':  state['active_count'],
+                            'remaining':     state['tonbags'],   # 잔여 톤백 상세
+                        })
+                if half_cells:
+                    result['half_cells'] = half_cells
             except Exception as _e:
                 logger.debug(f"[CONFIRM_OUTBOUND] cell_invariants 체크 건너뜀: {_e}")
 
