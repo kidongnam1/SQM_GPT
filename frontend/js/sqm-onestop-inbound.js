@@ -37,6 +37,12 @@
     template: null,
     carrier: '',
     step: 1,
+    /* v8.6.8 Hybrid: 사용자가 사전 결정하는 packing_type 기본값 (선적 전체 적용) */
+    /*   'C'      = 기본 (500kg × 2pack, 가장 흔한 패턴) */
+    /*   'A'/'B'  = 강제 적용 (드문 경우) */
+    /*   'auto'   = LOT별 net÷mxbg 자동 판별 (v8.6.8 이전 방식) */
+    /*   'manual' = 사후 [📦 팔레트/셀] 탭에서 LOT별 개별 결정 */
+    defaultPacking: 'C',
     /* [Sprint 1-2-C] 편집 상태 */
     previewRows: [],        /* 현재 미리보기 rows (편집 반영됨) */
     originalRows: [],       /* 원본 백업 — 편집 롤백용 */
@@ -187,7 +193,7 @@
 
     var html = [
       '<div class="onestop-modal">',
-      '  <h2 style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">📥 입고 — SQM v8.6.5 (OneStop)'
+      '  <h2 style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">📥 입고 — SQM v8.6.8 (OneStop)'
       +'<span id="onestop-step-badge" style="font-size:12px;font-weight:600;padding:2px 12px;border-radius:20px;background:var(--sidebar-active-bg,#3b82f6);color:var(--sidebar-active-fg,#fff);white-space:nowrap;">① 서류 선택</span></h2>',
       /* 템플릿 줄 — Sprint 2 예정 행 제거, D/O 나중에 버튼은 액션 바로 이동 */
       /* 선사 줄 */
@@ -200,6 +206,18 @@
       '  <div class="onestop-row">',
       '    <label>💬 힌트:</label>',
       '    <input id="onestop-hint-input" type="text" placeholder="LOT/BL 특이사항 입력 (선택, DB 저장 안 됨)" style="flex:1;padding:6px 10px;background:var(--bg-hover);color:var(--fg);border:1px solid var(--border);border-radius:6px;font-size:13px">',
+      '  </div>',
+      /* v8.6.8: 팔레트 구성 사전 결정 (Hybrid 설계) — 사용자가 선적 전체의 기본 packing_type 을 미리 지정 */
+      '  <div class="onestop-row">',
+      '    <label>📦 팔레트:</label>',
+      '    <select id="onestop-default-packing" onchange="window.onestopSetDefaultPacking(this.value)" style="padding:6px 10px;flex:1;max-width:380px;background:var(--bg-hover);color:var(--fg);border:1px solid var(--border);border-radius:6px;font-size:13px">',
+      '      <option value="C" selected>📦 C — 500kg × 2pack (가장 흔함, 권장)</option>',
+      '      <option value="A">📦 A — 1,000kg × 1pack</option>',
+      '      <option value="B">📦 B — 500kg × 1pack (특수)</option>',
+      '      <option value="auto">🤖 자동 판별 (net÷mxbg 계산)</option>',
+      '      <option value="manual">🎨 LOT별 개별 지정 (파싱 후 결정)</option>',
+      '    </select>',
+      '    <span style="font-size:11px;color:var(--text-muted);margin-left:6px">선적 전체 기본값. 파싱 후 [📦 팔레트/셀] 탭에서 LOT별 수정 가능.</span>',
       '  </div>',
       /* manual date inputs row */
       '  <div class="onestop-row" id="onestop-dates-row">',
@@ -808,6 +826,22 @@
     } else {
       ftEl.value = '';
     }
+  };
+
+  /* v8.6.8 Hybrid: 사용자가 선적 전체의 기본 packing_type 사전 결정 */
+  window.onestopSetDefaultPacking = function(v) {
+    var allowed = ['A', 'B', 'C', 'auto', 'manual'];
+    if (allowed.indexOf(v) < 0) v = 'C';
+    _onestopState.defaultPacking = v;
+    /* 결과창이 이미 열려있고 미리보기가 있으면 즉시 재반영 */
+    if (_onestopState.previewRows && _onestopState.previewRows.length
+        && typeof window.onestopPalletInitFromRows === 'function') {
+      window.onestopPalletInitFromRows();
+    }
+  };
+  /* getter — onestop_pallet_tab.js 가 읽기 위한 안전 진입점 */
+  window.onestopGetDefaultPacking = function() {
+    return (_onestopState && _onestopState.defaultPacking) || 'C';
   };
 
   window.onestopParseStart = function() {

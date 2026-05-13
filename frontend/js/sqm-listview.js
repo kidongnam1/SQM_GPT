@@ -168,8 +168,9 @@
     return d;
   }
 
-  /* ── 렌더 ── */
-  function _renderTable(cols, rows, container) {
+  /* ── 렌더 ──
+     v8.6.8: onRowClick 옵션 추가 — 행 클릭 drilldown (LOT → 톤백) 용 */
+  function _renderTable(cols, rows, container, onRowClick) {
     if (!rows || rows.length === 0) {
       container.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:40px;">📭 데이터가 없습니다.</div>';
       return;
@@ -181,6 +182,7 @@
         + 'position:sticky;top:0;z-index:1;white-space:nowrap;' + align
         + (c.w ? 'min-width:' + c.w + 'px;' : '') + '">' + _esc(c.h) + '</th>';
     }).join('');
+    var clickable = (typeof onRowClick === 'function');
     var tbody = rows.map(function(r, ri) {
       var tds = cols.map(function(c) {
         var v = _formatCell(r[c.k], c);
@@ -192,13 +194,31 @@
         return '<td style="' + style + '">' + v + '</td>';
       }).join('');
       var rowBg = ri % 2 === 0 ? '' : 'background:rgba(255,255,255,.02);';
-      return '<tr style="' + rowBg + '">' + tds + '</tr>';
+      var cur = clickable ? 'cursor:pointer;' : '';
+      var title = clickable ? ' title="클릭하여 톤백 상세 보기"' : '';
+      return '<tr data-row-idx="' + ri + '" style="' + rowBg + cur + '"' + title + '>' + tds + '</tr>';
     }).join('');
     container.innerHTML = ''
       + '<table style="width:100%;border-collapse:collapse;">'
       + '<thead><tr>' + thead + '</tr></thead>'
       + '<tbody>' + tbody + '</tbody>'
       + '</table>';
+    /* v8.6.8: 행 클릭 핸들러 (drilldown) */
+    if (clickable) {
+      container.querySelectorAll('tbody tr').forEach(function(tr) {
+        tr.addEventListener('mouseenter', function() {
+          tr.style.background = 'rgba(79,195,247,0.18)';
+        });
+        tr.addEventListener('mouseleave', function() {
+          var idx = parseInt(tr.dataset.rowIdx, 10);
+          tr.style.background = idx % 2 === 0 ? '' : 'rgba(255,255,255,.02)';
+        });
+        tr.addEventListener('click', function() {
+          var idx = parseInt(tr.dataset.rowIdx, 10);
+          onRowClick(rows[idx]);
+        });
+      });
+    }
   }
 
   function _applyFilter(rows, q) {
@@ -238,8 +258,8 @@
           var rows = (res && res.data && res.data.rows) || res.rows || [];
           allRows = rows;
           cnt.textContent = '— ' + rows.length + ' 건';
-          _renderTable(LOT_COLS, rows, body);
-          foot.textContent = '※ 엑셀 다운로드는 우상단 버튼 사용 · 전체 ' + rows.length + ' LOT';
+          _renderTable(LOT_COLS, rows, body, _onLotRowClick);
+          foot.textContent = '※ 행 클릭 → 톤백 상세 보기  ·  엑셀 다운로드는 우상단 버튼  ·  전체 ' + rows.length + ' LOT';
         })
         .catch(function(e) {
           body.innerHTML = '<div style="text-align:center;color:var(--danger,#f44336);padding:40px;">'
@@ -255,8 +275,18 @@
     var fInp = document.getElementById('sqm-listview-filter');
     fInp.value = '';
     fInp.oninput = function() {
-      _renderTable(LOT_COLS, _applyFilter(allRows, this.value), body);
+      _renderTable(LOT_COLS, _applyFilter(allRows, this.value), body, _onLotRowClick);
     };
+
+    /* v8.6.8: LOT 행 클릭 → 해당 LOT 의 톤백 모달로 drilldown */
+    function _onLotRowClick(row) {
+      if (!row || !row.lot_no) { _toast('warning', 'LOT 번호가 없습니다'); return; }
+      if (typeof window.showTonbagListModal === 'function') {
+        window.showTonbagListModal(row.lot_no);
+      } else {
+        _toast('error', '톤백 모달 모듈 미로드');
+      }
+    }
 
     _load();
   };
@@ -267,9 +297,18 @@
   window.showTonbagListModal = function(lotNo) {
     var m = _ensureModal();
     m.style.display = 'flex';
+    /* v8.6.8: LOT drilldown 진입 시 → 제목에 LOT 번호 + 돌아가기 hint */
     var ttl = '🎒 톤백 리스트';
-    if (lotNo) ttl += ' — ' + lotNo;
+    if (lotNo) ttl += ' — LOT ' + lotNo + '  (← 더블클릭하면 LOT 리스트로)';
     document.getElementById('sqm-listview-title').textContent = ttl;
+    /* 제목 더블클릭 → LOT 리스트로 돌아가기 */
+    if (lotNo) {
+      var titleEl = document.getElementById('sqm-listview-title');
+      titleEl.style.cursor = 'pointer';
+      titleEl.ondblclick = function() {
+        if (typeof window.showLotListModal === 'function') window.showLotListModal();
+      };
+    }
     var body = document.getElementById('sqm-listview-body');
     var foot = document.getElementById('sqm-listview-foot');
     var cnt  = document.getElementById('sqm-listview-count');

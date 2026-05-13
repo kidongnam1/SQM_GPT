@@ -393,21 +393,49 @@
     renderPalletTab();
   };
 
-  /* 외부(파싱 완료 시점)에서 호출 — packing_type 초기화 + 자동 적용 */
+  /* 외부(파싱 완료 시점)에서 호출 — packing_type 초기화 + 자동 적용
+     v8.6.8 Hybrid: 사용자가 사전 결정한 defaultPacking 우선 적용 */
   window.onestopPalletInitFromRows = function() {
     _palletState = {};   /* 새 파싱이면 리셋 */
     var rows = (window._onestopState && window._onestopState.previewRows) || [];
+    /* 사용자 사전 결정값 읽기 — sqm-onestop-inbound.js 에서 노출 */
+    var pre = (typeof window.onestopGetDefaultPacking === 'function')
+              ? window.onestopGetDefaultPacking() : 'C';
+    var isForced = (pre === 'A' || pre === 'B' || pre === 'C');
+    var isManual = (pre === 'manual');
+
     rows.forEach(function(r) {
       if (!r || !r.lot_no) return;
-      var det = determinePackingType(r.net_kg, r.mxbg);
-      _palletState[r.lot_no] = {
-        type:      det.type,
-        source:    'auto',
-        confirmed: det.confidence === 'high',  /* 500kg 은 false */
-        unitKg:    det.unitKg
-      };
-      /* previewRows 에 packing_type 미리 채워 두기 */
-      r.packing_type = det.type || '';
+
+      if (isForced) {
+        /* A/B/C 강제 — 모든 LOT 에 일괄 적용, 🟢 사용자결정 표시 */
+        _palletState[r.lot_no] = {
+          type:      pre,
+          source:    'user',
+          confirmed: true,
+          unitKg:    (pre === 'A' ? 1000 : (pre === 'B' ? 500 : 250))
+        };
+        r.packing_type = pre;
+      } else if (isManual) {
+        /* 강제 미확정 — 사용자가 [📦 팔레트/셀] 탭에서 LOT 별 클릭 */
+        _palletState[r.lot_no] = {
+          type:      '',
+          source:    'pending',
+          confirmed: false,
+          unitKg:    0
+        };
+        r.packing_type = '';
+      } else {
+        /* 'auto' — 기존 자동 판별 로직 */
+        var det = determinePackingType(r.net_kg, r.mxbg);
+        _palletState[r.lot_no] = {
+          type:      det.type,
+          source:    'auto',
+          confirmed: det.confidence === 'high',  /* 500kg 은 false */
+          unitKg:    det.unitKg
+        };
+        r.packing_type = det.type || '';
+      }
     });
     updateDbUploadGate(rows);
   };

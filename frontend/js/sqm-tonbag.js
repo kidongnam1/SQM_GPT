@@ -4435,7 +4435,11 @@
      11. BIND ALL + BOOT
      =================================================== */
   function bindAll() {
-    // data-action elements
+    // v8.6.8 fix (2026-05-14): data-action 바인딩 비활성화
+    //   - 원본은 v8.6.5 era 옛 ENDPOINTS 사용 (line 4001) → onWarehouseDashboard 등 신규 매핑 누락
+    //   - ev.stopPropagation() 이 sqm-inline.js 의 신규 라우터까지 차단함
+    //   - 신규 라우터(sqm-inline.js)가 모든 data-action 을 처리하도록 위임
+    /* DISABLED v8.6.5 router (kept for reference, do not re-enable)
     document.querySelectorAll('[data-action]').forEach(function(el){
       if (el.dataset._sqmBound) return;
       el.dataset._sqmBound='1';
@@ -4449,6 +4453,7 @@
         dispatchAction(action);
       });
     });
+    */
 
     // data-route elements
     document.querySelectorAll('[data-route]').forEach(function(el){

@@ -6880,6 +6880,11 @@
         }
         return;
       }
+      if (conf.u === 'inventory-adjust') {
+        /* v8.6.8 fix: 재고 수정 모달 — 옛 라우터에서는 페이지 라우팅으로 흘러서 "Preparing:" 만 표시됨 */
+        showInventoryAdjustDialog();
+        return;
+      }
       if (conf.u === 'product-master') {
         showProductMasterModal();
         return;
@@ -7167,6 +7172,14 @@
       showToast('실행 실패: ' + e.message, 'danger');
     }
   }
+
+  /* v8.6.8 fix (2026-05-14): 재고 수정 모달 함수를 window 에 노출.
+     - HTML 모달 내 onclick="parseAdjustRequest()" / onclick="executeAdjustment()" 가
+       전역 함수 참조이므로 IIFE 내부 정의로는 ReferenceError.
+     - 라우터 분기에서도 window.showInventoryAdjustDialog() 호출 가능. */
+  window.showInventoryAdjustDialog = showInventoryAdjustDialog;
+  window.parseAdjustRequest        = parseAdjustRequest;
+  window.executeAdjustment         = executeAdjustment;
 
   function boot() {
     _dbgBuild();
