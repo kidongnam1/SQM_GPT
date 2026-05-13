@@ -6646,6 +6646,8 @@
     /* ── 재고 메뉴: LOT Excel은 FileResponse → 새 창 다운로드 / 추이는 JSON 모달 ── */
     'onExportLot':         {m:'JS', u:'export-lot-excel-dl',                       lbl:'📊 LOT 리스트 Excel'},
     'onStockTrendChart':   {m:'GET', u:'/api/q/inventory-trend',                   lbl:'📊 재고 추이 차트'},
+    /* v8.6.8: 창고 셀 점유 대시보드 */
+    'onWarehouseDashboard':{m:'JS', u:'warehouse-dashboard',                       lbl:'📊 창고 현황 (대시보드)'},
 
     /* 전역 검색: v866는 Inventory 탭 검색으로 대체 (기능 단위 동등 목표) */
     'onGlobalSearch':      {m:'JS', u:'inventory',                                lbl:'🔍 전역 검색'},
@@ -6866,6 +6868,15 @@
           window.showLotListModal();
         } else {
           sqmDownloadFileUrl(API + '/api/action/export-lot-excel', conf.lbl);
+        }
+        return;
+      }
+      if (conf.u === 'warehouse-dashboard') {
+        /* v8.6.8: 창고 셀 점유 대시보드 */
+        if (typeof window.showWarehouseDashboard === 'function') {
+          window.showWarehouseDashboard();
+        } else {
+          showToast('error', '대시보드 모듈 미로드');
         }
         return;
       }
