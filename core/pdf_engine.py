@@ -2,7 +2,7 @@
 """
 core/pdf_engine.py
 ==================
-SQM v8.6.7 — PDF 처리 공통 엔진 (PC / Android Termux 호환)
+SQM v8.6.8 — PDF 처리 공통 엔진 (PC / Android Termux 호환)
 
 목적:
     PyMuPDF(fitz)가 설치된 PC 환경과
