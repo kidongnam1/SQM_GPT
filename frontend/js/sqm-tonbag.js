@@ -4209,7 +4209,12 @@
         return;
       }
       if (conf.u === 'tonbag-location-upload') {
-        showTonbagLocationUploadModal();
+        /* v8.6.8: 신규 위치 매핑 워크플로우 모달 (좌측 미배정 톤백 + 우측 실시간 매핑) */
+        if (typeof window.showLocationMappingModal === 'function') {
+          window.showLocationMappingModal();
+        } else {
+          showTonbagLocationUploadModal();
+        }
         return;
       }
       if (conf.u === 'batch-move-approval') {

@@ -164,6 +164,317 @@ def cancel_inventory(lot_no: str):
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# GET /api/inventory/unallocated-tonbags  (v8.6.8 위치 매핑 워크플로우)
+#   location 미배정 톤백 + LOT 단위 진행률 통계
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+@inv_router.get("/unallocated-tonbags",
+                summary="📍 위치 미배정 톤백 + LOT 진행률")
+def unallocated_tonbags(lot_no: Optional[str] = QP(None),
+                        limit:  int = QP(2000)):
+    """
+    위치(location)가 비어 있는 활성 톤백 목록 + LOT별 진행률.
+
+    Args:
+      lot_no: 특정 LOT 만 조회 (선택)
+      limit:  반환 행 수 제한 (기본 2000)
+
+    Returns:
+      {
+        ok: true,
+        data: {
+          tonbags: [
+            { id, tonbag_uid, lot_no, sub_lt, tonbag_no, weight_kg,
+              status, product, packing_type }, ...
+          ],
+          lot_progress: [
+            { lot_no, product, packing_type, total_tonbags,
+              allocated, unallocated, progress_pct }, ...
+          ],
+          summary: { total, allocated, unallocated, progress_pct,
+                     lot_count, lot_done, lot_partial, lot_pending }
+        }
+      }
+    """
+    try:
+        db = _db()
+        try:
+            where = ["COALESCE(t.is_sample, 0) = 0",
+                     "t.status IN ('AVAILABLE','PICKED','RESERVED','PENDING')"]
+            params: list = []
+            if lot_no:
+                where.append("t.lot_no = ?")
+                params.append(lot_no)
+            where_sql = " AND ".join(where)
+
+            # 미배정 톤백 리스트 (location IS NULL OR '')
+            sql_un = (
+                "SELECT t.id, t.tonbag_uid, t.lot_no, t.sub_lt, "
+                "       t.tonbag_no, COALESCE(t.weight_kg,0) AS weight_kg, "
+                "       t.status, i.product, COALESCE(i.packing_type,'') AS packing_type "
+                "  FROM inventory_tonbag t "
+                "  LEFT JOIN inventory i ON i.lot_no = t.lot_no "
+                f" WHERE {where_sql} "
+                "   AND (t.location IS NULL OR TRIM(t.location) = '') "
+                " ORDER BY t.lot_no, t.sub_lt "
+                f" LIMIT {int(limit)} "
+            )
+            tonbags = _rows(db.execute(sql_un, params))
+
+            # LOT 별 진행률 (총/배정/미배정)
+            sql_pg = (
+                "SELECT t.lot_no, "
+                "       COALESCE(i.product,'') AS product, "
+                "       COALESCE(i.packing_type,'') AS packing_type, "
+                "       COUNT(*) AS total_tonbags, "
+                "       SUM(CASE WHEN t.location IS NOT NULL "
+                "                  AND TRIM(t.location) != '' "
+                "                THEN 1 ELSE 0 END) AS allocated "
+                "  FROM inventory_tonbag t "
+                "  LEFT JOIN inventory i ON i.lot_no = t.lot_no "
+                f" WHERE {where_sql} "
+                " GROUP BY t.lot_no "
+                " ORDER BY t.lot_no "
+            )
+            pg_rows = _rows(db.execute(sql_pg, params))
+            lot_progress = []
+            lot_done = lot_partial = lot_pending = 0
+            for r in pg_rows:
+                total = int(r['total_tonbags'] or 0)
+                alloc = int(r['allocated'] or 0)
+                un    = total - alloc
+                pct   = round((alloc / total * 100), 1) if total else 0.0
+                if alloc == total and total > 0:
+                    lot_done += 1
+                elif alloc == 0:
+                    lot_pending += 1
+                else:
+                    lot_partial += 1
+                lot_progress.append({
+                    'lot_no':        r['lot_no'],
+                    'product':       r['product'],
+                    'packing_type':  r['packing_type'],
+                    'total_tonbags': total,
+                    'allocated':     alloc,
+                    'unallocated':   un,
+                    'progress_pct':  pct,
+                })
+
+            # 전체 요약
+            total_all = sum(p['total_tonbags'] for p in lot_progress)
+            alloc_all = sum(p['allocated']     for p in lot_progress)
+            unall_all = total_all - alloc_all
+            sum_pct   = round((alloc_all / total_all * 100), 1) if total_all else 0.0
+
+            return {"ok": True, "data": {
+                "tonbags": tonbags,
+                "lot_progress": lot_progress,
+                "summary": {
+                    "total":          total_all,
+                    "allocated":      alloc_all,
+                    "unallocated":    unall_all,
+                    "progress_pct":   sum_pct,
+                    "lot_count":      len(lot_progress),
+                    "lot_done":       lot_done,
+                    "lot_partial":    lot_partial,
+                    "lot_pending":    lot_pending,
+                },
+                "lot_no_filter": lot_no,
+                "limit_applied": limit,
+            }}
+        finally:
+            db.close()
+    except Exception as e:
+        log.error(f"unallocated-tonbags error: {e}")
+        raise HTTPException(500, str(e))
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# POST /api/inventory/assign-location  (v8.6.8 단건 위치 배정)
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+@inv_router.post("/assign-location",
+                 summary="📍 단건 위치 배정 (실시간 검증)")
+def assign_location(payload: dict = Body(...)):
+    """
+    Payload:
+      { tonbag_id: int, location: str, operator?: str, note?: str }
+
+    동작:
+      1) location 형식 검증 (G5-04-01-07)
+      2) 셀 capacity 사전 점검 (capacity 초과면 차단)
+      3) inventory_tonbag.location UPDATE
+      4) stock_movement (ALLOCATE) + audit_log (LOCATION_ASSIGN)
+      5) 사후 무결성 검증 (HALF/OVER/MIXED 감지)
+    """
+    try:
+        from datetime import datetime
+        from engine_modules.warehouse_cell_logic import (
+            validate_cell_location, get_cell_state, check_cell_invariants,
+        )
+
+        tonbag_id = payload.get('tonbag_id')
+        location  = (payload.get('location') or '').strip().upper()
+        operator  = (payload.get('operator') or 'user').strip()
+        note      = (payload.get('note') or '').strip()
+
+        if not tonbag_id:
+            raise HTTPException(400, 'tonbag_id 필수')
+        if not location:
+            raise HTTPException(400, 'location 필수')
+
+        v = validate_cell_location(location)
+        if not v.get('ok'):
+            return {"ok": False, "error": f"위치 형식 오류: {v.get('reason')}", "data": None}
+
+        db = _db()
+        try:
+            row = db.execute(
+                "SELECT id, lot_no, sub_lt, COALESCE(weight_kg,0) AS w, "
+                "       COALESCE(location,'') AS loc, status "
+                "  FROM inventory_tonbag WHERE id=?",
+                (tonbag_id,)
+            ).fetchone()
+            if not row:
+                return {"ok": False, "error": f"톤백 id={tonbag_id} 없음", "data": None}
+            tb = dict(row)
+            from_loc = tb['loc']
+            if from_loc and from_loc == location:
+                return {"ok": False, "error": "현재 위치와 동일", "data": {"tonbag_id": tonbag_id}}
+
+            # 사전 capacity 점검 — 신규 location에 들어갈 자리 있는지
+            pre_state = get_cell_state(db, location)
+            if pre_state['state'] == 'OCCUPIED' and pre_state['active_count'] >= pre_state['capacity']:
+                return {"ok": False,
+                        "error": f"셀 가득 참 ({pre_state['active_count']}/{pre_state['capacity']})",
+                        "data": {"cell_state": pre_state}}
+
+            ts = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            db.execute(
+                "UPDATE inventory_tonbag SET location=?, location_updated_at=?, updated_at=? "
+                "WHERE id=?",
+                (location, ts, ts, tonbag_id)
+            )
+            # stock_movement (ALLOCATE = 첫 배정, RELOCATE = 재이동)
+            move_type = 'ALLOCATE' if not from_loc else 'RELOCATE'
+            db.execute(
+                "INSERT INTO stock_movement "
+                "    (lot_no, sub_lt, movement_type, qty_kg, "
+                "     from_location, to_location, reason_code, operator, remarks, created_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, 'LOC_ASSIGN', ?, ?, ?)",
+                (tb['lot_no'], tb['sub_lt'], move_type, tb['w'],
+                 from_loc or '', location, operator,
+                 note or 'v8.6.8 위치 매핑', ts)
+            )
+            db.execute(
+                "INSERT INTO audit_log "
+                "    (event_type, event_data, user_note, created_by, created_at) "
+                "VALUES ('LOCATION_ASSIGN', ?, ?, ?, ?)",
+                (f'{{"tonbag_id":{tonbag_id},"lot_no":"{tb["lot_no"]}",'
+                 f'"sub_lt":{tb["sub_lt"]},"from":"{from_loc}","to":"{location}"}}',
+                 note or f'위치 배정 {from_loc or "(미배정)"} → {location}',
+                 operator, ts)
+            )
+            db.commit()
+
+            # 사후 무결성 검증
+            warns = []
+            for chk in {from_loc, location}:
+                if not chk:
+                    continue
+                rep = check_cell_invariants(db, chk)
+                if not rep['ok']:
+                    warns.extend(rep['warnings'])
+
+            return {"ok": True, "data": {
+                "tonbag_id":      tonbag_id,
+                "lot_no":         tb['lot_no'],
+                "sub_lt":         tb['sub_lt'],
+                "from_location":  from_loc,
+                "to_location":    location,
+                "movement_type":  move_type,
+                "cell_warnings":  warns,
+                "message":        f"{tb['lot_no']}-{tb['sub_lt']} → {location} 배정 완료",
+            }}
+        finally:
+            db.close()
+    except HTTPException:
+        raise
+    except Exception as e:
+        log.error(f"assign-location error: {e}")
+        raise HTTPException(500, str(e))
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# POST /api/inventory/assign-locations-bulk  (v8.6.8 일괄 위치 배정)
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+@inv_router.post("/assign-locations-bulk",
+                 summary="📍 일괄 위치 배정")
+def assign_locations_bulk(payload: dict = Body(...)):
+    """
+    Payload:
+      { assignments: [{tonbag_id, location}, ...], operator?: str, note?: str }
+
+    각 항목을 순차 처리 — 실패한 건은 errors 배열에 누적, 성공한 건은 계속.
+    트랜잭션 단위는 항목별 — 일부 실패해도 나머지 진행.
+    """
+    try:
+        items = payload.get('assignments') or []
+        operator = (payload.get('operator') or 'user').strip()
+        note     = (payload.get('note') or '').strip()
+        if not isinstance(items, list) or not items:
+            raise HTTPException(400, 'assignments 필수 (list)')
+
+        success_list = []
+        error_list   = []
+        for idx, it in enumerate(items):
+            sub_payload = {
+                'tonbag_id': it.get('tonbag_id'),
+                'location':  it.get('location'),
+                'operator':  operator,
+                'note':      note or f'bulk #{idx + 1}',
+            }
+            try:
+                res = assign_location(sub_payload)
+                if res.get('ok'):
+                    success_list.append({
+                        'index':     idx,
+                        'tonbag_id': it.get('tonbag_id'),
+                        'data':      res.get('data'),
+                    })
+                else:
+                    error_list.append({
+                        'index':     idx,
+                        'tonbag_id': it.get('tonbag_id'),
+                        'reason':    res.get('error') or 'unknown',
+                    })
+            except HTTPException as he:
+                error_list.append({
+                    'index':     idx,
+                    'tonbag_id': it.get('tonbag_id'),
+                    'reason':    he.detail,
+                })
+            except Exception as e:
+                error_list.append({
+                    'index':     idx,
+                    'tonbag_id': it.get('tonbag_id'),
+                    'reason':    str(e),
+                })
+
+        return {"ok": True, "data": {
+            "total":         len(items),
+            "success_count": len(success_list),
+            "fail_count":    len(error_list),
+            "success":       success_list,
+            "errors":        error_list,
+            "message":       f"성공 {len(success_list)}건 / 실패 {len(error_list)}건",
+        }}
+    except HTTPException:
+        raise
+    except Exception as e:
+        log.error(f"assign-locations-bulk error: {e}")
+        raise HTTPException(500, str(e))
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # GET /api/allocation  — Allocation 탭 메인 데이터
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 @alloc_router.get("")
@@ -285,7 +596,7 @@ def update_allocation(lot_no: str, updates: Dict[str, Any] = Body(...)):
     try:
         db = _db()
         cursor = db.execute(
-            f"UPDATE allocation_plan SET {sets}, updated_at=datetime('now') WHERE lot_no=?",
+            f"UPDATE allocation_plan SET {sets}, created_at=datetime('now') WHERE lot_no=?",
             values
         )
         if cursor.rowcount == 0:
@@ -310,7 +621,7 @@ def pick_allocation(lot_no: str):
         db = _db()
         cursor = db.execute(
             """UPDATE allocation_plan
-               SET status='PICKED', picked_at=datetime('now')
+               SET status='PICKED', executed_at=datetime('now')
                WHERE lot_no=? AND status='RESERVED'""",
             (lot_no,)
         )
@@ -336,7 +647,7 @@ def confirm_allocation(lot_no: str):
         db = _db()
         cursor = db.execute(
             """UPDATE allocation_plan
-               SET status='SOLD', confirmed_at=datetime('now')
+               SET status='SOLD', executed_at=datetime('now')
                WHERE lot_no=? AND status='PICKED'""",
             (lot_no,)
         )
