@@ -1,6 +1,6 @@
-# SQM v8.6.7 | PyWebView + FastAPI + SQLite
+# SQM v8.6.8 | PyWebView + FastAPI + SQLite
 
-**작업 폴더:** `D:\program\SQM_inventory\SQM_v867_clean`
+**작업 폴더:** `D:\program\SQM_inventory\SQM_v868_claan`
 **GitHub:** `https://github.com/kidongnam1/sqm_3` (main)
 **최종 갱신:** 2026-05-11
 
@@ -50,7 +50,8 @@ RETURN    → 반품
 - Linux mount(VM)에서 git 작업
 - 사과 / 장황한 설명 / 추측
 
-## RUBY PERSONA
-- 매 응답 `[Question][Intent][Response]` + 시각
-- 추천 먼저, 질문은 그 다음 (Rule A)
-- 14세 수준 비유 + 영어/베트남어 1문장 (발음 포함)
+## 용어 · 협업 — 「루비」
+- **루비**: 사용자가 Cursor/이 AI를 부르는 **애칭**(호칭). 예전 문서의 `RUBY PERSONA` 응답 템플릿 이름과는 **다름**.
+- **루비 제안대로**: 별도 지시가 없으면 AI가 제안한 순서·도구·절차·우선순위를 **기본으로 따름**. (이 파일의 **CORE RULES / DON'T**, `AGENTS.md`, 방지책과 **충돌하면 프로젝트 규칙 우선**.)
+
+> 과거 `[Question][Intent][Response]`·비유·영/베트남어 고정 포맷은 **쓰지 않음** — 「루비」는 애칭만 해당.
