@@ -150,7 +150,7 @@ async def scan_move(payload: dict):
             for _loc in {prev, to_loc}:
                 if not _loc or _loc == '-':
                     continue
-                rep = check_cell_invariants(conn, _loc, enforce=False)
+                rep = check_cell_invariants(conn, _loc)   # enforce는 전역 스위치 따름
                 if not rep['ok']:
                     _cell_warnings.extend(rep['warnings'])
         except Exception as _e:

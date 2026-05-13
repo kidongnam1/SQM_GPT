@@ -104,7 +104,7 @@ def inventory_move(payload: dict):
             for _loc in {from_loc, to_loc}:
                 if not _loc:
                     continue
-                rep = check_cell_invariants(con, _loc, enforce=False)
+                rep = check_cell_invariants(con, _loc)   # enforce는 전역 스위치 따름
                 if not rep['ok']:
                     _cell_warnings.extend(rep['warnings'])
         except Exception as _e:
@@ -168,7 +168,7 @@ def allocate_location(payload: dict):
         _cell_warnings = []
         try:
             from engine_modules.warehouse_cell_logic import check_cell_invariants
-            rep = check_cell_invariants(con, location, enforce=False)
+            rep = check_cell_invariants(con, location)   # enforce는 전역 스위치 따름
             if not rep['ok']:
                 _cell_warnings = rep['warnings']
         except Exception as _e:

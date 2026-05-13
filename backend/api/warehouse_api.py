@@ -24,6 +24,7 @@ from fastapi import APIRouter, HTTPException, Query
 from datetime import datetime
 import sqlite3
 import logging
+import os
 
 from backend.common.errors import ok_response, err_response
 
@@ -149,6 +150,58 @@ def api_cell_grid(dong: int = Query(..., description='5 또는 6'),
         })
     except Exception as e:
         logger.error('cell-grid error: %s', e)
+        return err_response(str(e))
+
+
+# ─────────────────────────────────────────────────────────────────────
+# GET /api/warehouse/enforce-status
+#   셀 무결성 강제 차단 모드 활성화 여부
+# ─────────────────────────────────────────────────────────────────────
+@router.get('/enforce-status', summary='🛡 셀 무결성 enforce 모드 조회')
+def api_enforce_status():
+    """
+    현재 enforce 모드 활성화 여부와 동작 설명을 반환.
+    """
+    try:
+        from engine_modules.warehouse_cell_logic import is_cell_enforce_enabled
+        enabled = is_cell_enforce_enabled()
+        return ok_response({
+            'enforce_enabled': enabled,
+            'mode':            'STRICT (위반 시 트랜잭션 차단)' if enabled else 'OBSERVER (경고 로그만)',
+            'description':     '입고/이동/스캔/출고/반품 6곳 hook 에 동시 적용',
+            'env_override':    bool(os.environ.get('SQM_CELL_ENFORCE', '').strip()),
+        })
+    except Exception as e:
+        logger.error('enforce-status error: %s', e)
+        return err_response(str(e))
+
+
+# ─────────────────────────────────────────────────────────────────────
+# POST /api/warehouse/enforce-toggle
+#   enforce 모드 즉시 전환 (운영 중)
+# ─────────────────────────────────────────────────────────────────────
+@router.post('/enforce-toggle', summary='🛡 셀 무결성 enforce 모드 전환')
+def api_enforce_toggle(payload: dict):
+    """
+    Payload: { "enabled": true | false }
+    """
+    try:
+        from engine_modules.warehouse_cell_logic import (
+            is_cell_enforce_enabled, set_cell_enforce,
+        )
+        if 'enabled' not in payload:
+            return err_response('enabled 필드 필요')
+        new = bool(payload.get('enabled'))
+        prev = is_cell_enforce_enabled()
+        cur  = set_cell_enforce(new)
+        return ok_response({
+            'previous':        prev,
+            'current':         cur,
+            'changed':         (prev != cur),
+            'message':         f"enforce {prev} → {cur}",
+        })
+    except Exception as e:
+        logger.error('enforce-toggle error: %s', e)
         return err_response(str(e))
 
 

@@ -511,6 +511,31 @@ def get_warehouse_summary(db) -> Dict:
     return summary
 
 
+# ─────────────────────────────────────────────────────────────────────
+# enforce 전역 스위치 (v8.6.8 — 운영 안정성 확보 후 단일 진입점 전환)
+# ─────────────────────────────────────────────────────────────────────
+#   기본값: False (관찰자 모드, 경고 로그만)
+#   변경 방법 3가지:
+#     1) 환경변수 SQM_CELL_ENFORCE=1 로 설정 후 앱 재시작
+#     2) Python REPL/스크립트에서 set_cell_enforce(True) 호출
+#     3) POST /api/warehouse/enforce-toggle 호출 (운영 중 즉시 전환)
+import os
+_CELL_ENFORCE_ENABLED = (os.environ.get('SQM_CELL_ENFORCE', '0').strip() == '1')
+
+
+def is_cell_enforce_enabled() -> bool:
+    """현재 enforce 모드 활성화 여부 반환."""
+    return _CELL_ENFORCE_ENABLED
+
+
+def set_cell_enforce(value: bool) -> bool:
+    """enforce 모드 전환 — 변경 후 새 값 반환."""
+    global _CELL_ENFORCE_ENABLED
+    _CELL_ENFORCE_ENABLED = bool(value)
+    logger.warning(f"[cell_enforce] 모드 변경: enforce={_CELL_ENFORCE_ENABLED}")
+    return _CELL_ENFORCE_ENABLED
+
+
 class CellInvariantError(Exception):
     """셀 무결성 위반 — enforce=True 모드에서 트랜잭션 차단용."""
     def __init__(self, location: str, state: str, warnings: list):
@@ -522,7 +547,7 @@ class CellInvariantError(Exception):
         )
 
 
-def check_cell_invariants(db, location: str, enforce: bool = False) -> Dict:
+def check_cell_invariants(db, location: str, enforce=None) -> Dict:
     """
     셀 무결성 체크 (출고/이동/반품/입고 전후 검증용).
 
@@ -531,8 +556,9 @@ def check_cell_invariants(db, location: str, enforce: bool = False) -> Dict:
     Args:
       db:        SQMDatabase 인스턴스
       location:  위치 문자열
-      enforce:   True 면 위반 발견 시 CellInvariantError 발생 (트랜잭션 차단).
-                 False (기본, 비파괴/관찰자 모드) 면 경고 로그만 남기고 결과 반환.
+      enforce:   None  (기본) → 전역 스위치(is_cell_enforce_enabled()) 따름
+                 True  → 위반 발견 시 CellInvariantError 발생 (트랜잭션 차단)
+                 False → 비파괴/관찰자 모드 (경고 로그만)
 
     Returns:
       {'ok': bool, 'state': str, 'warnings': [str, ...], 'detail': dict}
@@ -545,6 +571,9 @@ def check_cell_invariants(db, location: str, enforce: bool = False) -> Dict:
       Phase 2:        로그 분석 + 데이터 정리
       Phase 3:        enforce=True 로 전환 (단일 진입점이라 한 줄 변경)
     """
+    # enforce가 None이면 전역 스위치 사용
+    effective_enforce = is_cell_enforce_enabled() if enforce is None else bool(enforce)
+
     state = get_cell_state(db, location)
     warnings = []
     ok = True
@@ -561,8 +590,14 @@ def check_cell_invariants(db, location: str, enforce: bool = False) -> Dict:
     if warnings:
         for w in warnings:
             logger.warning('[cell_invariant] ' + w)
-    result = {'ok': ok, 'state': state['state'], 'warnings': warnings, 'detail': state}
-    if enforce and not ok:
+    result = {
+        'ok':       ok,
+        'state':    state['state'],
+        'warnings': warnings,
+        'detail':   state,
+        'enforce_mode': effective_enforce,
+    }
+    if effective_enforce and not ok:
         raise CellInvariantError(location, state['state'], warnings)
     return result
 
@@ -779,15 +814,29 @@ if __name__ == '__main__':
           f'weight={s["total_weight_kg"]}kg')
     print()
 
-    print('[enforce=False — 비파괴 모드 (현재 운영)]')
+    print('[enforce=False — 비파괴 모드]')
     rep = check_cell_invariants(_con, 'G5-04-04-07', enforce=False)
     print(f'  MIXED 셀 검증: ok={rep["ok"]}, warnings={len(rep["warnings"])}건')
     print()
 
-    print('[enforce=True — 강제 차단 모드 테스트]')
+    print('[enforce=True — 강제 차단 모드]')
     try:
         check_cell_invariants(_con, 'G5-04-04-07', enforce=True)
-        print('  *MISMATCH* — 예외가 발생해야 하는데 통과됨')
+        print('  *MISMATCH*')
     except CellInvariantError as e:
         print(f'  CellInvariantError 정상 발생: state={e.state}')
+    print()
+
+    print('[전역 스위치 동작 — enforce=None → is_cell_enforce_enabled() 사용]')
+    print(f'  초기 상태: enforce_enabled={is_cell_enforce_enabled()}')
+    rep_default = check_cell_invariants(_con, 'G5-04-04-07')   # enforce 인수 생략
+    print(f'  enforce=None → mode={rep_default["enforce_mode"]}, ok={rep_default["ok"]}')
+    set_cell_enforce(True)
+    print(f'  set_cell_enforce(True) 후: enabled={is_cell_enforce_enabled()}')
+    try:
+        check_cell_invariants(_con, 'G5-04-04-07')             # 이제 차단되어야 함
+        print('  *MISMATCH*')
+    except CellInvariantError as e:
+        print(f'  전역 스위치로 차단 OK: state={e.state}')
+    set_cell_enforce(False)
     _con.close()
