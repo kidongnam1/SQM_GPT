@@ -379,6 +379,7 @@
   <script src="js/sqm-location-mapping.js?v=20260513a"></script>
   <script src="js/sqm-warehouse-dashboard.js?v=20260513a"></script>
     <script src="js/sqm-revert.js?v=20260512b"></script>
+    <script src="js/sqm-inline.js?v=20260513b"></script>
 
 
 <!-- ══ 🤖 AI 선사 템플릿 자동 생성 모달 ══ -->
@@ -507,4 +508,13 @@
         color:#fff;border:none;padding:8px 18px;border-radius:4px;cursor:pointer;font-size:13px">
         ⚡ 조정 실행 (DB+엑셀 수정)</button>
       <button onclick="document.getElementById('inventoryAdjustModal').style.display='none'"
-        style="background:#7f8c8d;color:#fff;border:none;padding:8px 18px;border-ra  
+        style="background:#7f8c8d;color:#fff;border:none;padding:8px 18px;border-radius:4px;cursor:pointer;font-size:13px">취소</button>
+    </div>
+    <!-- v8.6.8 복구: 파싱 결과 표시 영역 (sqm-inline.js 가 참조) -->
+    <div id="adjustParseResult" style="margin-top:12px;color:#ecf0f1;font-size:13px;line-height:1.6"></div>
+  </div>
+</div>
+<!-- ══ /재고 수정 모달 ══ -->
+
+</body>
+</html>
