@@ -168,6 +168,7 @@ class CRUDMixin:
             salar_invoice_no = kwargs.get('salar_invoice_no', '') or kwargs.get('invoice_no', '')
             ship_date = kwargs.get('ship_date', '')
             free_time = kwargs.get('free_time', 0)
+            packing_type = str(kwargs.get('packing_type', '') or '').strip().upper()
 
             # Date handling — arrival_date 미상 시 비움(date.today() 사용 금지)
             if arrival_date is None:
@@ -218,13 +219,13 @@ class CRUDMixin:
                         lot_sqm, folio, vessel, mxbg_pallet, net_weight, gross_weight,
                         current_weight, initial_weight, picked_weight,
                         salar_invoice_no, ship_date, arrival_date, con_return, free_time,
-                        warehouse, stock_date, status, created_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, 'AVAILABLE', ?)
+                        warehouse, stock_date, packing_type, status, created_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, 'AVAILABLE', ?)
                 """, (lot_no, sap_no, bl_no, container_no, product, product_code,
                       lot_sqm, folio, vessel, mxbg_pallet, net_weight, gross_weight,
                       _current_weight_init, net_weight,  # v8.7.1: current_weight = net - sample
                       salar_invoice_no, ship_date, arrival_date, con_return, free_time,
-                      warehouse, stock_date, now))
+                      warehouse, stock_date, packing_type, now))
 
                 # P3: DB 독립적 ID 조회 (SQLite: lastrowid, PG: RETURNING)
                 if hasattr(self.db, 'insert_returning_id'):
@@ -292,6 +293,7 @@ class CRUDMixin:
             'lot_no', 'sap_no', 'bl_no', 'container_no', 'product', 'product_code',
             'mxbg_pallet', 'net_weight', 'gross_weight', 'warehouse', 'arrival_date', 'stock_date',
             'lot_sqm', 'folio', 'vessel', 'salar_invoice_no', 'ship_date', 'con_return', 'free_time', 'initial_weight', 'current_weight',
+            'packing_type',
         }
         kwargs = {k: v for k, v in data.items() if k in allowed}
         result = self.add_inventory(**kwargs)
@@ -560,4 +562,3 @@ class CRUDMixin:
             logger.error(f"[export_lot_report] Error: {e}")
 
         return result
-

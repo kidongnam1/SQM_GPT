@@ -87,7 +87,7 @@ class DatabaseMigrationMixin:
 
     def _migrate_v868_packing_type_column(self) -> None:
         """
-        v8.6.8: inventory.packing_type 컬럼 추가.
+        v8.6.8: inventory.packing_type 및 inbound_template.packing_type 컬럼 추가.
 
         팔레트 구성 (셀 점유 계산용):
           - 'A' = 1,000kg 1pack (1팔레트 1톤백)
@@ -104,6 +104,15 @@ class DatabaseMigrationMixin:
             if "packing_type" not in cols:
                 self.execute("ALTER TABLE inventory ADD COLUMN packing_type TEXT DEFAULT ''")
                 logger.info("[v8.6.8] inventory.packing_type 컬럼 추가")
+            tpl_cols = {r[1].lower() for r in self.execute("PRAGMA table_info(inbound_template)").fetchall()}
+            if "packing_type" not in tpl_cols:
+                self.execute("ALTER TABLE inbound_template ADD COLUMN packing_type TEXT DEFAULT ''")
+                logger.info("[v8.6.8] inbound_template.packing_type 컬럼 추가")
+            self.execute(
+                "UPDATE inbound_template "
+                "SET packing_type = CASE WHEN bag_weight_kg=1000 THEN 'A' ELSE 'C' END "
+                "WHERE COALESCE(packing_type, '') = ''"
+            )
         except Exception as e:
             logger.warning(f"[v8.6.8] packing_type 컬럼 마이그레이션 실패: {e}")
 
@@ -1560,6 +1569,7 @@ class DatabaseMigrationMixin:
                     template_name        TEXT NOT NULL,
                     carrier_id           TEXT NOT NULL DEFAULT 'UNKNOWN',
                     bag_weight_kg        INTEGER NOT NULL DEFAULT 500,
+                    packing_type         TEXT DEFAULT '',
                     product_hint         TEXT DEFAULT '',
                     weight_format        TEXT DEFAULT 'EURO',
                     gemini_hint_packing  TEXT DEFAULT '',
@@ -1625,6 +1635,7 @@ class DatabaseMigrationMixin:
                 'template_name':       '🚢 미확인 선사 — 500 kg',
                 'carrier_id':          'UNKNOWN',
                 'bag_weight_kg':       500,
+                'packing_type':        'C',
                 'product_hint':        'LITHIUM CARBONATE',
                 'gemini_hint_packing': '',
                 'gemini_hint_invoice': '',
@@ -1636,6 +1647,7 @@ class DatabaseMigrationMixin:
                 'template_name':       '🚢 미확인 선사 — 1,000 kg',
                 'carrier_id':          'UNKNOWN',
                 'bag_weight_kg':       1000,
+                'packing_type':        'A',
                 'product_hint':        'LITHIUM CARBONATE',
                 'gemini_hint_packing': '',
                 'gemini_hint_invoice': '',
@@ -1647,6 +1659,7 @@ class DatabaseMigrationMixin:
                 'template_name':       '🚢 MSC — 리튬카보네이트 500 kg',
                 'carrier_id':          'MSC',
                 'bag_weight_kg':       500,
+                'packing_type':        'C',
                 'product_hint':        'LITHIUM CARBONATE',
                 'gemini_hint_packing': _HINT_MSC_PL,
                 'gemini_hint_invoice': _HINT_MSC_INV,
@@ -1658,6 +1671,7 @@ class DatabaseMigrationMixin:
                 'template_name':       '🚢 MSC — 리튬카보네이트 1,000 kg',
                 'carrier_id':          'MSC',
                 'bag_weight_kg':       1000,
+                'packing_type':        'A',
                 'product_hint':        'LITHIUM CARBONATE',
                 'gemini_hint_packing': _HINT_MSC_PL,
                 'gemini_hint_invoice': _HINT_MSC_INV,
@@ -1669,6 +1683,7 @@ class DatabaseMigrationMixin:
                 'template_name':       '🚢 MAERSK — 리튬카보네이트 500 kg',
                 'carrier_id':          'MAERSK',
                 'bag_weight_kg':       500,
+                'packing_type':        'C',
                 'product_hint':        'LITHIUM CARBONATE',
                 'gemini_hint_packing': _HINT_MAERSK_PL,
                 'gemini_hint_invoice': _HINT_MAERSK_INV,
@@ -1680,11 +1695,11 @@ class DatabaseMigrationMixin:
             try:
                 self.execute("""
                     INSERT OR IGNORE INTO inbound_template
-                    (template_id, template_name, carrier_id, bag_weight_kg,
+                    (template_id, template_name, carrier_id, bag_weight_kg, packing_type,
                      product_hint, gemini_hint_packing, gemini_hint_invoice,
                      gemini_hint_bl, note)
                     VALUES (
-                        :template_id, :template_name, :carrier_id, :bag_weight_kg,
+                        :template_id, :template_name, :carrier_id, :bag_weight_kg, :packing_type,
                         :product_hint, :gemini_hint_packing, :gemini_hint_invoice,
                         :gemini_hint_bl, :note
                     )

@@ -15,7 +15,7 @@ import time
 from datetime import datetime
 from typing import Dict, List, Optional
 
-from ..document_models import BLData
+from ..document_models import BLData, ContainerInfo
 
 logger = logging.getLogger(__name__)
 
@@ -299,11 +299,32 @@ class BLMixin:
         # v8.5.7 [PATCH3-BUG3]: total_containers / gross_weight 보강
         import re as _bl_re
         _ct_m = _bl_re.search(r'\b([1-9]\d{0,2})\s+(?:cntrs|containers?|CNTRS)', full_text, _bl_re.IGNORECASE)  # v8.6.5: max 3 digits, exclude 4-digit years
+        if not _ct_m:
+            _ct_m = _bl_re.search(r'\b([1-9]\d{0,2})\s*x\s*\d{2}[\'’]?\s*(?:HIGH\s+CUBE|DRY|HC|GP)\b', full_text, _bl_re.IGNORECASE)
+        if not _ct_m:
+            _ct_m = _bl_re.search(r'\b(?:cntrs|containers?|CNTRS)\b\s*[\r\n ]+([1-9]\d{0,2})\b', full_text, _bl_re.IGNORECASE)
         if _ct_m:
             try:
                 result.total_containers = int(_ct_m.group(1))
             except (ValueError, TypeError) as _e:
                 logger.debug(f"[SUPPRESSED] exception in bl_mixin.py: {_e}")  # noqa
+        try:
+            _container_hits = []
+            for _cn in _bl_re.findall(r'\b([A-Z]{4}\d{7})\b', full_text):
+                # Avoid counting common carrier/document codes that are not ISO containers.
+                if _cn.startswith(("MEDU", "MAEU", "HLCU", "ONEY")) and _cn == bl_no:
+                    continue
+                if _cn not in _container_hits:
+                    _container_hits.append(_cn)
+            for _prefix, _digits in _bl_re.findall(r'\b([A-Z]{4})\s+(\d{7})\b', full_text):
+                _cn = _prefix + _digits
+                if _cn not in _container_hits:
+                    _container_hits.append(_cn)
+            if _container_hits:
+                result.containers = [ContainerInfo(container_no=_cn) for _cn in _container_hits]
+                result.total_containers = max(result.total_containers or 0, len(_container_hits))
+        except Exception as _e:
+            logger.debug(f"[BL] 컨테이너 번호 보강 실패(무시): {_e}")
         _gw_m = _bl_re.search(
             r'Total\s*Gross\s*Weight\s*[:\s]*([\d,.]+)',
             full_text, _bl_re.IGNORECASE

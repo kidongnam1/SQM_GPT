@@ -211,11 +211,11 @@
       '  <div class="onestop-row">',
       '    <label>📦 팔레트:</label>',
       '    <select id="onestop-default-packing" onchange="window.onestopSetDefaultPacking(this.value)" style="padding:6px 10px;flex:1;max-width:380px;background:var(--bg-hover);color:var(--fg);border:1px solid var(--border);border-radius:6px;font-size:13px">',
-      '      <option value="C" selected>📦 C — 500kg × 2pack (가장 흔함, 권장)</option>',
+      '      <option value="manual" selected>LOT별 개별 지정 (파싱 후 탭에서 확정)</option>',
+      '      <option value="C">📦 C — 500kg × 2pack (가장 흔함, 권장)</option>',
       '      <option value="A">📦 A — 1,000kg × 1pack</option>',
       '      <option value="B">📦 B — 500kg × 1pack (특수)</option>',
       '      <option value="auto">🤖 자동 판별 (net÷mxbg 계산)</option>',
-      '      <option value="manual">🎨 LOT별 개별 지정 (파싱 후 결정)</option>',
       '    </select>',
       '    <span style="font-size:11px;color:var(--text-muted);margin-left:6px">선적 전체 기본값. 파싱 후 [📦 팔레트/셀] 탭에서 LOT별 수정 가능.</span>',
       '  </div>',
@@ -594,12 +594,18 @@
 
   window.onestopCarrierChange = function(carrier) {
     window._onestopActiveTemplate = null;
-    /* carrier 바뀌면 profile 자동 적용 초기화 (명시 DB 템플릿 선택은 유지) */
-    if (!window._onestopDbTemplateId) {
-      window._onestopBagWeight = null;
-    }
+    window._onestopBagWeight = null;
+    window._onestopGeminiHint = '';
+    window._onestopDbTemplateId = null;
+    window._onestopDbTemplateName = '';
     var lbl = document.getElementById('onestop-tpl-label');
     if (lbl) { lbl.textContent = '미선택'; lbl.style.color = 'var(--text-muted)'; lbl.style.fontWeight = 'normal'; }
+    var dbLbl = document.getElementById('onestop-db-tpl-label');
+    if (dbLbl) {
+      dbLbl.style.color = 'var(--danger,#f44336)';
+      dbLbl.style.border = '1px solid var(--danger,#f44336)';
+      dbLbl.textContent = '❌ 미설정 (파싱 전 선택 필수)';
+    }
     var tRow = document.getElementById('onestop-template-row');
     if (tRow) tRow.style.display = carrier ? '' : 'none';
     if (!carrier) return;
@@ -616,14 +622,13 @@
       .then(function(r) { return r.ok ? r.json() : null; })
       .then(function(p) {
         if (!p || !p.carrier_id) return;
-        if (window._onestopBagWeight === null && p.bag_weight_kg) {
-          window._onestopBagWeight = p.bag_weight_kg;
+        if (p.bag_weight_kg) {
           var lbl2 = document.getElementById('onestop-db-tpl-label');
           if (lbl2) {
-            lbl2.textContent = '🚢 선사 프로파일 적용: ' + escapeHtml(p.display_name || carrier)
-              + ' (' + p.bag_weight_kg + 'kg)';
-            lbl2.style.color = 'var(--success,#4caf50)';
-            lbl2.style.borderColor = 'var(--success,#4caf50)';
+            lbl2.textContent = '❌ DB 템플릿 선택 필요 · 선사 기본값: '
+              + escapeHtml(p.display_name || carrier) + ' (' + p.bag_weight_kg + 'kg)';
+            lbl2.style.color = 'var(--danger,#f44336)';
+            lbl2.style.borderColor = 'var(--danger,#f44336)';
           }
         }
       })
@@ -733,6 +738,12 @@
 
   /* ── DB 파싱 템플릿 선택기 ── */
   window.onestopOpenDbTemplatePicker = function() {
+    var carrierEl = document.getElementById('onestop-carrier');
+    var selectedCarrier = ((carrierEl && carrierEl.value) || '').trim().toUpperCase();
+    if (!selectedCarrier) {
+      showToast('error', '🚢 선사를 먼저 선택하세요');
+      return;
+    }
     var mid = 'sqm-db-tpl-modal';
     var existing = document.getElementById(mid);
     if (existing) existing.remove();
@@ -755,10 +766,22 @@
           lb.innerHTML = '<div style="color:var(--text-muted);text-align:center;padding:20px">📭 등록된 템플릿 없음<br><small>메뉴 → 입고 → 인바운드 템플릿 관리에서 추가하세요</small></div>';
           return;
         }
-        var html = '<div style="font-size:12px;color:var(--text-muted);margin-bottom:8px">' + data.templates.length + '개 — 클릭하여 적용</div>';
+        var templates = data.templates.filter(function(t) {
+          return String(t.carrier_id || '').trim().toUpperCase() === selectedCarrier;
+        });
+        if (!templates.length) {
+          lb.innerHTML = '<div style="color:var(--text-muted);text-align:center;padding:20px">'
+            + selectedCarrier + ' 템플릿 없음<br><small>입고 파싱 템플릿 관리에서 500kg/1,000kg 템플릿을 추가하세요</small></div>';
+          return;
+        }
+        var html = '<div style="font-size:12px;color:var(--text-muted);margin-bottom:8px">'
+          + selectedCarrier + ' 템플릿 ' + templates.length + '개 — 클릭하여 적용</div>';
         html += '<div style="display:flex;flex-direction:column;gap:6px">';
-        data.templates.forEach(function(t) {
+        templates.forEach(function(t) {
           var bw = t.bag_weight_kg || 500;
+          var pt = String(t.packing_type || (bw === 1000 ? 'A' : 'C')).toUpperCase();
+          if (['A','B','C'].indexOf(pt) < 0) pt = (bw === 1000 ? 'A' : 'C');
+          var ptLabel = pt === 'A' ? 'A · 1000kg 1pack' : (pt === 'B' ? 'B · 500kg 1pack' : 'C · 500kg 2pack');
           var hint = (t.gemini_hint_packing || '').substring(0, 40);
           var isActive = (window._onestopDbTemplateId === t.template_id);
           var bc = isActive ? 'var(--success,#4caf50)' : 'var(--border,#1e4a7a)';
@@ -766,12 +789,14 @@
             + ' data-tid="'   + escapeHtml(String(t.template_id))       + '"'
             + ' data-tname="' + escapeHtml(t.template_name || '')       + '"'
             + ' data-tbw="'   + bw                                      + '"'
+            + ' data-tpt="'   + escapeHtml(pt)                          + '"'
             + ' data-thint="' + escapeHtml(t.gemini_hint_packing || '') + '"'
             + ' style="cursor:pointer;padding:10px 14px;background:var(--bg-hover);border:1px solid ' + bc + ';border-radius:7px;margin-bottom:2px;transition:border-color .15s"'
             + ' onmouseover="this.style.borderColor=\'var(--info,#42a5f5)\'"'
             + ' onmouseout="this.style.borderColor=\'' + bc + '\'">'   
             + '<div style="font-weight:700;font-size:13px">' + escapeHtml(t.template_name) + (isActive ? ' ✅' : '') + '</div>'
             + '<div style="font-size:11px;color:var(--text-muted);margin-top:3px">🏋️ ' + bw + 'kg'
+            + ' · 📦 ' + escapeHtml(ptLabel)
             + (hint ? ' · 💬 ' + escapeHtml(hint) + (t.gemini_hint_packing && t.gemini_hint_packing.length > 40 ? '…' : '') : '')
             + (t.product_hint ? ' · 📦 ' + escapeHtml(t.product_hint) : '')
             + '</div></div>';
@@ -786,6 +811,7 @@
             item.getAttribute('data-tid'),
             item.getAttribute('data-tname'),
             parseInt(item.getAttribute('data-tbw'), 10) || 500,
+            item.getAttribute('data-tpt') || '',
             item.getAttribute('data-thint') || ''
           );
         });
@@ -796,21 +822,27 @@
       });
   };
 
-  window._onestopSelectDbTpl = function(id, name, bagWeight, geminiHint) {
+  window._onestopSelectDbTpl = function(id, name, bagWeight, packingType, geminiHint) {
+    packingType = String(packingType || (bagWeight === 1000 ? 'A' : 'C')).toUpperCase();
+    if (['A','B','C'].indexOf(packingType) < 0) packingType = (bagWeight === 1000 ? 'A' : 'C');
     window._onestopBagWeight      = bagWeight;
     window._onestopGeminiHint     = geminiHint || '';
     window._onestopDbTemplateId   = id;
     window._onestopDbTemplateName = name;
+    _onestopState.defaultPacking = packingType;
+    var packSel = document.getElementById('onestop-default-packing');
+    if (packSel) packSel.value = packingType;
     var lbl = document.getElementById('onestop-db-tpl-label');
     if (lbl) {
       lbl.style.color  = 'var(--success,#4caf50)';
       lbl.style.border = '1px solid var(--success,#4caf50)';
       lbl.textContent  = '✅ ' + name + ' · 🏋️ ' + bagWeight + 'kg'
+        + ' · 📦 ' + packingType
         + (geminiHint ? ' · 💬 힌트있음' : '');
     }
     var m = document.getElementById('sqm-db-tpl-modal');
     if (m) m.remove();
-    showToast('success', '🏋️ DB 템플릿 적용: ' + name + ' (' + bagWeight + 'kg)');
+    showToast('success', '🏋️ DB 템플릿 적용: ' + name + ' (' + bagWeight + 'kg / ' + packingType + ')');
   };
 
   /* ── 파싱 실행 (Sprint 1-2-B: /api/inbound/onestop-upload 4종 multipart + 크로스체크) ── */
@@ -848,7 +880,7 @@
     var s = _onestopState.files;
     var _cEl = document.getElementById('onestop-carrier');
     if (!_cEl || !_cEl.value) { showToast('error', '🚢 선사를 먼저 선택하세요 (필수)'); return; }
-    if (window._onestopBagWeight === null) { showToast('error', '🏋️ DB 파싱 템플릿을 먼저 선택하세요 (톤백 단위 미설정 시 500kg로 오파싱 위험)'); return; }
+    if (!window._onestopDbTemplateId || window._onestopBagWeight === null) { showToast('error', '🏋️ DB 파싱 템플릿을 먼저 선택하세요 (500kg/1,000kg 확정 필요)'); return; }
     if (!s.PACKING_LIST) { showToast('error', 'Packing List(PL) 먼저 선택하세요'); return; }
 
     _onestopSetStep(2);
@@ -883,6 +915,9 @@
     if (window._onestopBagWeight !== null) form.append('bag_weight_kg', String(window._onestopBagWeight));
     if (window._onestopGeminiHint) form.append('gemini_hint', window._onestopGeminiHint);
     if (window._onestopDbTemplateId) form.append('template_id', String(window._onestopDbTemplateId));
+    if (_cEl && _cEl.value) form.append('carrier_id', _cEl.value);
+    var _packing = window.onestopGetDefaultPacking ? window.onestopGetDefaultPacking() : '';
+    if (['A','B','C'].indexOf(_packing) >= 0) form.append('packing_type', _packing);
     var _geminiCheck = document.getElementById('onestop-gemini-check');
     form.append('use_gemini', (_geminiCheck && _geminiCheck.checked) ? 'true' : 'false');
 

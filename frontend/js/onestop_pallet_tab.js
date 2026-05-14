@@ -413,7 +413,7 @@
           type:      pre,
           source:    'user',
           confirmed: true,
-          unitKg:    (pre === 'A' ? 1000 : (pre === 'B' ? 500 : 250))
+          unitKg:    (pre === 'A' ? 1000 : 500)
         };
         r.packing_type = pre;
       } else if (isManual) {

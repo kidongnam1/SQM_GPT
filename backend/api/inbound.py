@@ -226,9 +226,15 @@ _INBOUND_COLUMN_MAP = {
 
 def _match_columns(df_columns) -> dict:
     """Excel 컬럼명을 표준 키로 매핑. {표준키: 원본컬럼} 반환."""
-    result = {}
+    try:
+        from utils.sqm_legacy_excel import build_inventory_column_map
+        result = build_inventory_column_map(df_columns, include_sale_ref=False)
+    except Exception:
+        result = {}
     lowered = {str(c).strip().lower(): c for c in df_columns}
     for std_key, aliases in _INBOUND_COLUMN_MAP.items():
+        if std_key in result:
+            continue
         for alias in aliases:
             a = alias.strip().lower()
             if a in lowered:
@@ -584,6 +590,56 @@ def _onestop_weight_rollups(preview_rows: list, pl_obj) -> dict:
     }
 
 
+def _normalize_packing_type(value: Any, bag_weight_kg: Optional[int] = None) -> str:
+    pt = str(value or "").strip().upper()
+    if pt in {"A", "B", "C"}:
+        return pt
+    if bag_weight_kg == 1000:
+        return "A"
+    if bag_weight_kg == 500:
+        return "C"
+    return ""
+
+
+def _validate_packing_weight(pl_obj, *, bag_weight_kg: Optional[int], packing_type: str) -> list[dict]:
+    """Validate PL LOT weights with user-confirmed bag weight / packing type."""
+    if not pl_obj or bag_weight_kg not in (500, 1000):
+        return []
+    pt = _normalize_packing_type(packing_type, bag_weight_kg)
+    if pt not in {"A", "B", "C"}:
+        return [{"field": "packing_type", "message": "packing_type 미확정 (A/B/C 필요)"}]
+    if pt == "A" and bag_weight_kg != 1000:
+        return [{"field": "packing_type", "message": "A 타입은 1000kg 템플릿이어야 합니다"}]
+    if pt in {"B", "C"} and bag_weight_kg != 500:
+        return [{"field": "packing_type", "message": f"{pt} 타입은 500kg 템플릿이어야 합니다"}]
+
+    rows = getattr(pl_obj, "rows", None) or getattr(pl_obj, "lots", None) or []
+    errors = []
+    for row in rows:
+        lot = str(_safe_attr(row, "lot_no", "lot") or "").strip()
+        mxbg = _safe_int(_safe_attr(row, "mxbg_pallet", "maxibag", "mxbg")) or 0
+        net = _safe_float(_safe_attr(row, "net_weight", "net_weight_kg", "net_kg")) or 0.0
+        jars = _safe_int(_safe_attr(row, "plastic_jars")) or 1
+        if mxbg <= 0 or net <= 0:
+            continue
+        expected = float(bag_weight_kg * mxbg + jars)
+        tolerance = max(50.0, expected * 0.02)
+        diff = abs(net - expected)
+        if diff > tolerance:
+            errors.append({
+                "lot_no": lot,
+                "mxbg": mxbg,
+                "net_kg": round(net, 3),
+                "expected_kg": round(expected, 3),
+                "diff_kg": round(diff, 3),
+                "packing_type": pt,
+                "bag_weight_kg": bag_weight_kg,
+            })
+            if len(errors) >= 10:
+                break
+    return errors
+
+
 @router.post(
     "/onestop-upload",
     summary="📥 OneStop 입고 — 4종 PDF multipart + 크로스체크 (v864-2 OneStopInboundDialog)",
@@ -597,6 +653,8 @@ async def onestop_inbound_upload(
     bag_weight_kg: Optional[int] = Form(None, description="톤백 단위 무게 (500 or 1000). None이면 파서 기본값 사용"),
     gemini_hint: str = Form("", description="Gemini AI 파싱 힌트 (DB 템플릿에서 주입)"),
     template_id: Optional[str] = Form(None, description="사용된 inbound_template ID (로깅 용도)"),
+    carrier_id: str = Form("", description="사용자가 확정한 선사 ID"),
+    packing_type: str = Form("", description="사용자가 확정한 packing type: A=1000kg/1pack, B=500kg/1pack, C=500kg/2pack"),
     manual_arrival: str = Form("", description="manual ARRIVAL date (YYYY-MM-DD) fallback when DO absent"),
     manual_con_return: str = Form("", description="manual CON RETURN date (YYYY-MM-DD) fallback when DO absent"),
     use_gemini: bool = Form(False, description="True=좌표+Gemini 병행 파싱 (비교 모드)"),
@@ -657,40 +715,57 @@ async def onestop_inbound_upload(
         _warn_messages: list = []
         tpl_product = ""
         tpl_carrier_id = ""
+        tpl_packing_type = ""
+        explicit_packing_type = _normalize_packing_type(packing_type, bag_weight_kg)
         if template_id:
             try:
                 from config import DB_PATH as _DP
                 import sqlite3 as _sq
                 _con = _sq.connect(str(_DP))
+                _ensure_inbound_template_columns(_con)
                 _r = _con.execute(
-                    "SELECT product_hint, carrier_id FROM inbound_template WHERE template_id=?",
+                    "SELECT product_hint, carrier_id, bag_weight_kg, packing_type FROM inbound_template WHERE template_id=?",
                     (template_id,)
                 ).fetchone()
                 _con.close()
                 if _r:
                     tpl_product = (_r[0] or "").strip()
                     tpl_carrier_id = (_r[1] or "").strip()
+                    tpl_bag = _safe_int(_r[2])
+                    tpl_packing_type = _normalize_packing_type(_r[3], tpl_bag)
+                    if bag_weight_kg is None and tpl_bag in (500, 1000):
+                        bag_weight_kg = tpl_bag
+                        pl_kwargs["bag_weight_kg"] = bag_weight_kg
             except Exception as _e:
                 logger.warning(f"[onestop] 템플릿 조회 실패 (무시, fallback=빈 hint): {_e}")
                 tpl_product = ""
                 _warn_messages.append("템플릿 조회 실패")
-            logger.info(f"[onestop] DB 템플릿 #{template_id} 적용 — bag_weight={bag_weight_kg}kg, hint='{gemini_hint[:40]}', product='{tpl_product}', carrier='{tpl_carrier_id}'")
+            logger.info(f"[onestop] DB 템플릿 #{template_id} 적용 — bag_weight={bag_weight_kg}kg, packing_type={tpl_packing_type}, hint='{gemini_hint[:40]}', product='{tpl_product}', carrier='{tpl_carrier_id}'")
+        effective_carrier_id = (carrier_id or tpl_carrier_id or "").strip().upper()
+        effective_packing_type = explicit_packing_type or tpl_packing_type
+        if not template_id and not (effective_carrier_id and bag_weight_kg in (500, 1000) and effective_packing_type in {"A", "B", "C"}):
+            raise HTTPException(
+                400,
+                "사전 확정 누락 — template_id 또는 carrier_id + bag_weight_kg + packing_type(A/B/C) 모두 필요"
+            )
+        if template_id and effective_packing_type not in {"A", "B", "C"}:
+            effective_packing_type = _normalize_packing_type("", bag_weight_kg)
 
         parsed = {
             "packing_list": _parse_one(parser, tmp_paths["pl"], "parse_packing_list", **pl_kwargs),
-            "bl":           _parse_one(parser, tmp_paths["bl"], "parse_bl", **({} if not tpl_carrier_id else {"carrier_id": tpl_carrier_id})),
+            "bl":           _parse_one(parser, tmp_paths["bl"], "parse_bl", **({} if not effective_carrier_id else {"carrier_id": effective_carrier_id})),
             "invoice":      _parse_one(parser, tmp_paths["invoice"], "parse_invoice"),
-            "do":           _parse_one(parser, tmp_paths["do"], "parse_do", **({} if not tpl_carrier_id else {"carrier_id": tpl_carrier_id})),
+            "do":           _parse_one(parser, tmp_paths["do"], "parse_do", **({} if not effective_carrier_id else {"carrier_id": effective_carrier_id})),
         }
         # ── parse_alarm 체크 (v8.6.6) ──────────────────────────────
         _alarm_reports: dict = {}
         try:
             from utils.parse_alarm import check_bl, check_do, check_invoice, check_packing
             _alarm_reports = {
-                "bl":      check_bl(parsed["bl"],            tpl_carrier_id),
-                "do":      check_do(parsed["do"],            tpl_carrier_id),
-                "invoice": check_invoice(parsed["invoice"],  tpl_carrier_id),
-                "pl":      check_packing(parsed["packing_list"], tpl_carrier_id),
+                "bl":      check_bl(parsed["bl"],            effective_carrier_id),
+                "do":      check_do(parsed["do"],            effective_carrier_id),
+                "invoice": check_invoice(parsed["invoice"],  effective_carrier_id),
+                "pl":      check_packing(parsed["packing_list"], effective_carrier_id),
             }
             for _doc_key, _ar in _alarm_reports.items():
                 _ar.log()  # logger.warning 으로 CRITICAL/WARNING 출력
@@ -704,6 +779,21 @@ async def onestop_inbound_upload(
 
         if parsed["packing_list"] is None:
             raise HTTPException(422, "Packing List 파싱 실패 (최소 1종은 파싱되어야 합니다)")
+        _packing_errors = _validate_packing_weight(
+            parsed["packing_list"],
+            bag_weight_kg=bag_weight_kg,
+            packing_type=effective_packing_type,
+        )
+        if _packing_errors:
+            raise HTTPException(
+                422,
+                {
+                    "message": "PL 중량 검증 실패 — 템플릿의 500/1000kg 및 A/B/C 선택을 확인하세요",
+                    "packing_type": effective_packing_type,
+                    "bag_weight_kg": bag_weight_kg,
+                    "errors": _packing_errors,
+                },
+            )
 
         # 3. 크로스체크
         xc_items, xc_summary, xc_counts = [], "", {}
@@ -796,6 +886,10 @@ async def onestop_inbound_upload(
         # PL 헤더 레벨 공통값 (행별 아님 — 1페이지 고정 좌표 추출)
         pl_header_product = str(getattr(pl_obj, "product", "") or "")
         pl_header_code    = str(getattr(pl_obj, "code", "") or "")
+        pl_header_sap     = str(getattr(pl_obj, "sap_no", "") or "")
+        do_mrn = str(getattr(_do_obj, "mrn", "") or "").strip() if _do_obj else ""
+        do_msn = str(getattr(_do_obj, "msn", "") or "").strip() if _do_obj else ""
+        cargo_mgmt_no = f"{do_mrn}-{do_msn}" if do_mrn and do_msn else do_mrn
 
         for idx, row in enumerate(pl_rows, start=1):
             lot = str(_safe_attr(row, "lot_no", "lot")).strip()
@@ -803,7 +897,7 @@ async def onestop_inbound_upload(
             preview_rows.append({
                 "no": idx,
                 "lot_no":      lot,
-                "sap_no":      str(_safe_attr(row, "sap_no") or inv_sap),
+                "sap_no":      str(_safe_attr(row, "sap_no") or inv_sap or pl_header_sap),
                 "bl_no":       str(bl_no),
                 "product":     str(_safe_attr(row, "product", "product_name") or pl_header_product or tpl_product),
                 "status":      "NEW",
@@ -819,6 +913,7 @@ async def onestop_inbound_upload(
                 "con_return":  str(con_return),
                 "free_time":   str(free_time),
                 "wh":          str(wh),
+                "packing_type": effective_packing_type,
                 "xc_tag":      xc_tag,
             })
 
@@ -855,6 +950,7 @@ async def onestop_inbound_upload(
                             "con_return": str(con_return),
                             "free_time":  str(free_time),
                             "wh":         str(wh),
+                            "packing_type": effective_packing_type,
                             "xc_tag":     None,
                         })
                     compare_mode = len(gemini_preview_rows) > 0
@@ -975,7 +1071,9 @@ async def onestop_inbound_upload(
                     "con_return":       str(con_return),
                     "free_time_days":   str(free_time),
                     "gross_weight_kg":  getattr(parsed["do"], "gross_weight_kg", None),
-                    "mrn":              str(getattr(parsed["do"], "mrn", "") or ""),
+                    "mrn":              do_mrn,
+                    "msn":              do_msn,
+                    "cargo_mgmt_no":    cargo_mgmt_no,
                     "cbm":              getattr(parsed["do"], "cbm", None),
                 } if parsed["do"] else {},
                 # ── PL 헤더 상세 (v8.6.6) ──
@@ -1036,6 +1134,7 @@ _ONESTOP_ROW_KEY_MAP = {
     "con_return":       "con_return",
     "free_time":        "free_time",
     "wh":               "warehouse",
+    "packing_type":     "packing_type",
 }
 
 
@@ -1521,14 +1620,19 @@ def _ensure_inbound_template_columns(con):
         alter_sql.append("ALTER TABLE inbound_template ADD COLUMN sap_no TEXT DEFAULT ''")
     if "bl_format" not in cols:
         alter_sql.append("ALTER TABLE inbound_template ADD COLUMN bl_format TEXT DEFAULT ''")
-
-    if not alter_sql:
-        return
+    if "packing_type" not in cols:
+        alter_sql.append("ALTER TABLE inbound_template ADD COLUMN packing_type TEXT DEFAULT ''")
 
     for sql in alter_sql:
         con.execute(sql)
+    con.execute(
+        "UPDATE inbound_template "
+        "SET packing_type = CASE WHEN bag_weight_kg=1000 THEN 'A' ELSE 'C' END "
+        "WHERE COALESCE(packing_type, '') = ''"
+    )
     con.commit()
-    logger.info(f"[templates] inbound_template 컬럼 자동 보정 적용: {len(alter_sql)}건")
+    if alter_sql:
+        logger.info(f"[templates] inbound_template 컬럼 자동 보정 적용: {len(alter_sql)}건")
 
 # ─────────────────────────────────────────────────────────
 # GET /api/inbound/templates — inbound_template 목록 반환
@@ -1544,7 +1648,7 @@ def get_inbound_templates():
             "SELECT template_id, template_name, carrier_id, bag_weight_kg, "
             "gemini_hint_packing, gemini_hint_invoice, gemini_hint_bl, "
             "product_hint, weight_format, note, is_active, "
-            "lot_sqm, mxbg_pallet, sap_no "
+            "lot_sqm, mxbg_pallet, sap_no, packing_type "
             "FROM inbound_template "
             "WHERE is_active = 1 "
             "AND UPPER(COALESCE(carrier_id, '')) <> 'UNKNOWN' "
@@ -1573,6 +1677,7 @@ class TemplateUpsertRequest(BaseModel):
     template_name: str
     product_hint:  str   = ""
     bag_weight_kg: int   = 500
+    packing_type:  str   = ""
     bl_format:     str   = ""
     note:          str   = ""
     gemini_hint_packing: str = ""
@@ -1623,11 +1728,12 @@ def create_template(req: TemplateUpsertRequest):
         merged_hint_bl = _merge_hints(req.gemini_hint_bl or "", l1_hint_bl) if hasattr(req, "gemini_hint_bl") else l1_hint_bl
         con.execute(
             "INSERT INTO inbound_template "
-            "(template_id, template_name, carrier_id, bag_weight_kg, "
+            "(template_id, template_name, carrier_id, bag_weight_kg, packing_type, "
             "product_hint, bl_format, note, gemini_hint_packing, gemini_hint_bl, is_active, "
             "lot_sqm, mxbg_pallet, sap_no) "
-            "VALUES (?,?,?,?,?,?,?,?,?,1,?,?,?)",
+            "VALUES (?,?,?,?,?,?,?,?,?,?,1,?,?,?)",
             (tid, req.template_name, req.carrier_id, req.bag_weight_kg,
+             _normalize_packing_type(req.packing_type, req.bag_weight_kg),
              req.product_hint, req.bl_format, req.note, req.gemini_hint_packing,
              merged_hint_bl,
              req.lot_sqm, req.mxbg_pallet, req.sap_no)
@@ -1648,11 +1754,12 @@ def update_template(tid: str, req: TemplateUpsertRequest):
         _ensure_inbound_template_columns(con)
         cur = con.execute(
             "UPDATE inbound_template SET "
-            "template_name=?, carrier_id=?, bag_weight_kg=?, "
+            "template_name=?, carrier_id=?, bag_weight_kg=?, packing_type=?, "
             "product_hint=?, bl_format=?, note=?, gemini_hint_packing=?, "
             "lot_sqm=?, mxbg_pallet=?, sap_no=? "
             "WHERE template_id=?",
             (req.template_name, req.carrier_id, req.bag_weight_kg,
+             _normalize_packing_type(req.packing_type, req.bag_weight_kg),
              req.product_hint, req.bl_format, req.note, req.gemini_hint_packing,
              req.lot_sqm, req.mxbg_pallet, req.sap_no, tid)
         )
@@ -1826,10 +1933,10 @@ async def templates_from_excel(file: UploadFile = File(...)):
     """Excel/CSV 파일에서 템플릿을 일괄 생성.
 
     Excel 컬럼 순서 (헤더 행 필수):
-      carrier | template_name | product_name | bag_weight_kg | bl_format | note
+      carrier | template_name | product_name | bag_weight_kg | packing_type | bl_format | note
 
     또는 한글 헤더:
-      선사 | 템플릿이름 | 제품이름 | 톤백무게 | BL형식 | 메모
+      선사 | 템플릿이름 | 제품이름 | 톤백무게 | 포장타입 | BL형식 | 메모
     """
     fname = file.filename or ""
     if not (fname.lower().endswith(".xlsx") or fname.lower().endswith(".xls")
@@ -1866,6 +1973,10 @@ async def templates_from_excel(file: UploadFile = File(...)):
             "bag_weight_kg": "bag_weight_kg",
             "톤백무게":        "bag_weight_kg",
             "톤백 무게":       "bag_weight_kg",
+            "packing_type":   "packing_type",
+            "포장타입":        "packing_type",
+            "포장 타입":       "packing_type",
+            "팩구성":          "packing_type",
             "bl_format":     "bl_format",
             "bl형식":         "bl_format",
             "BL형식":         "bl_format",
@@ -1880,6 +1991,7 @@ async def templates_from_excel(file: UploadFile = File(...)):
                 raise HTTPException(400, f"필수 컬럼 없음: '{col}' (영문 또는 한글 헤더 필요)")
 
         con = _open_db()
+        _ensure_inbound_template_columns(con)
         created, skipped = 0, 0
         for _, row in df.iterrows():
             tname = str(row.get("template_name", "")).strip()
@@ -1887,17 +1999,19 @@ async def templates_from_excel(file: UploadFile = File(...)):
                 skipped += 1
                 continue
             tid = _tpl_new_id()
+            _bag = int(float(row.get("bag_weight_kg", 500) or 500))
             try:
                 con.execute(
                     "INSERT INTO inbound_template "
-                    "(template_id, template_name, carrier_id, bag_weight_kg, "
+                    "(template_id, template_name, carrier_id, bag_weight_kg, packing_type, "
                     "product_hint, bl_format, note, is_active) "
-                    "VALUES (?,?,?,?,?,?,?,1)",
+                    "VALUES (?,?,?,?,?,?,?, ?,1)",
                     (
                         tid,
                         tname,
                         str(row.get("carrier_id", "UNKNOWN")).strip(),
-                        int(float(row.get("bag_weight_kg", 500) or 500)),
+                        _bag,
+                        _normalize_packing_type(row.get("packing_type", ""), _bag),
                         str(row.get("product_hint", "")).strip(),
                         str(row.get("bl_format", "")).strip(),
                         str(row.get("note", "")).strip(),
