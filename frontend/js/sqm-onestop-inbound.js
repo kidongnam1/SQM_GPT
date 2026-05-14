@@ -543,12 +543,53 @@
   function _tplKey(carrier) {
     return 'sqm_tpl_' + (carrier || '').replace(/\s+/g, '_');
   }
+  /* DB 템플릿 캐시 (carrier_id_upper → [tpl,...]) — v868 신규 */
+  var _dbTplCache = {};
+  function _mapDbTpl(db) {
+    return {
+      name: db.template_name || '',
+      product_name: db.product_hint || '',
+      lot_sqm: db.lot_sqm || '',
+      mxbg: db.mxbg_pallet || 0,
+      sap_no: db.sap_no || '',
+      notes: db.note || '',
+      _db_id: db.template_id,
+      _bag_weight: db.bag_weight_kg,
+      _gemini_hint: db.gemini_hint_packing || '',
+      _carrier_id: db.carrier_id || '',
+      _packing_type: db.packing_type || '',
+      _is_db: true
+    };
+  }
+  function _fetchDbTemplates(carrier, cb) {
+    var key = String(carrier || '').trim().toUpperCase();
+    if (!key) { cb([]); return; }
+    if (_dbTplCache[key]) { cb(_dbTplCache[key]); return; }
+    fetch(API + '/api/inbound/templates')
+      .then(function(r) { return r.ok ? r.json() : null; })
+      .then(function(d) {
+        var all = (d && d.ok && d.templates) ? d.templates : [];
+        _dbTplCache[key] = all
+          .filter(function(t) {
+            return String(t.carrier_id || '').trim().toUpperCase() === key;
+          })
+          .map(_mapDbTpl);
+        cb(_dbTplCache[key]);
+      })
+      .catch(function() { _dbTplCache[key] = []; cb([]); });
+  }
   function _loadTplList(carrier) {
-    try { return JSON.parse(localStorage.getItem(_tplKey(carrier)) || '[]'); }
-    catch(e) { return []; }
+    var key = String(carrier || '').trim().toUpperCase();
+    var db = _dbTplCache[key] || [];
+    var local = [];
+    try { local = JSON.parse(localStorage.getItem(_tplKey(carrier)) || '[]'); }
+    catch(e) { local = []; }
+    return db.concat(local);
   }
   function _saveTplList(carrier, list) {
-    try { localStorage.setItem(_tplKey(carrier), JSON.stringify(list)); } catch(e) {}
+    /* DB 템플릿(_is_db)은 localStorage 에 저장하지 않음 */
+    var localOnly = (list || []).filter(function(t) { return !t._is_db; });
+    try { localStorage.setItem(_tplKey(carrier), JSON.stringify(localOnly)); } catch(e) {}
   }
   function _applyTemplate(tpl, carrier) {
     window._onestopActiveTemplate = tpl;
@@ -557,6 +598,25 @@
       lbl.textContent = tpl ? ('OK ' + tpl.name) : '미선택';
       lbl.style.color = tpl ? 'var(--success)' : 'var(--text-muted)';
       lbl.style.fontWeight = tpl ? '600' : 'normal';
+    }
+    if (tpl && tpl._is_db) {
+      /* DB 템플릿 — 백엔드 onestop-upload 가 template_id 로 hint/bag_weight 조회 */
+      window._onestopDbTemplateId   = tpl._db_id;
+      window._onestopBagWeight      = tpl._bag_weight;
+      window._onestopGeminiHint     = tpl._gemini_hint;
+      window._onestopDbTemplateName = tpl.name;
+      var dbLbl = document.getElementById('onestop-db-tpl-label');
+      if (dbLbl) {
+        dbLbl.textContent = '✅ DB 템플릿: ' + tpl.name + ' (' + (tpl._bag_weight || '?') + 'kg)';
+        dbLbl.style.color = 'var(--success)';
+        dbLbl.style.borderColor = 'var(--success)';
+      }
+    } else if (tpl) {
+      /* localStorage 사용자 정의 — DB 메타 비움 (백엔드 fallback) */
+      window._onestopDbTemplateId   = null;
+      window._onestopBagWeight      = null;
+      window._onestopGeminiHint     = '';
+      window._onestopDbTemplateName = '';
     }
     if (tpl) showToast('success', '템플릿 적용: ' + tpl.name);
   }
@@ -609,19 +669,23 @@
     var tRow = document.getElementById('onestop-template-row');
     if (tRow) tRow.style.display = carrier ? '' : 'none';
     if (!carrier) return;
-    var list = _loadTplList(carrier);
-    if (list.length === 1) {
-      _applyTemplate(list[0], carrier);
-    } else if (list.length > 1) {
-      showToast('info', carrier + ' 템플릿 ' + list.length + '개 — [선택/수정]에서 선택하세요');
-    } else {
-      showToast('info', carrier + ' 템플릿 없음 — [선택/수정]으로 새 템플릿을 만드세요');
-    }
-    /* Carrier Profile: bag_weight 자동 설정 */
+    /* DB 템플릿을 먼저 fetch → 캐시 채운 뒤 localStorage 와 머지하여 자동 적용 판정 */
+    _fetchDbTemplates(carrier, function() {
+      var list = _loadTplList(carrier);
+      if (list.length === 1) {
+        _applyTemplate(list[0], carrier);
+      } else if (list.length > 1) {
+        showToast('info', carrier + ' 템플릿 ' + list.length + '개 — [선택/수정]에서 선택하세요');
+      } else {
+        showToast('info', carrier + ' 템플릿 없음 — [선택/수정]으로 새 템플릿을 만드세요');
+      }
+    });
+    /* Carrier Profile: bag_weight 자동 설정 (DB 템플릿 미선택 시에만 안내) */
     fetch(API + '/api/carriers/' + encodeURIComponent(carrier))
       .then(function(r) { return r.ok ? r.json() : null; })
       .then(function(p) {
         if (!p || !p.carrier_id) return;
+        if (window._onestopDbTemplateId) return;  /* 이미 DB 템플릿 적용됨 */
         if (p.bag_weight_kg) {
           var lbl2 = document.getElementById('onestop-db-tpl-label');
           if (lbl2) {
@@ -643,8 +707,17 @@
     var list = _loadTplList(carrier);
     var rows = list.map(function(t, i) {
       var ci = JSON.stringify(carrier);
+      var dbBadge = t._is_db
+        ? ' <span style="font-size:10px;color:#1976d2;padding:2px 6px;border:1px solid #1976d2;border-radius:3px;margin-left:6px">DB · ' + (t._bag_weight || '?') + 'kg</span>'
+        : '';
+      var editBtn = t._is_db
+        ? '<button class="btn btn-sm" style="margin-right:4px" disabled title="DB 템플릿은 관리자 화면에서만 수정">수정</button>'
+        : '<button class="btn btn-sm" style="margin-right:4px" onclick="window._onestopEditTpl(' + i + ',' + ci + ')">수정</button>';
+      var delBtn = t._is_db
+        ? '<button class="btn btn-sm btn-danger" disabled title="DB 템플릿은 관리자 화면에서만 삭제">삭제</button>'
+        : '<button class="btn btn-sm btn-danger" onclick="window._onestopDeleteTpl(' + i + ',' + ci + ')">삭제</button>';
       return '<tr style="border-bottom:1px solid var(--border)">'
-        + '<td style="padding:6px 8px;font-weight:600">' + (t.name||'(이름없음)') + '</td>'
+        + '<td style="padding:6px 8px;font-weight:600">' + (t.name||'(이름없음)') + dbBadge + '</td>'
         + '<td style="padding:6px 8px;font-size:11px;color:var(--text-muted)">'
         + (t.product_name ? t.product_name + ' | ' : '')
         + (t.lot_sqm ? 'LOT:' + t.lot_sqm + 'm2 | ' : '')
@@ -653,8 +726,8 @@
         + '</td>'
         + '<td style="padding:6px 4px;white-space:nowrap">'
         + '<button class="btn btn-sm btn-primary" style="margin-right:4px" onclick="window._onestopSelectTpl(' + i + ',' + ci + ')">적용</button>'
-        + '<button class="btn btn-sm" style="margin-right:4px" onclick="window._onestopEditTpl(' + i + ',' + ci + ')">수정</button>'
-        + '<button class="btn btn-sm btn-danger" onclick="window._onestopDeleteTpl(' + i + ',' + ci + ')">삭제</button>'
+        + editBtn
+        + delBtn
         + '</td>'
         + '</tr>';
     }).join('');
@@ -684,8 +757,13 @@
   };
 
   window._onestopDeleteTpl = function(idx, carrier) {
-    if (!confirm('이 템플릿을 삭제하시겠습니까?')) return;
     var list = _loadTplList(carrier);
+    var t = list[idx];
+    if (t && t._is_db) {
+      showToast('error', 'DB 템플릿은 여기서 삭제할 수 없습니다 (관리자 화면 사용)');
+      return;
+    }
+    if (!confirm('이 템플릿을 삭제하시겠습니까?')) return;
     list.splice(idx, 1);
     _saveTplList(carrier, list);
     window.onestopOpenTemplatePicker();
@@ -694,6 +772,10 @@
   window._onestopEditTpl = function(idx, carrier) {
     var list = _loadTplList(carrier);
     var t = list[idx]; if (!t) return;
+    if (t._is_db) {
+      showToast('error', 'DB 템플릿은 여기서 수정할 수 없습니다 (관리자 화면 사용)');
+      return;
+    }
     window.onestopOpenTemplatePicker();
     setTimeout(function() {
       var nEl=document.getElementById('tpl-f-name'); if(nEl) nEl.value=t.name||'';
