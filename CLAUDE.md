@@ -2,7 +2,7 @@
 
 **작업 폴더:** `D:\program\SQM_inventory\SQM_v868_claan`
 **GitHub:** `https://github.com/kidongnam1/sqm_3` (main)
-**최종 갱신:** 2026-05-15
+**최종 갱신:** 2026-05-17
 
 ---
 
@@ -18,7 +18,7 @@ PyWebView 5 · FastAPI 0.104 · Vanilla JS · SQLite WAL · Python 3.11
 - **Rule 6** — git commit/push은 Windows CMD에서만 (VM 금지)
 - **방지책 ②** — 코드 + 주석 먼저 읽고 수정 (추측 금지)
 - **방지책 ④** — 세션 시작 시 py_compile + node --check 전수검사
-  - 최근 통과 기록: 2026-05-15 Python 412/412, JS 37/37 ✅
+  - 최근 통과 기록: 2026-05-17 Python 34/34, JS 22/22 ✅
 - 색상/폰트 → `design-tokens.css` 변수만 (하드코딩 금지)
 
 ## STATUS 설계 (확정 2026-05-11)
@@ -33,22 +33,21 @@ RETURN    → 반품
 - `movement_type='OUTBOUND'` (stock_movement 이동 유형) — STATUS 아님, 유지
 - `port_date` / `inbound_type('DIRECT'|'BOND')` 컬럼 inventory 테이블에 추가됨
 
-## CURRENT STATE (2026-05-11)
-- ✅ LAYER 1 + 2 + 3 모두 완료 (90be151, 7cdcd29)
-- ✅ 발견 ①② + Title Transfer Date 라벨 (65cc27d, c83aac0)
-- ✅ CLAUDE.md 5분할 + 패치 자산화 (dfd7459, 7cdcd29)
-- ✅ Claude CLI 9개 플러그인 설치 (superpowers/bkit/codex/context7/code-review/code-simplifier/frontend-design/pyright-lsp/telegram)
-- ✅ PENDING 입고 대기 워크플로우 (053fa7a) — port_date/inbound_type 컬럼, /pending /confirm API
-- ✅ OUTBOUND→SOLD 통합 (b2d136e) — Python 40+파일 + JS 6파일, STATUS 6개로 단순화
-- ✅ sqm-inline.js 라우터 핫픽스 (2026-05-15) — case 'pending'/'available' 누락 → Preparing stub 버그 수정 (scripts/patch_sqm_inline_router.py)
-- 🎯 다음: Phase 6 EXE 빌드 (5/15-16 주말)
+## CURRENT STATE (2026-05-17)
+- ✅ Phase 0 DB 복구 — sqm_inventory_pre_migrate_20260516_214211.db 교체, WAL 삭제
+- ✅ Phase 1 Sprint A — showToast warn→warning(3), sqm-table→data-table(2), width:32→36px(12), 영문 빈메시지→한글(6) [scripts/patch_schema_a.py]
+- ✅ Phase 2 Sprint B — sqmConfirm 추상화 래퍼 + 69곳 confirm→sqmConfirm, Loading…→로딩중(25곳) [scripts/patch_schema_b.py]
+- ✅ Phase 3 D1 — window.SQM_STATUS_MAP 글로벌 상수 + sqm-inline.js statusColor 삼항 2곳 제거 [scripts/patch_schema_d1.py]
+- ✅ Phase 4 Sprint C — Playwright 회귀 테스트 스크립트 생성 (tests/sqm_regression.spec.js); hex 자동변환 보류 (JS↔CSS 팔레트 불일치 → 수동 스프린트 필요)
+- 🎯 다음: git commit(Windows CMD) → EXE 빌드
 
-## BACKLOG (Phase 6 EXE 빌드 이후 우선순위 순)
-- **🥇 P2-1 라우터 단일화 리팩토링 (다음 스프린트 1순위)** — sqm-inline.js의 renderPage() 제거 + sqm-core.js로 통합. 현재 두 파일에 동일 라우터가 있어 새 사이드바 메뉴 추가 시 양쪽 동기화 필요. 이번 버그(case 'pending' 누락)의 **구조적 원인** — 재발 방지 핵심.
-- **🥈 P2-2 Dead code 정리** ✅ **완료 (2026-05-15)** — 20개 백업 파일 _archive/ 로 이동 (scripts/cleanup_archive_backups.py)
-- **🥉 P2-3 Playwright 회귀 테스트** — 사이드바 6개 탭(Pending/Available/Allocation/Picked/Return/Move) 클릭 후 page-container에 'Preparing:' 문자열 없는지 자동 검증. 이번 버그 같은 라우터 누락 회귀 자동 차단.
-- **P2-4 정합성 자동 수정 버튼** — /api/integrity/check 결과의 TONBAG_COUNT_MISMATCH / ORPHAN_TONBAG / STATUS_MISMATCH 일괄 처리 SQL 자동 실행. 매번 손으로 안 고쳐도 되게.
-- **P2-5 PyWebView 디버그 모드 토글** — 운영 빌드(F12 OFF) vs 개발 빌드(F12 ON) 분기. 향후 사고 시 콘솔 확인 가능해짐.
+## BACKLOG (우선순위 순)
+- **🥇 git commit** — Windows CMD에서: Phase 0~4 변경 내용 커밋 (Rule 6)
+- **🥈 EXE 빌드 (Phase 5)** — PyInstaller 패키징
+- **🥉 Playwright 회귀 실행** — `npx playwright test tests/sqm_regression.spec.js` (앱 실행 후)
+- **P2-4 정합성 자동 수정 버튼** — /api/integrity/check 결과 일괄 SQL 처리
+- **P2-5 PyWebView 디버그 모드 토글** — 운영(F12 OFF) vs 개발(F12 ON) 분기
+- **hex 색상 CSS 변수화** — JS/CSS 팔레트 통일 후 재시도 (Sprint C 이월)
 
 ## REFERENCES (필요 시 로드)
 - `@docs/claude/CLAUDE.layer2.md` — LAYER 2 작업 상세

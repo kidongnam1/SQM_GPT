@@ -339,6 +339,7 @@ async def bulk_import_excel(file: UploadFile = File(...)):
                 fail_count += 1
                 errors.append({"row": int(idx) + 2, "reason": "lot_no 빈 값"})
                 continue
+            data["status"] = "PENDING"  # v868: Excel 수동 입고 → PENDING 강제 (053fa7a 정책)
             try:
                 result = engine.add_inventory_from_dict(data)
                 if result.get("success"):
@@ -1186,6 +1187,7 @@ def onestop_inbound_save(req: OneStopSaveRequest):
             fail_count += 1
             errors.append({"row": idx, "reason": "lot_no 빈 값"})
             continue
+        data["status"] = "PENDING"  # v868: OneStop 입고 → PENDING 강제 (053fa7a 정책)
         try:
             result = engine.add_inventory_from_dict(data)
             if result.get("success"):
@@ -2341,7 +2343,7 @@ def get_pending_inbound():
         inv_cols = {r[1].lower() for r in db.execute("PRAGMA table_info(inventory)").fetchall()}
         has_port_date = "port_date" in inv_cols
         has_inbound_type = "inbound_type" in inv_cols
-        select_cols = "lot_no, product, net_weight, container_no"
+        select_cols = "lot_no, sap_no, product, net_weight, mxbg_pallet, container_no, warehouse, inbound_date"
         if has_port_date:
             select_cols += ", port_date"
         if has_inbound_type:
@@ -2421,6 +2423,47 @@ def confirm_inbound(lot_no: str, payload: dict = {}):
         raise
     except Exception as e:
         logger.error(f"POST /confirm/{lot_no} error: {e}")
+        raise HTTPException(500, str(e))
+
+
+# ── PENDING 실제 입고일 인라인 업데이트 ────────────────────────────────────
+@router.patch("/pending/{lot_no}/inbound-date", summary="📅 PENDING 실제 입고일 사전 지정")
+def set_pending_inbound_date(lot_no: str, payload: dict = {}):
+    """
+    PENDING 상태에서 실제 입고 예정일(inbound_date)을 미리 지정.
+    상태는 변경하지 않고 inbound_date 컬럼만 업데이트.
+    payload: { inbound_date: "YYYY-MM-DD" | "" }
+    """
+    try:
+        date_val = (payload.get("inbound_date") or "").strip() or None
+        if date_val:
+            # 날짜 형식 검증
+            datetime.strptime(date_val, "%Y-%m-%d")
+        db = _open_db()
+        row = db.execute(
+            "SELECT status FROM inventory WHERE lot_no=?", (lot_no,)
+        ).fetchone()
+        if not row:
+            db.close()
+            raise HTTPException(404, f"{lot_no} 없음")
+        if dict(row)["status"] != "PENDING":
+            db.close()
+            raise HTTPException(400, f"{lot_no}: PENDING 상태가 아님")
+        ts_now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        db.execute(
+            "UPDATE inventory SET inbound_date=?, updated_at=? WHERE lot_no=? AND status='PENDING'",
+            (date_val, ts_now, lot_no)
+        )
+        db.commit()
+        db.close()
+        logger.info(f"[pending-inbound-date] {lot_no} inbound_date={date_val}")
+        return {"success": True, "lot_no": lot_no, "inbound_date": date_val}
+    except HTTPException:
+        raise
+    except ValueError:
+        raise HTTPException(400, "날짜 형식 오류 (YYYY-MM-DD)")
+    except Exception as e:
+        logger.error(f"PATCH /pending/{lot_no}/inbound-date error: {e}")
         raise HTTPException(500, str(e))
 
 

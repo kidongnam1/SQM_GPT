@@ -53,7 +53,7 @@
       }
       return r.lot_no || '(LOT 미지정)';
     }
-    rows.forEach(function(r) {
+    rows.forEach(function(r, _i) {
       var k = keyOf(r);
       if (!groups[k]) groups[k] = [];
       groups[k].push(r);
@@ -106,6 +106,7 @@
   // 그룹 내부용 LOT 표 (헤더 포함, 컴팩트)
   function _renderPickedLotTableOnly(rows) {
     var html = '<div style="overflow-x:auto"><table class="data-table" style="margin:0;font-size:12px"><thead><tr>'
+      + '<th style="color:var(--text-muted);text-align:center;width:32px">#</th>'
       + '<th style="text-align:center">LOT No</th>'
       + '<th>피킹No</th><th>고객사</th>'
       + '<th style="text-align:right">톤백수</th><th style="text-align:right">중량(kg)</th>'
@@ -122,6 +123,7 @@
       var reservedBags = Number(r.tb_reserved || 0) || 0;
       var packedBags = Number(r.tb_picked || 0) || 0;
       html += '<tr class="picked-summary-row" data-lot="' + lot + '" style="cursor:pointer" onclick="window.togglePickedDetail(\'' + lot + '\')">'
+        + '<td class="mono-cell" style="color:var(--text-muted);text-align:center">' + (_i+1) + '</td>'
         + '<td class="mono-cell cell-left" style="color:var(--accent);font-weight:600">' + lot + '</td>'
         + '<td class="mono-cell">' + escapeHtml(r.picking_no || '') + '</td>'
         + '<td>' + escapeHtml(r.customer || r.picked_to || '') + '</td>'
@@ -169,7 +171,7 @@
       '<div id="picked-loading" style="padding:40px;text-align:center;color:var(--text-muted)">⏳ 데이터 로딩 중...</div>',
       '<div style="overflow-x:auto">',
       '  <table class="data-table" id="picked-table" style="display:none">',
-      '  <thead><tr><th></th><th style="text-align:center">LOT No</th><th style="width:32px;text-align:center">+</th><th>피킹No</th><th>고객사</th><th>톤백수</th><th>중량(kg)</th><th>MXBG</th><th>Available</th><th>Reserved</th><th>Packed</th><th>Total Bags</th><th>Remain Bags</th><th>AV</th><th>VR</th><th>AR</th><th>Title Transfer Date</th></tr></thead>',
+      '  <thead><tr><th style="color:var(--text-muted);text-align:center;width:32px">#</th><th></th><th style="text-align:center">LOT No</th><th style="width:32px;text-align:center">+</th><th>피킹No</th><th>고객사</th><th>톤백수</th><th>중량(kg)</th><th>MXBG</th><th>Available</th><th>Reserved</th><th>Packed</th><th>Total Bags</th><th>Remain Bags</th><th>AV</th><th>VR</th><th>AR</th><th>Title Transfer Date</th></tr></thead>',
       '  <tbody id="picked-tbody"></tbody>',
       '  </table>',
       '</div>',
@@ -203,7 +205,7 @@
         return;
       }
       var tbody = document.getElementById('picked-tbody');
-      if (tbody) tbody.innerHTML = rows.map(function(r){
+      if (tbody) tbody.innerHTML = rows.map(function(r, _i){
         var lot = escapeHtml(r.lot_no||'');
         var availBags = Number(r.tb_available || 0) || 0;
         var reservedBags = Number(r.tb_reserved || 0) || 0;
@@ -214,6 +216,7 @@
         var reservedMt = Number(r.reserved_mt || 0) || 0;
         var pickedMt = Number(r.picked_mt || 0) || 0;
         return '<tr class="picked-summary-row" data-lot="'+lot+'" style="cursor:pointer" onclick="window.togglePickedDetail(\''+lot+'\')">' +
+          '<td class="mono-cell" style="color:var(--text-muted);text-align:center">'+(_i+1)+'</td>' +
           '<td style="width:24px;text-align:center"><span class="picked-expand-icon">▶</span></td>' +
           '<td class="mono-cell cell-left" style="color:var(--accent);font-weight:600">'+lot+'</td>' +
           '<td style="text-align:center;padding:3px 4px;width:32px">'+'<button class="btn btn-ghost btn-xs" data-lot="'+lot+'" onclick="event.stopPropagation();window.showPickedActionMenu(this)" style="font-size:15px;padding:0 4px;letter-spacing:1px" title="추가기능">⋯</button>'+'</td>' +
@@ -305,7 +308,7 @@
       // v868 fix (2026-05-16): 취소 기능 추가 — PICKED → RESERVED 되돌리기
       '-',
       { icon:'↩',  label:'PICKED → RESERVED 되돌리기', color:'#ef4444', fn:function(){
-          if (!confirm('↩ ' + lot + '\nPICKED → RESERVED로 되돌리시겠습니까?')) return;
+          if (!sqmConfirm('↩ ' + lot + '\nPICKED → RESERVED로 되돌리시겠습니까?')) return;
           if (window.allocRevertStep) {
             window.allocRevertStep('PICKED');
           } else {

@@ -459,7 +459,7 @@
         { icon:'📄', label:'LOT 번호 복사', fn:function(){ navigator.clipboard && navigator.clipboard.writeText(lot); showToast('info','LOT 복사: '+lot); } },
         '-',
         { icon:'↩', label:'SOLD → PICKED 되돌리기', color:'#ef4444', fn:function(){
-            if (!confirm('↩ ' + lot + '\nSOLD → PICKED로 되돌리시겠습니까?')) return;
+            if (!sqmConfirm('↩ ' + lot + '\nSOLD → PICKED로 되돌리시겠습니까?')) return;
             if (window.allocRevertStep) {
               window.allocRevertStep('SOLD');
             } else {
@@ -469,7 +469,7 @@
       ]);
     } else {
       // _openContextMenu 미정의 시 fallback — confirm 직접 사용
-      if (confirm('↩ ' + lot + '\nSOLD → PICKED로 되돌리시겠습니까?')) {
+      if (sqmConfirm('↩ ' + lot + '\nSOLD → PICKED로 되돌리시겠습니까?')) {
         if (window.allocRevertStep) window.allocRevertStep('SOLD');
       }
     }
@@ -608,14 +608,14 @@
       { icon:'📄', label:'LOT 번호 복사',     kbd:'Ctrl+C', fn:function(){ navigator.clipboard&&navigator.clipboard.writeText(lot); showToast('info','LOT 복사: '+lot); } },
       '-',
       { icon:'✅', label:'검사완료 → AVAILABLE', kbd:'A', color:'#22c55e', fn:function(){
-          if(!confirm('['+lot+'] 검사 완료 — AVAILABLE로 전환하시겠습니까?')) return;
+          if(!sqmConfirm('['+lot+'] 검사 완료 — AVAILABLE로 전환하시겠습니까?')) return;
           window.returnToAvailable(lot, true);
         }
       },
     ]);
   };
   window.returnToAvailable = function(lotNo, skipConfirm) {
-    if (!skipConfirm && !confirm('LOT ' + lotNo + ' 검사완료 처리합니다.\nAVAILABLE로 전환하시겠습니까?')) return;
+    if (!skipConfirm && !sqmConfirm('LOT ' + lotNo + ' 검사완료 처리합니다.\nAVAILABLE로 전환하시겠습니까?')) return;
     apiPost('/api/inventory/adjust', { lot_no: lotNo, action: 'return_to_available' })
       .then(function(){ showToast('success', lotNo + ' AVAILABLE 전환 완료'); window.loadReturnPage(); })
       .catch(function(e){ showToast('error', '전환 실패: ' + (e.message||String(e))); });
@@ -640,9 +640,9 @@
       '</div></div>',
       '<div id="move-loading" style="padding:20px;text-align:center">Loading history...</div>',
       '<table class="data-table" id="move-table" style="display:none">',
-      '<thead><tr><th>Date</th><th>LOT No</th><th>Type</th><th>Qty(MT)</th><th>From</th><th>To</th><th>By</th></tr></thead>',
+      '<thead><tr><th style="color:var(--text-muted);text-align:center;width:32px">#</th><th>Date</th><th>LOT No</th><th>Type</th><th>Qty(MT)</th><th>From</th><th>To</th><th>By</th></tr></thead>',
       '<tbody id="move-tbody"></tbody></table>',
-      '<div class="empty" id="move-empty" style="display:none">No movement history</div>',
+      '<div class="empty" id="move-empty" style="display:none">이동 이력 없음</div>',
       '</section>'
     ].join('');
     apiGet('/api/q/movement-history').then(function(res){
@@ -651,9 +651,10 @@
       document.getElementById('move-loading').style.display = 'none';
       if (!rows.length) { document.getElementById('move-empty').style.display='block'; return; }
       var tbody = document.getElementById('move-tbody');
-      if (tbody) tbody.innerHTML = rows.map(function(r){
+      if (tbody) tbody.innerHTML = rows.map(function(r, _i){
         var qtyMT = r.qty_mt != null ? fmtN(r.qty_mt) : (r.qty_kg != null ? fmtN(r.qty_kg/1000) : '-');
         return '<tr>' +
+          '<td class="mono-cell" style="color:var(--text-muted);text-align:center">'+(_i+1)+'</td>' +
           '<td class="mono-cell">'+escapeHtml(r.movement_date||r.moved_at||r.date||'')+'</td>' +
           '<td class="mono-cell" style="color:var(--accent)">'+escapeHtml(r.lot_no||r.sub_lt||r.barcode||'')+'</td>' +
           '<td>'+escapeHtml(r.movement_type||'')+'</td>' +
@@ -699,22 +700,24 @@
       '<option value="500">Last 500</option>',
       '<option value="1000">Last 1000</option>',
       '</select></div>',
-      '<div id="log-loading" style="padding:40px;text-align:center">Loading...</div>',
+      '<div id="log-loading" style="padding:40px;text-align:center">⏳ 로딩 중...</div>',
       '<table class="data-table" id="log-table" style="display:none;table-layout:fixed;width:100%">',
       '<colgroup>',
+      '<col style="width:36px">',
       '<col style="width:148px">',
       '<col style="width:170px">',
       '<col style="width:130px">',
       '<col>',
       '</colgroup>',
       '<thead><tr>',
+      '<th style="color:var(--text-muted);text-align:center;padding:5px 8px;white-space:nowrap;width:36px">#</th>',
       '<th style="text-align:left;padding:5px 8px;white-space:nowrap">Time</th>',
       '<th style="text-align:left;padding:5px 8px">Type</th>',
       '<th style="text-align:left;padding:5px 8px">LOT</th>',
       '<th style="text-align:left;padding:5px 8px">Detail</th>',
       '</tr></thead>',
       '<tbody id="log-tbody"></tbody></table>',
-      '<div class="empty" id="log-empty" style="display:none">No logs</div>',
+      '<div class="empty" id="log-empty" style="display:none">로그 없음</div>',
       '</section>'
     ].join('');
     var limit = 100;
@@ -725,7 +728,7 @@
       document.getElementById('log-loading').style.display = 'none';
       if (!rows.length) { document.getElementById('log-empty').style.display='block'; return; }
       var tbody = document.getElementById('log-tbody');
-      if (tbody) tbody.innerHTML = rows.map(function(r){
+      if (tbody) tbody.innerHTML = rows.map(function(r, _i){
         var rawDetail = r.event_data||r.user_note||r.note||r.memo||r.detail||'';
         var fmtDetail = rawDetail;
         if (rawDetail && rawDetail.trim().startsWith('{')) {
@@ -750,6 +753,7 @@
           : evtType.indexOf('ADJUST')>=0 ? '#f57c00'
           : 'inherit';
         return '<tr style="font-size:12px">' +
+          '<td class="mono-cell" style="color:var(--text-muted);text-align:center;padding:4px 8px;font-size:11px">'+(_i+1)+'</td>' +
           '<td class="mono-cell" style="padding:4px 8px;white-space:nowrap;text-align:left;font-size:11px;color:var(--text-muted)">'+escapeHtml(r.created_at||r.time||r.timestamp||'')+'</td>' +
           '<td style="padding:4px 8px;text-align:left;white-space:nowrap;font-weight:600;color:'+evtColor+'">'+escapeHtml(evtType)+'</td>' +
           '<td class="mono-cell" style="padding:4px 8px;text-align:left;font-size:11px;color:var(--accent)">'+escapeHtml(r.lot_no||r.lot||r.tonbag_id||'')+'</td>' +

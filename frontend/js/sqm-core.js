@@ -3,6 +3,29 @@
    Rebuilt: 2026-04-21  Ruby (Senior Software Architect)
    Updated: 2026-04-27  Draggable modals, parse log panel, step badge, ESC guard
    ======================================================================= */
+/* -----------------------------------------------------------------------
+   sqmConfirm — 브라우저 기본 sqmConfirm() 추상화 래퍼
+   향후 커스텀 모달(비동기)로 교체할 때 이 함수만 변경하면 됨
+   사용법: if (!sqmConfirm('정말 삭제할까요?')) return;
+   ----------------------------------------------------------------------- */
+window.sqmConfirm = window.sqmConfirm || function (msg) {
+  return window.confirm(msg);
+};
+
+/* -----------------------------------------------------------------------
+   SQM_STATUS_MAP — STATUS 색상·라벨 단일 정본 (D1 구조 단일화)
+   향후 design-tokens.css 변수로 전환 시 이 블록만 수정
+   ----------------------------------------------------------------------- */
+window.SQM_STATUS_MAP = window.SQM_STATUS_MAP || {
+  PENDING:   { color: '#90a4ae',          fg: '#fff',  label: '입고대기' },
+  AVAILABLE: { color: 'var(--success)',   fg: '#fff',  label: '재고'    },
+  RESERVED:  { color: 'var(--warning)',   fg: '#000',  label: '배정'    },
+  PICKED:    { color: '#42a5f5',          fg: '#fff',  label: '피킹'    },
+  SOLD:      { color: '#66bb6a',          fg: '#fff',  label: '출고'    },
+  RETURN:    { color: '#ef5350',          fg: '#fff',  label: '반품'    },
+};
+
+
 (function () {
   'use strict';
   if (window.__SQM_CORE_INSTALLED__) return;
@@ -449,7 +472,7 @@
     if ((now - _escLastAt) < EXIT_DOUBLE_ESC_WINDOW_MS) {
       _escLastAt = 0;
       e.preventDefault();
-      if (confirm('앱을 종료하시겠습니까?')) {
+      if (sqmConfirm('앱을 종료하시겠습니까?')) {
         if (window.pywebview && window.pywebview.api && window.pywebview.api.exit_app) {
           window.pywebview.api.exit_app();
         } else {
@@ -953,20 +976,22 @@
     showPage(route);
     try { getStore().setItem('sqm_last_tab', route); } catch {}
     if (history.replaceState) history.replaceState(null,'','#' + route);
+    // P2-1 (2026-05-17): 단일 권위 라우터 — guard 패턴 (window 미노출 시 stub)
     switch (route) {
       case 'dashboard':  loadDashboard();     break;
-      case 'inventory':  window.loadInventoryPage();  break;
-      case 'pending':   window.loadPendingPage();   break;
-      case 'available':  window.loadAvailablePage();  break;  // v9.5 신규
-      case 'allocation': window.loadAllocationPage(); break;
-      case 'picked':     window.loadPickedPage();     break;
-      case 'inbound':    window.loadInboundPage();    break;
-      case 'outbound':   window.loadOutboundPage();   break;
-      case 'return':     window.loadReturnPage();     break;
-      case 'move':       window.loadMovePage();       break;
-      case 'log':        window.loadLogPage();        break;
-      case 'scan':       window.loadScanPage();       break;
-      case 'tonbag':     window.loadTonbagPage();     break;
+      case 'inventory':  if (window.loadInventoryPage)  { window.loadInventoryPage();  } else { loadStubPage(route);  } break;
+      case 'pending':    if (window.loadPendingPage)    { window.loadPendingPage();    } else { loadStubPage(route);  } break;
+      case 'available':  if (window.loadAvailablePage)  { window.loadAvailablePage();  } else { loadStubPage(route);  } break;
+      // allocation: sqm-inline.js가 window.loadAllocationPage를 자신의 버전으로 덮어쓴 후 호출됨
+      case 'allocation': if (window.loadAllocationPage) { window.loadAllocationPage(); } else { loadStubPage(route);  } break;
+      case 'picked':     if (window.loadPickedPage)     { window.loadPickedPage();     } else { loadStubPage(route);  } break;
+      case 'inbound':    if (window.loadInboundPage)    { window.loadInboundPage();    } else { loadStubPage(route);  } break;
+      case 'outbound':   if (window.loadOutboundPage)   { window.loadOutboundPage();   } else { loadStubPage(route);  } break;
+      case 'return':     if (window.loadReturnPage)     { window.loadReturnPage();     } else { loadStubPage(route);  } break;
+      case 'move':       if (window.loadMovePage)       { window.loadMovePage();       } else { loadStubPage(route);  } break;
+      case 'log':        if (window.loadLogPage)        { window.loadLogPage();        } else { loadStubPage(route);  } break;
+      case 'scan':       if (window.loadScanPage)       { window.loadScanPage();       } else { loadStubPage(route);  } break;
+      case 'tonbag':     if (window.loadTonbagPage)     { window.loadTonbagPage();     } else { loadStubPage(route);  } break;
       default:           loadStubPage(route);  break;
     }
     setTimeout(function(){ enhanceDataTables(document); }, 0);
@@ -1267,7 +1292,7 @@
     var TH  = 'style="padding:6px 8px;text-align:right;background:var(--bg-header,#2a2a3e)"';
     var THL = 'style="text-align:left;padding:6px 10px;background:var(--bg-header,#2a2a3e)"';
 
-    var html = '<div style="overflow-x:auto"><table class="sqm-table" style="width:100%;font-size:13px;border-collapse:collapse">';
+    var html = '<div style="overflow-x:auto"><table class="data-table" style="width:100%;font-size:13px;border-collapse:collapse">';
     html += '<thead><tr>';
     html += '<th ' + THL + '>제품</th>';
     html += '<th ' + TH + ' style="color:#22c55e">Available</th>';

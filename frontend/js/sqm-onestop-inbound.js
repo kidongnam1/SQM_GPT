@@ -416,7 +416,7 @@
     ar = String(ar || '').trim();
     /* 도착일 형식 검증 (빈값 OK, 입력된 경우 YYYY-MM-DD) */
     if (ar && !/^\d{4}-\d{2}-\d{2}$/.test(ar)) {
-      if (!confirm('도착일 형식이 YYYY-MM-DD가 아닙니다: "' + ar + '"\n그래도 저장하시겠습니까?')) return;
+      if (!sqmConfirm('도착일 형식이 YYYY-MM-DD가 아닙니다: "' + ar + '"\n그래도 저장하시겠습니까?')) return;
     }
     _onestopState.manualDo = { free_time: ft, warehouse: wh, arrival_date: ar };
     /* 파싱된 rows 가 있으면 DO 누락 필드에 수동 값 채우기 */
@@ -484,7 +484,7 @@
 
   window.onestopResetAll = function() {
     if (!_onestopState.history.length) { showToast('info', '편집 내역이 없습니다'); return; }
-    if (!confirm('⟲ 원본 초기화\n\n모든 편집 내용을 파싱 직후 상태로 되돌립니다. 계속하시겠습니까?')) return;
+    if (!sqmConfirm('⟲ 원본 초기화\n\n모든 편집 내용을 파싱 직후 상태로 되돌립니다. 계속하시겠습니까?')) return;
     _onestopState.previewRows = JSON.parse(JSON.stringify(_onestopState.originalRows));
     _onestopState.editedCells = {};
     _onestopState.history = [];
@@ -763,7 +763,7 @@
       showToast('error', 'DB 템플릿은 여기서 삭제할 수 없습니다 (관리자 화면 사용)');
       return;
     }
-    if (!confirm('이 템플릿을 삭제하시겠습니까?')) return;
+    if (!sqmConfirm('이 템플릿을 삭제하시겠습니까?')) return;
     list.splice(idx, 1);
     _saveTplList(carrier, list);
     window.onestopOpenTemplatePicker();
@@ -1416,7 +1416,7 @@
     var confirmMsg = '💾 DB 저장 확인\n\n' +
       '총 ' + rowCount + ' LOT (편집된 셀 ' + editedCount + '개)\n' +
       '실제 재고 DB에 등록됩니다. 계속하시겠습니까?';
-    if (!confirm(confirmMsg)) return;
+    if (!sqmConfirm(confirmMsg)) return;
 
     var saveBtn = document.getElementById('onestop-save-btn');
     if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = '⏳ 저장 중...'; }

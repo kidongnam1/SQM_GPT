@@ -35,11 +35,11 @@
       '<section class="page" data-page="tonbag">',
       '<h2>Tonbag List</h2>',
       '<div class="toolbar-mini"><button class="btn btn-secondary" onclick="renderPage(\'tonbag\')">Refresh</button></div>',
-      '<div id="tonbag-loading" style="padding:40px;text-align:center">Loading...</div>',
+      '<div id="tonbag-loading" style="padding:40px;text-align:center">⏳ 로딩 중...</div>',
       '<table class="data-table" id="tonbag-table" style="display:none">',
-      '<thead><tr><th>Tonbag ID</th><th>LOT</th><th>Product</th><th>Status</th><th>Weight(MT)</th><th>Location</th><th>Container</th><th></th></tr></thead>',
+      '<thead><tr><th style="color:var(--text-muted);text-align:center;width:32px">#</th><th>Tonbag ID</th><th>LOT</th><th>Product</th><th>Status</th><th>Weight(MT)</th><th>Location</th><th>Container</th><th></th></tr></thead>',
       '<tbody id="tonbag-tbody"></tbody></table>',
-      '<div class="empty" id="tonbag-empty" style="display:none">No tonbag data</div>',
+      '<div class="empty" id="tonbag-empty" style="display:none">톤백 데이터 없음</div>',
       '</section>'
     ].join('');
     apiGet('/api/tonbags').then(function(res){
@@ -48,8 +48,9 @@
       document.getElementById('tonbag-loading').style.display='none';
       if (!rows.length) { document.getElementById('tonbag-empty').style.display='block'; return; }
       var tbody=document.getElementById('tonbag-tbody');
-      if (tbody) tbody.innerHTML=rows.map(function(r){
+      if (tbody) tbody.innerHTML=rows.map(function(r, _i){
         return '<tr>' +
+          '<td class="mono-cell" style="color:var(--text-muted);text-align:center">'+(_i+1)+'</td>' +
           '<td class="mono-cell">'+escapeHtml(r.sub_lt||r.tonbag_id||'-')+'</td>' +
           '<td class="mono-cell" style="color:var(--accent)">'+escapeHtml(r.lot_no||'-')+'</td>' +
           '<td><span class="tag">'+escapeHtml(r.product||'-')+'</span></td>' +
@@ -1019,7 +1020,7 @@
       showToast('warn', '선택된 톤백이 없습니다');
       return;
     }
-    if (!confirm('📦 WAIT_SCAN 진입\n\n선택된 톤백 ' + _ooState.selectedTonbags.size + '개로 스캔 검증 단계로 이동합니다.\n계속하시겠습니까?')) return;
+    if (!sqmConfirm('📦 WAIT_SCAN 진입\n\n선택된 톤백 ' + _ooState.selectedTonbags.size + '개로 스캔 검증 단계로 이동합니다.\n계속하시겠습니까?')) return;
     _ooSetState('WAIT_SCAN');
     _ooUpdateT3Stats();
     setTimeout(function(){ window.ooSwitchTab(3); }, 300);
@@ -1287,7 +1288,7 @@
     var msg = '✅ FINALIZED 진입\n\n검증 통과: ' + _ooState.selectedTonbags.size + '개 톤백\n' +
               (hasWarn ? '⚠️ 일부 경고 있음 — 검토하셨나요?\n' : '') +
               'Tab 4 에서 출고 확정합니다. 계속하시겠습니까?';
-    if (!confirm(msg)) return;
+    if (!sqmConfirm(msg)) return;
     _ooSetState('FINALIZED');
     setTimeout(function(){ window.ooSwitchTab(4); }, 300);
     showToast('success', 'FINALIZED 진입 — Tab 4 에서 출고 확정 (Sprint 1-3-D 예정)');
@@ -1403,7 +1404,7 @@
         reason: reasonInput.value.trim(),
         operator: operatorInput.value.trim(),
       };
-      if (!confirm('LOT ' + payload.lot_no + ' 에서 ' + payload.count + '개 톤백을 ' + payload.customer + ' 로 출고하시겠습니까?')) return;
+      if (!sqmConfirm('LOT ' + payload.lot_no + ' 에서 ' + payload.count + '개 톤백을 ' + payload.customer + ' 로 출고하시겠습니까?')) return;
 
       submitBtn.disabled = true;
       cancelBtn.disabled = true;
@@ -1556,7 +1557,7 @@
         if (action === 'reject') {
           reason = prompt('반려 사유를 입력하세요 (선택):', '') || '';
         }
-        if (action === 'approve' && !confirm('배치 ' + batchId + ' 를 승인하시겠습니까?\n승인 즉시 DB에 반영됩니다.')) return;
+        if (action === 'approve' && !sqmConfirm('배치 ' + batchId + ' 를 승인하시겠습니까?\n승인 즉시 DB에 반영됩니다.')) return;
         var url = window.API + '/api/tonbag/batch-move/' + action + '/' + encodeURIComponent(batchId);
         fetch(url, {
           method: 'POST',
@@ -1686,7 +1687,7 @@
     var result = document.getElementById('aa-result');
     cancel.addEventListener('click', function(){ document.getElementById('sqm-modal').style.display='none'; });
     submit.addEventListener('click', function(){
-      if (!confirm('승인 완료된 Allocation 을 모두 RESERVED 로 반영합니다. 계속할까요?')) return;
+      if (!sqmConfirm('승인 완료된 Allocation 을 모두 RESERVED 로 반영합니다. 계속할까요?')) return;
       submit.disabled = true; cancel.disabled = true;
       result.innerHTML = '<div style="padding:8px;color:var(--text-muted)">⏳ 처리 중...</div>';
       apiPost('/api/allocation/apply-approved', {})
@@ -1977,7 +1978,7 @@
     };
 
     window._cpDelete = function(cid) {
-      if (!confirm(cid + ' 프로파일을 삭제하시겠습니까?')) return;
+      if (!sqmConfirm(cid + ' 프로파일을 삭제하시겠습니까?')) return;
       fetch(window.API + '/api/carriers/' + encodeURIComponent(cid), { method: 'DELETE' })
         .then(function(r) { return r.json(); })
         .then(function(d) {
@@ -2085,7 +2086,7 @@
       if (!rows.length) return;
       var customer = cust.value.trim();
       var totalN = rows.reduce(function(s,r){return s+r.count;},0);
-      if (!confirm('총 ' + rows.length + '개 LOT · ' + totalN + '개 톤백을 ' + customer + ' 로 출고합니다. 계속?')) return;
+      if (!sqmConfirm('총 ' + rows.length + '개 LOT · ' + totalN + '개 톤백을 ' + customer + ' 로 출고합니다. 계속?')) return;
 
       submit.disabled = true; cancel.disabled = true;
       result.innerHTML = '<div style="padding:8px;color:var(--text-muted)">⏳ 일괄 출고 중...</div>';
@@ -2199,7 +2200,7 @@
       var payload = { lot_no: lot.value.trim(), force_all: force.checked };
       var msg = payload.lot_no ? ('LOT ' + payload.lot_no + ' 의 PICKED 톤백을 SOLD 로 확정합니다.') :
                                   '⚠️ LOT 미지정 — 전체 PICKED 일괄 확정입니다! 매우 위험.';
-      if (!confirm(msg + '\n계속하시겠습니까?')) return;
+      if (!sqmConfirm(msg + '\n계속하시겠습니까?')) return;
 
       submit.disabled = true; cancel.disabled = true;
       result.innerHTML = '<div style="padding:8px;color:var(--text-muted)">⏳ 확정 중...</div>';
@@ -2243,7 +2244,7 @@
      8j. 승인 대기 (Allocation Approval Queue)
      =================================================== */
   function showApprovalQueueModal() {
-    showDataModal('✅ 승인 대기','<div style="padding:20px;text-align:center">⏳ Loading...</div>');
+    showDataModal('✅ 승인 대기','<div style="padding:20px;text-align:center">⏳ 로딩 중...</div>');
     apiGet('/api/q/approval-history').then(function(res){
       var rows = extractRows(res);
       var pending = rows.filter(function(r){ return (r.approval_status||'').toUpperCase() === 'PENDING'; });
@@ -2297,7 +2298,7 @@
         var sel = document.querySelector('input[name="restore-sel"]:checked');
         if (!sel) { showToast('warning', '복원할 백업 파일을 선택하세요'); return; }
         var fname = sel.dataset.file;
-        if (!confirm('⚠️ ' + fname + ' 으로 DB를 복원합니다.\n현재 데이터가 모두 덮어씌워집니다.\n\n정말 계속할까요?')) return;
+        if (!sqmConfirm('⚠️ ' + fname + ' 으로 DB를 복원합니다.\n현재 데이터가 모두 덮어씌워집니다.\n\n정말 계속할까요?')) return;
         var btn = document.getElementById('restore-submit');
         btn.disabled = true;
         document.getElementById('restore-result').innerHTML = '<div style="padding:8px;color:var(--text-muted)">⏳ 복원 중...</div>';
@@ -2416,7 +2417,7 @@
     submitBtn.addEventListener('click', function(){
       var lot = document.getElementById('ret-lot').value.trim();
       if (!lot) { showToast('warning', 'LOT 번호를 입력하세요'); return; }
-      if (!confirm('LOT ' + lot + ' 반품 처리를 진행합니다.')) return;
+      if (!sqmConfirm('LOT ' + lot + ' 반품 처리를 진행합니다.')) return;
       submitBtn.disabled = true;
       var result = document.getElementById('ret-result');
       result.innerHTML = '<div style="padding:8px;color:var(--text-muted)">⏳ 처리 중...</div>';
@@ -2510,7 +2511,7 @@
     chk.addEventListener('change', function(){ submit.disabled = !chk.checked; });
     document.getElementById('dbr-cancel').addEventListener('click', function(){ document.getElementById('sqm-modal').style.display='none'; });
     submit.addEventListener('click', function(){
-      if (!confirm('정말로 DB를 완전 초기화할까요?\n\n이 작업은 되돌릴 수 없습니다!')) return;
+      if (!sqmConfirm('정말로 DB를 완전 초기화할까요?\n\n이 작업은 되돌릴 수 없습니다!')) return;
       submit.disabled = true;
       document.getElementById('dbr-result').innerHTML = '<div style="padding:8px;color:var(--text-muted)">⏳ 초기화 중...</div>';
       apiPost('/api/action3/db-reset', { confirm: true })
@@ -3046,7 +3047,7 @@
   };
 
   window._tplDelete = function(tid, name) {
-    if (!confirm(name + ' 템플릿을 삭제하시겠습니까?')) return;
+    if (!sqmConfirm(name + ' 템플릿을 삭제하시겠습니까?')) return;
     fetch(window.API + '/api/inbound/templates/' + encodeURIComponent(tid), { method: 'DELETE' })
       .then(function(r) { return r.json(); })
       .then(function(d) {
@@ -3119,7 +3120,7 @@
      8r. 대량 이동 승인 — 승인 대기 중인 이동 건 목록
      =================================================== */
   function showMoveApprovalQueueModal() {
-    showDataModal('✅ 대량 이동 승인','<div style="padding:20px;text-align:center">⏳ Loading...</div>');
+    showDataModal('✅ 대량 이동 승인','<div style="padding:20px;text-align:center">⏳ 로딩 중...</div>');
     apiGet('/api/q/audit-log').then(function(res){
       var rows = extractRows(res);
       var moves = rows.filter(function(r){ return (r.event_type||'').indexOf('MOVE') >= 0; });
@@ -3209,7 +3210,7 @@
      8t. 품목별 재고 요약 — 제품 기준 집계
      =================================================== */
   function showProductSummaryModal() {
-    showDataModal('📋 품목별 재고 요약','<div style="padding:20px;text-align:center">⏳ Loading...</div>');
+    showDataModal('📋 품목별 재고 요약','<div style="padding:20px;text-align:center">⏳ 로딩 중...</div>');
     apiGet('/api/q/product-inventory').then(function(res){
       var rows = extractRows(res);
       // Group by product
@@ -3285,7 +3286,7 @@
      8v. 품목별 입출고 현황
      =================================================== */
   function showProductMovementModal() {
-    showDataModal('📊 품목별 입출고 현황','<div style="padding:20px;text-align:center">⏳ Loading...</div>');
+    showDataModal('📊 품목별 입출고 현황','<div style="padding:20px;text-align:center">⏳ 로딩 중...</div>');
     apiGet('/api/q/movement-history').then(function(res){
       var rows = extractRows(res);
       // Group by product
@@ -3384,7 +3385,7 @@
       document.querySelectorAll('.pm-del').forEach(function(btn){
         btn.addEventListener('click', function(){
           var id = parseInt(btn.getAttribute('data-id'), 10);
-          if (!window.confirm('이 품목 마스터 행을 삭제할까요?')) return;
+          if (!window.sqmConfirm('이 품목 마스터 행을 삭제할까요?')) return;
           apiCall('DELETE', '/api/product-master/' + id, null).then(function(res){
             if (res && res.ok === false) { showToast('error', res.error || '실패'); return; }
             showToast('success', '삭제됨');
@@ -3450,13 +3451,13 @@
       });
     }
 
-    showDataModal('', '<div style="padding:20px;text-align:center">⏳ Loading...</div>');
+    showDataModal('', '<div style="padding:20px;text-align:center">⏳ 로딩 중...</div>');
     loadPm();
   }
   window.showProductMasterModal = showProductMasterModal;
 
   function showReturnStatisticsModal() {
-    showDataModal('📊 반품 사유 통계', '<div style="padding:20px;text-align:center">⏳ Loading...</div>');
+    showDataModal('📊 반품 사유 통계', '<div style="padding:20px;text-align:center">⏳ 로딩 중...</div>');
     apiGet('/api/q2/return-stats').then(function(res){
       var d = res.data || res || {};
       var byReason = d.by_reason || [];
@@ -3792,7 +3793,7 @@
         btn.addEventListener('click', function(){
           var enc = btn.getAttribute('data-enc');
           var name = enc ? decodeURIComponent(enc) : '';
-          if (!name || !window.confirm('파일을 삭제할까요?')) return;
+          if (!name || !window.sqmConfirm('파일을 삭제할까요?')) return;
           fetch(window.API + '/api/report-templates/file?name=' + encodeURIComponent(name), { method: 'DELETE' })
             .then(function(r){ return r.json(); })
             .then(function(res){
@@ -3826,7 +3827,7 @@
       '    <button type="button" class="btn btn-primary" id="rt-upload">업로드</button>',
       '  </div>',
       '  <h3 style="font-size:1rem;margin:0 0 8px">저장된 양식</h3>',
-      '  <div id="rt-file-list" style="max-height:220px;overflow:auto;border:1px solid var(--border);border-radius:8px;margin-bottom:14px"><div class="empty" style="padding:12px">Loading...</div></div>',
+      '  <div id="rt-file-list" style="max-height:220px;overflow:auto;border:1px solid var(--border);border-radius:8px;margin-bottom:14px"><div class="empty" style="padding:12px">⏳ 로딩 중...</div></div>',
       '  <div style="display:flex;flex-direction:column;gap:8px">',
       '    <button type="button" class="btn btn-primary" id="rt-daily">📊 일일 현황 데이터</button>',
       '    <button type="button" class="btn btn-primary" id="rt-monthly">📅 월간 실적 데이터</button>',
@@ -3858,7 +3859,7 @@
   window.showReportTemplatesHubModal = showReportTemplatesHubModal;
 
   function showReportHistoryAuditModal() {
-    showDataModal('📋 보고서·작업 이력', '<div style="padding:20px;text-align:center">⏳ Loading...</div>');
+    showDataModal('📋 보고서·작업 이력', '<div style="padding:20px;text-align:center">⏳ 로딩 중...</div>');
     apiGet('/api/q/audit-log?limit=150').then(function(res){
       var rows = extractRows(res);
       if (!rows.length) {
@@ -3894,7 +3895,7 @@
   window.showReportHistoryAuditModal = showReportHistoryAuditModal;
 
   function renderInfoModal(title, endpoint) {
-    showDataModal(title,'<div style="padding:20px;text-align:center">Loading...</div>');
+    showDataModal(title,'<div style="padding:20px;text-align:center">⏳ 로딩 중...</div>');
     apiGet(endpoint).then(function(res){
       var d=res.data||res||{};
       var html;
@@ -3933,7 +3934,7 @@
 
   window.showLotDetail = function(lotNo) {
     if (!lotNo) return;
-    showDataModal('LOT Detail: '+lotNo,'<div style="padding:20px;text-align:center">Loading...</div>');
+    showDataModal('LOT Detail: '+lotNo,'<div style="padding:20px;text-align:center">⏳ 로딩 중...</div>');
     apiGet('/api/action/lot-detail/'+encodeURIComponent(lotNo)).then(function(res){
       var d=res.data||res||{};
       var html='<table class="data-table"><tbody>'+Object.entries(d).map(function(kv){
@@ -4322,7 +4323,7 @@
         return;
       }
       if (conf.u === 'export-dl-e4') {
-        var incSample = window.confirm('톤백리스트(Sub LOT): 샘플 톤백을 포함할까요?\n\n[확인] 포함 · [취소] 제외');
+        var incSample = window.sqmConfirm('톤백리스트(Sub LOT): 샘플 톤백을 포함할까요?\n\n[확인] 포함 · [취소] 제외');
         sqmDownloadFileUrl(
           window.API + '/api/action/export-engine-excel?option=4&include_sample=' + (incSample ? 'true' : 'false'),
           conf.lbl
@@ -4395,7 +4396,7 @@
       return;
     }
     if (action === 'tb-backup' || action === 'onOnBackup') {
-      var ok = window.confirm('💾 DB 백업을 생성합니다.\n\nOK를 누르면 백업 파일이 생성됩니다.');
+      var ok = window.sqmConfirm('💾 DB 백업을 생성합니다.\n\nOK를 누르면 백업 파일이 생성됩니다.');
       if (!ok) return;
     }
     apiCall(conf.m, conf.u, {})
@@ -4633,7 +4634,7 @@
     const btn = document.getElementById('adjustExecuteBtn');
     const items = JSON.parse(btn.dataset.items || '[]');
     if (!items.length) { showToast('조정 항목이 없습니다', 'warning'); return; }
-    if (!confirm(items.length+'건의 재고를 조정합니다. DB와 엑셀이 모두 수정됩니다. 계속하시겠습니까?')) return;
+    if (!sqmConfirm(items.length+'건의 재고를 조정합니다. DB와 엑셀이 모두 수정됩니다. 계속하시겠습니까?')) return;
     try {
       const res = await fetch('/api/inventory/adjust/execute', {
         method: 'POST',
