@@ -5,7 +5,7 @@
 // =============================================================================
 const { test, expect } = require('@playwright/test');
 
-const APP_URL = 'http://localhost:8000';
+const APP_URL = 'http://127.0.0.1:8765';
 
 const TABS = [
   { name: 'pending',    label: '입고대기' },
@@ -24,8 +24,8 @@ test.describe('SQM 라우터 회귀 — Preparing: 버그 차단', () => {
 
   for (const tab of TABS) {
     test(`탭 [${tab.label}] — "Preparing:" 없음`, async ({ page }) => {
-      // 사이드바 탭 클릭 (data-page 또는 data-tab 속성으로 찾음)
-      const selector = `[data-page="${tab.name}"], [data-tab="${tab.name}"], nav a[href="#${tab.name}"]`;
+      // 사이드바 탭 클릭 (data-route 속성)
+      const selector = `[data-route="${tab.name}"]`;
       const btn = page.locator(selector).first();
       await btn.click();
 
@@ -49,7 +49,7 @@ test.describe('SQM 라우터 회귀 — Preparing: 버그 차단', () => {
     });
 
     for (const tab of TABS) {
-      const selector = `[data-page="${tab.name}"], [data-tab="${tab.name}"], nav a[href="#${tab.name}"]`;
+      const selector = `[data-route="${tab.name}"]`;
       const btn = page.locator(selector).first();
       if (await btn.count() > 0) {
         await btn.click();
