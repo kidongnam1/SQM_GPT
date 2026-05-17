@@ -56,6 +56,34 @@ def _clean_value(v: Any) -> Any:
         return s if s else None
     return v
 
+
+def _rows_from_canonical_parser(excel_path: str) -> list[dict]:
+    """정본 AllocationParser 결과를 API 입력 행 구조로 변환."""
+    try:
+        from parsers.allocation_parser import AllocationParser
+    except Exception as exc:
+        logger.warning("[allocation-import] 정본 파서 import 실패: %s", exc)
+        return []
+
+    parsed = AllocationParser().parse(excel_path)
+    if not parsed or not parsed.rows:
+        return []
+
+    rows = []
+    for row in parsed.rows:
+        rows.append({
+            "lot_no": row.lot_no,
+            "sold_to": row.sold_to,
+            "customer": row.sold_to,
+            "sale_ref": row.sale_ref,
+            "qty_mt": row.qty_mt,
+            "outbound_date": row.outbound_date.isoformat() if row.outbound_date else None,
+            "sublot_count": row.sublot_count,
+            "is_sample": row.is_sample,
+            "export_type": row.export_type,
+        })
+    return rows
+
 # ── AI 폴백 컬럼 매핑 ────────────────────────────────────────────────
 def _ai_match_columns(df, context_rows: int = 3) -> dict:
     """
@@ -177,9 +205,16 @@ async def bulk_import_allocation(file: UploadFile = File(...)):
             except Exception as e:
                 logger.debug(f"[allocation-import] header={header_row} 실패: {e}")
                 continue
-        # Stage 2: Gemini AI 폴백 — alias 매핑 실패 시
+        canonical_rows = []
+        # Stage 2: 정본 AllocationParser 폴백 — Song/Jakarta/Woo 등 기존 강한 파서 우선
         if df is None or df.empty:
-            logger.info("[allocation-import] alias 매핑 실패 → Gemini AI 폴백 시도")
+            canonical_rows = _rows_from_canonical_parser(tmp_path)
+            if canonical_rows:
+                logger.info("[allocation-import] alias 매핑 실패 → 정본 AllocationParser 폴백 성공: %d행", len(canonical_rows))
+
+        # Stage 3: Gemini AI 폴백 — alias + 정본 파서 모두 실패 시
+        if (df is None or df.empty) and not canonical_rows:
+            logger.info("[allocation-import] alias/정본 파서 실패 → Gemini AI 폴백 시도")
             for header_row in (0, 1, 2, 3, 4, 5):
                 try:
                     candidate = pd.read_excel(tmp_path, header=header_row)
@@ -195,26 +230,36 @@ async def bulk_import_allocation(file: UploadFile = File(...)):
                 except Exception as _ae:
                     logger.debug(f"[allocation-import] AI폴백 header={header_row}: {_ae}")
 
-        if df is None or df.empty:
+        if (df is None or df.empty) and not canonical_rows:
             raise HTTPException(400,
                 "Excel 헤더 인식 실패 — lot_no + sold_to/qty_mt 컬럼 필요 "
-                "(AI 폴백도 실패. 컬럼명을 확인하거나 표준 양식을 사용하세요)")
+                "(정본 파서/AI 폴백도 실패. 컬럼명을 확인하거나 표준 양식을 사용하세요)")
 
-        col_map = col_map_override if col_map_override else _match_alloc_columns(df.columns)
-        _mapping_source = "AI폴백" if col_map_override else "alias"
-        logger.info(f"[allocation-import] header={header_used}, {len(df)}행, 매핑({_mapping_source}): {list(col_map.keys())}")
+        col_map = col_map_override if col_map_override else (_match_alloc_columns(df.columns) if df is not None else {})
+        _mapping_source = "정본파서" if canonical_rows else ("AI폴백" if col_map_override else "alias")
+        logger.info(
+            "[allocation-import] header=%s, %s행, 매핑(%s): %s",
+            header_used,
+            len(canonical_rows) if canonical_rows else len(df),
+            _mapping_source,
+            list(col_map.keys()) if col_map else ["canonical_parser"],
+        )
 
         # row dict 리스트 생성 + 검증 통계
         rows = []
         skip_no_lot   = 0   # lot_no 없어서 건너뛴 행
         warn_no_qty   = []  # qty_mt 0이하 또는 없음
         warn_no_sold  = []  # sold_to/customer 없음
-        total_df_rows = len(df)
-
-        for idx, row in df.iterrows():
-            r = {}
-            for std_key, orig_col in col_map.items():
-                r[std_key] = _clean_value(row[orig_col])
+        source_iter = canonical_rows if canonical_rows else df.iterrows()
+        total_df_rows = len(canonical_rows) if canonical_rows else len(df)
+        for item in source_iter:
+            if canonical_rows:
+                r = item
+            else:
+                _idx, row = item
+                r = {}
+                for std_key, orig_col in col_map.items():
+                    r[std_key] = _clean_value(row[orig_col])
             if not r.get("lot_no"):
                 skip_no_lot += 1
                 continue  # 빈 lot_no 행은 skip
@@ -285,7 +330,7 @@ async def bulk_import_allocation(file: UploadFile = File(...)):
                     "reserved": reserved,
                     "plan_ids": plan_ids[:50],
                     "header_row": header_used,
-                    "matched_columns": list(col_map.keys()),
+                    "matched_columns": list(col_map.keys()) if col_map else ["canonical_parser"],
                     "mapping_source": _mapping_source,
                     "errors": errors[:20],
                     "error_details": error_details[:20],
@@ -569,7 +614,7 @@ def reset_all_allocations():
 _REVERT_MAP = {
     "RESERVED": ("RESERVED",  "AVAILABLE"),
     "PICKED":   ("PICKED",    "RESERVED"),
-    "SOLD": ("PICKED"),
+    "SOLD":     ("SOLD",      "PICKED"),
 }
 
 @router.post("/revert-step", summary="↩️ 단계 되돌리기 (RESERVED→AVAILABLE 등)")
@@ -578,7 +623,7 @@ def revert_allocation_step(data: dict = Body(...)):
     from_status 에 따라 선택된 lot_no 목록(또는 전체)을 한 단계 되돌린다.
     - RESERVED  → AVAILABLE (allocation_plan CANCELLED + inventory AVAILABLE)
     - PICKED    → RESERVED  (allocation_plan RESERVED + inventory RESERVED)
-    - OUTBOUND  → PICKED    (allocation_plan PICKED   + inventory PICKED)
+    - SOLD      → PICKED    (allocation_plan PICKED   + inventory PICKED)
     """
     from_status = (data.get("from_status") or "").upper().strip()
     lot_nos = data.get("lot_nos") or []   # 빈 리스트 = 전체
@@ -618,6 +663,11 @@ def revert_allocation_step(data: dict = Body(...)):
                     "UPDATE inventory SET status='AVAILABLE', sold_to=NULL, sale_ref=NULL "
                     "WHERE lot_no=? AND status=?", (lot_no, src_status)
                 )
+                con.execute(
+                    "UPDATE inventory_tonbag SET status='AVAILABLE' "
+                    "WHERE lot_no=? AND status=?",
+                    (lot_no, src_status),
+                )
         else:
             cur = con.execute(
                 f"UPDATE allocation_plan SET status=?, updated_at=datetime('now') "
@@ -628,6 +678,10 @@ def revert_allocation_step(data: dict = Body(...)):
                 con.execute(
                     "UPDATE inventory SET status=? WHERE lot_no=? AND status=?",
                     (dst_status, lot_no, src_status)
+                )
+                con.execute(
+                    "UPDATE inventory_tonbag SET status=? WHERE lot_no=? AND status=?",
+                    (dst_status, lot_no, src_status),
                 )
         changed = cur.rowcount
         con.commit(); con.close()
@@ -1004,7 +1058,35 @@ async def template_upload(
 async def template_list():
     """resources/templates/allocation/ 의 .json 파일 목록 반환."""
     base = _alloc_template_dir()
-    templates = []
+    templates = [
+        {
+            "id": "builtin_song",
+            "tab_label": "📄 Song 계열",
+            "columns": ["LOT", "PRODUCT", "QTY(MT)", "CUSTOMER"],
+            "sheet": "자동선택",
+            "header_row": 0,
+            "builtin": True,
+            "description": "정본 AllocationParser 내장 지원",
+        },
+        {
+            "id": "builtin_jakarta",
+            "tab_label": "📄 Jakarta 계열",
+            "columns": ["LOT", "PRODUCT", "QTY(MT)", "CLEARED"],
+            "sheet": "자동선택",
+            "header_row": 0,
+            "builtin": True,
+            "description": "정본 AllocationParser 내장 지원",
+        },
+        {
+            "id": "builtin_woo",
+            "tab_label": "📄 Woo 계열",
+            "columns": ["LOT", "BALANCE", "EXPORT", "REMARK"],
+            "sheet": "자동선택",
+            "header_row": 0,
+            "builtin": True,
+            "description": "정본 AllocationParser 내장 지원",
+        },
+    ]
     for jf in sorted(base.glob("*.json")):
         try:
             data = _json.loads(jf.read_text(encoding='utf-8'))
@@ -1014,6 +1096,7 @@ async def template_list():
                 "columns":    data.get("columns", []),
                 "sheet":      data.get("sheet", ""),
                 "header_row": data.get("header_row", 1),
+                "builtin":     False,
             })
         except Exception:
             pass

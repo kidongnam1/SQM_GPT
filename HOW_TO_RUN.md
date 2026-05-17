@@ -57,3 +57,19 @@ installer\build.bat
 
 **작성:** Ruby, 2026-04-21
 **버전:** v8.6.4.3
+
+## Canonical launcher for V869 clean
+
+From this version onward, use **`run_v869_clean.bat`** as the single canonical launcher.
+
+Why this matters:
+- Older copied folders can still run their own `main_webview.py` and silently serve stale frontend assets.
+- If the browser shows an old script version, first verify that the running app was launched from this folder.
+
+Expected runtime root:
+- `D:\program\SQM_inventory\sqm_v869_clean`
+
+Expected verification points after launch:
+- `GET /api/q3/settings-info` should report a DB path under `sqm_v869_clean`.
+- The page should load `sqm-inline.js?v=20260517p26` and the split modal modules.
+

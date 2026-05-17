@@ -725,7 +725,7 @@
     var lot = (document.getElementById('oo-manual-lot') || {}).value || '';
     var act = (document.getElementById('oo-manual-actual') || {}).value || '';
     lot = String(lot).trim();
-    if (!lot || !act) { showToast('warn', 'LOT NO 와 실제(kg) 값 필요'); return; }
+    if (!lot || !act) { showToast('warning', 'LOT NO 와 실제(kg) 값 필요'); return; }
     _ooState.manualActuals[lot] = { actual_kg: parseFloat(act) };
     document.getElementById('oo-manual-lot').value = '';
     document.getElementById('oo-manual-actual').value = '';
@@ -1017,7 +1017,7 @@
   /* DRAFT → WAIT_SCAN 전환 */
   window.ooMoveToScan = function() {
     if (_ooState.selectedTonbags.size === 0) {
-      showToast('warn', '선택된 톤백이 없습니다');
+      showToast('warning', '선택된 톤백이 없습니다');
       return;
     }
     if (!sqmConfirm('📦 WAIT_SCAN 진입\n\n선택된 톤백 ' + _ooState.selectedTonbags.size + '개로 스캔 검증 단계로 이동합니다.\n계속하시겠습니까?')) return;
@@ -1120,7 +1120,7 @@
     var uid = (document.getElementById('oo-scan-uid') || {}).value || '';
     var act = (document.getElementById('oo-scan-actual') || {}).value || '';
     uid = String(uid).trim();
-    if (!uid || !act) { showToast('warn', '톤백 ID와 실제(kg) 필요'); return; }
+    if (!uid || !act) { showToast('warning', '톤백 ID와 실제(kg) 필요'); return; }
     var actNum = parseFloat(act);
     if (isNaN(actNum)) { showToast('error', 'actual_kg 가 숫자 아님'); return; }
     _ooState.manualScans.push({ tonbag_uid: uid, actual_kg: actNum });
@@ -1239,7 +1239,7 @@
       hint.textContent = '검증 완료: ' + summary;
     }
     if (hasStop) showToast('error', '🚫 하드스톱 발견 — 파일 확인 후 재검증');
-    else if (hasWarn) showToast('warn', '⚠️ 일부 편차 — 검토 후 진행');
+    else if (hasWarn) showToast('warning', '⚠️ 일부 편차 — 검토 후 진행');
     else showToast('success', '✅ 모든 톤백 통과 — FINALIZED 진입 가능');
   };
 

@@ -461,7 +461,10 @@
         { icon:'↩', label:'SOLD → PICKED 되돌리기', color:'#ef4444', fn:function(){
             if (!sqmConfirm('↩ ' + lot + '\nSOLD → PICKED로 되돌리시겠습니까?')) return;
             if (window.allocRevertStep) {
-              window.allocRevertStep('SOLD');
+              apiPost('/api/allocation/revert-step', { from_status: 'SOLD', lot_nos: [lot] }).then(function(){
+                showToast('success', lot + ' SOLD → PICKED 복구 완료');
+                renderPage('sold');
+              });
             } else {
               alert('되돌리기 함수를 찾을 수 없습니다');
             }
@@ -470,7 +473,10 @@
     } else {
       // _openContextMenu 미정의 시 fallback — confirm 직접 사용
       if (sqmConfirm('↩ ' + lot + '\nSOLD → PICKED로 되돌리시겠습니까?')) {
-        if (window.allocRevertStep) window.allocRevertStep('SOLD');
+        apiPost('/api/allocation/revert-step', { from_status: 'SOLD', lot_nos: [lot] }).then(function(){
+          showToast('success', lot + ' SOLD → PICKED 복구 완료');
+          renderPage('sold');
+        });
       }
     }
   };
@@ -634,7 +640,7 @@
       '<div class="card" style="padding:20px;margin-bottom:16px">',
       '<h3 style="margin-bottom:12px">Execute Move</h3>',
       '<div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center">',
-      '<input id="move-barcode" class="input" placeholder="Tonbag barcode" style="width:200px">',
+      '<input id="move-lot-no" class="input" placeholder="LOT No" style="width:200px">',
       '<input id="move-dest" class="input" placeholder="Destination (e.g. A-3-2)" style="width:200px">',
       '<button class="btn btn-primary" onclick="window.executeMove()">Execute Move</button>',
       '</div></div>',
@@ -672,11 +678,11 @@
   }
 
   window.executeMove = function() {
-    var barcode = (document.getElementById('move-barcode')||{}).value||'';
+    var lotNo = (document.getElementById('move-lot-no')||{}).value||'';
     var dest = (document.getElementById('move-dest')||{}).value||'';
-    if (!barcode||!dest) { showToast('warning','Enter barcode and destination'); return; }
-    apiPost('/api/action/inventory-move',{barcode:barcode,destination:dest})
-      .then(function(){ showToast('success',barcode+' moved to '+dest); renderPage('move'); })
+    if (!lotNo||!dest) { showToast('warning','Enter LOT No and destination'); return; }
+    apiPost('/api/action2/inventory-move',{lot_no:lotNo,destination:dest})
+      .then(function(){ showToast('success',lotNo+' moved to '+dest); renderPage('move'); })
       .catch(function(e){
         if (e.status===501) showToast('info','Move (coming soon)');
         else showToast('error','Move failed: '+(e.message||String(e)));

@@ -193,6 +193,23 @@ def return_create(payload: dict):
             con.close()
             return err_response(f"LOT '{lot_no}' 없음")
 
+        # 실제 재고 상태 반영 — 이력만 쌓이고 Return 탭에 보이지 않는 상태를 방지
+        con.execute(
+            "UPDATE inventory SET status='RETURN', updated_at=? WHERE lot_no=?",
+            (ts, lot_no),
+        )
+        if tonbag_uid:
+            con.execute(
+                "UPDATE inventory_tonbag SET status='RETURN', updated_at=? "
+                "WHERE lot_no=? AND (tonbag_uid=? OR CAST(sub_lt AS TEXT)=?)",
+                (ts, lot_no, tonbag_uid, tonbag_uid),
+            )
+        else:
+            con.execute(
+                "UPDATE inventory_tonbag SET status='RETURN', updated_at=? WHERE lot_no=?",
+                (ts, lot_no),
+            )
+
         # return_history INSERT
         con.execute("""
             INSERT INTO return_history

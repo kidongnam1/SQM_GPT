@@ -38,4 +38,9 @@ tests/*.html
 .bkit/audit/ 
 .bkit/runtime/ 
 .bkit/snapshots/ 
-.bkit/state/ 
+.bkit/state/
+test-results/
+npx
+REPORTS/playwright_ui_smoke.json
+REPORTS/phase5_verify_*.json
+REPORTS/phase5_verify_*.md

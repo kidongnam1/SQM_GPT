@@ -1170,7 +1170,7 @@
         showToast('success', '파싱 완료: ' + rows.length + ' LOT (미리보기)');
         /* 파싱만 한 경우(dry_run): 재고/대시보드는 DB 업로드 전까지 변하지 않음 */
         if (d.dry_run !== false) {
-          showToast('warn',
+          showToast('warning',
             '⚠️ 아직 데이터베이스에 저장되지 않았습니다. 재고·대시보드에 반영하려면 미리보기 창 하단 「📤 DB 업로드」를 눌러 주세요.');
         }
       } else {
@@ -1394,7 +1394,7 @@
   /* [Sprint 1-2-C] 편집된 미리보기 rows → /onestop-save POST → DB 저장 */
   window.onestopSaveDb = function() {
     if (!_onestopState.parsed || !_onestopState.previewRows.length) {
-      showToast('warn', '파싱된 데이터가 없습니다. ▶ 파싱 시작을 먼저 실행하세요');
+      showToast('warning', '파싱된 데이터가 없습니다. ▶ 파싱 시작을 먼저 실행하세요');
       return;
     }
     var seenLots = {};

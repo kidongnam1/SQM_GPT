@@ -32,7 +32,7 @@
   // v868 fix (2026-05-16): Picked 탭 Excel 내보내기 헬퍼
   window.exportPickedExcel = function() {
     var tbl = document.getElementById('picked-table');
-    if (!tbl) { if (window.showToast) showToast('warn', '내보낼 테이블이 없습니다'); return; }
+    if (!tbl) { if (window.showToast) showToast('warning', '내보낼 테이블이 없습니다'); return; }
     var ts = new Date().toISOString().slice(0,10);
     if (window.exportTableToExcel) {
       window.exportTableToExcel(tbl, 'picked_' + ts + '.xlsx');
@@ -117,7 +117,7 @@
       + '<th>Title Transfer</th>'
       + '<th style="width:32px;text-align:center">⋯</th>'
       + '</tr></thead><tbody>';
-    rows.forEach(function(r) {
+    rows.forEach(function(r, _i) {
       var lot = escapeHtml(r.lot_no || '');
       var availBags = Number(r.tb_available || 0) || 0;
       var reservedBags = Number(r.tb_reserved || 0) || 0;

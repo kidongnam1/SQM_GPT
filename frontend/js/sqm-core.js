@@ -164,7 +164,7 @@ window.SQM_STATUS_MAP = window.SQM_STATUS_MAP || {
     console.log('[SQM Tooltip] custom dark tooltip ready');
   })();
 
-  var API = 'http://127.0.0.1:8765';
+  var API = window.SQM_API_BASE || (window.location && window.location.origin) || 'http://127.0.0.1:8765';
 
   /**
    * Excel/FileResponse 다운로드.
@@ -602,7 +602,7 @@ window.SQM_STATUS_MAP = window.SQM_STATUS_MAP || {
         else if (r === 'picked' && window.allocRevertStep) { window.allocRevertStep('PICKED'); }
         else if ((r === 'outbound' || r === 'sold') && window.allocRevertStep) { window.allocRevertStep('SOLD'); }
         else if (r === 'return') { showToast('info', 'Return 탭 전체 취소: 준비 중'); }
-        else { showToast('warn', '이 탭은 Ctrl+Delete 지원 없음'); }
+        else { showToast('warning', '이 탭은 Ctrl+Delete 지원 없음'); }
       })(); break;
     }
   });

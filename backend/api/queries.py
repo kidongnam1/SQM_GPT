@@ -418,6 +418,7 @@ def get_picked_list(limit: int = 500):
                 MIN(p.picking_date)            AS picking_date,
                 i.product,
                 i.mxbg_pallet,
+                i.inbound_date,
                 (SELECT COUNT(*) FROM inventory_tonbag t
                  WHERE t.lot_no = p.lot_no AND COALESCE(t.is_sample, 0) = 0) AS total_bags,
                 (SELECT COUNT(*) FROM inventory_tonbag t
@@ -445,7 +446,7 @@ def get_picked_list(limit: int = 500):
             "total": len(rows),
             "columns": ["lot_no", "customer", "picking_no",
                         "tonbag_count", "total_kg", "picking_date",
-                        "product", "mxbg_pallet", "total_bags", "tb_available",
+                        "product", "mxbg_pallet", "inbound_date", "total_bags", "tb_available",
                         "tb_reserved", "tb_picked", "avail_mt", "reserved_mt", "picked_mt"]
         })
     except Exception as e:

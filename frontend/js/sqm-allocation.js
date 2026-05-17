@@ -341,7 +341,7 @@
     if (!sqmConfirm('🔖 SALE REF 취소\n\n"' + saleRef + '" 에 해당하는 모든 배정을 취소하고 AVAILABLE로 원복합니다.\n계속하시겠습니까?')) return;
     apiPost('/api/allocation/cancel-by-sale-ref', { sale_ref: saleRef })
       .then(function(res){
-        if (res.ok === false) { showToast('warn', res.message || '취소 대상 없음'); }
+        if (res.ok === false) { showToast('warning', res.message || '취소 대상 없음'); }
         else { showToast('success', '🔖 ' + (res.message || 'SALE REF 취소 완료')); loadAllocationPage(); }
       })
       .catch(function(e){ showToast('error', 'SALE REF 취소 실패: ' + (e.message||e)); });
@@ -352,7 +352,7 @@
     showToast('info', '📦 LOT 현황 로딩...');
     apiGet('/api/allocation/lot-overview').then(function(res){
       var rows = (res.data || []);
-      if (!rows.length) { showToast('warn', 'LOT 현황 데이터 없음'); return; }
+      if (!rows.length) { showToast('warning', 'LOT 현황 데이터 없음'); return; }
       var lines = rows.map(function(r, i){
         return (i+1) + '. ' + r.lot_no +
           ' | 순중량: ' + (r.net_mt||0).toFixed(3) + 'MT' +
@@ -388,84 +388,12 @@
     if (!sqmConfirm('↩️ 단계 되돌리기\n\n' + label + '\n\n' + fromStatus + ' 상태의 모든 배정을 한 단계 되돌립니다.\n계속하시겠습니까?')) return;
     apiPost('/api/allocation/revert-step', { from_status: fromStatus })
       .then(function(res){
-        if (res.ok === false) { showToast('warn', res.message || '되돌릴 대상 없음'); }
+        if (res.ok === false) { showToast('warning', res.message || '되돌릴 대상 없음'); }
         else { showToast('success', '↩️ ' + (res.message || label + ' 완료')); loadAllocationPage(); }
       })
       .catch(function(e){ showToast('error', '되돌리기 실패: ' + (e.message||e)); });
   };
 
-
-  /* ── 전체 초기화 ── */
-  window.allocResetAll = function() {
-    if (!sqmConfirm('⚠️ 전체 초기화\n\n모든 RESERVED/PICKED/OUTBOUND 배정을 취소하고 AVAILABLE로 원복합니다.\n(SOLD는 보호됩니다)\n\n계속하시겠습니까?')) return;
-    apiPost('/api/allocation/reset-all', {})
-      .then(function(res){
-        showToast('success', '⚠️ ' + (res.message || '전체 초기화 완료'));
-        loadAllocationPage();
-      })
-      .catch(function(e){ showToast('error', '전체 초기화 실패: ' + (e.message||e)); });
-  };
-
-  /* ── SALE REF 일괄 취소 ── */
-  window.allocCancelBySaleRef = function() {
-    var saleRef = prompt('SALE REF 번호를 입력하세요 (예: SC-2026-001)');
-    if (!saleRef || !saleRef.trim()) return;
-    saleRef = saleRef.trim();
-    if (!sqmConfirm('🔖 SALE REF 취소\n\n"' + saleRef + '" 에 해당하는 모든 배정을 취소하고 AVAILABLE로 원복합니다.\n계속하시겠습니까?')) return;
-    apiPost('/api/allocation/cancel-by-sale-ref', { sale_ref: saleRef })
-      .then(function(res){
-        if (res.ok === false) { showToast('warn', res.message || '취소 대상 없음'); }
-        else { showToast('success', '🔖 ' + (res.message || 'SALE REF 취소 완료')); loadAllocationPage(); }
-      })
-      .catch(function(e){ showToast('error', 'SALE REF 취소 실패: ' + (e.message||e)); });
-  };
-
-  /* ── LOT 현황 팝업 ── */
-  window.allocOpenLotOverview = function() {
-    showToast('info', '📦 LOT 현황 로딩...');
-    apiGet('/api/allocation/lot-overview').then(function(res){
-      var rows = (res.data || []);
-      if (!rows.length) { showToast('warn', 'LOT 현황 데이터 없음'); return; }
-      var lines = rows.map(function(r, i){
-        return (i+1) + '. ' + r.lot_no +
-          ' | 순중량: ' + (r.net_mt||0).toFixed(3) + 'MT' +
-          ' | 현재: ' + (r.balance_mt||0).toFixed(3) + 'MT' +
-          ' | 배정: ' + (r.alloc_mt||0).toFixed(3) + 'MT' +
-          ' | 잔여: ' + (r.remain_mt||0).toFixed(3) + 'MT' +
-          (r.sample_bags ? ' | 샘플:' + r.sample_bags + '개' : '');
-      });
-      alert('📦 LOT 배정 현황 (' + rows.length + '건)\n\n' + lines.join('\n'));
-    }).catch(function(e){ showToast('error', 'LOT 현황 실패: ' + (e.message||e)); });
-  };
-
-  /* ── Excel 내보내기 (exports/ 폴더 저장 + 자동 열기) ── */
-  window.allocExportExcel = function() {
-    showToast('info', '📊 Allocation Excel 생성 중...');
-    apiGet('/api/allocation/export-excel')
-      .then(function(res) {
-        if (res && res.ok !== false) {
-          var rows = (res.data && res.data.rows) || 0;
-          var fname = (res.data && res.data.filename) || 'ALLOCATION.xlsx';
-          showToast('success', '📊 Excel 저장 완료 — ' + fname + ' (' + rows + '행) exports/ 폴더 확인');
-        } else {
-          showToast('error', 'Excel 생성 실패: ' + (res.message || '알 수 없는 오류'));
-        }
-      })
-      .catch(function(e) { showToast('error', 'Excel 오류: ' + (e.message || e)); });
-  };
-
-  /* ── 단계 되돌리기 ── */
-  window.allocRevertStep = function(fromStatus) {
-    var labels = { RESERVED: 'RESERVED → AVAILABLE', PICKED: 'PICKED → RESERVED', SOLD: 'SOLD → PICKED' };
-    var label = labels[fromStatus] || fromStatus;
-    if (!sqmConfirm('↩️ 단계 되돌리기\n\n' + label + '\n\n' + fromStatus + ' 상태의 모든 배정을 한 단계 되돌립니다.\n계속하시겠습니까?')) return;
-    apiPost('/api/allocation/revert-step', { from_status: fromStatus })
-      .then(function(res){
-        if (res.ok === false) { showToast('warn', res.message || '되돌릴 대상 없음'); }
-        else { showToast('success', '↩️ ' + (res.message || label + ' 완료')); loadAllocationPage(); }
-      })
-      .catch(function(e){ showToast('error', '되돌리기 실패: ' + (e.message||e)); });
-  };
 
   window.allocResetSelected = function() {
     _allocBulkAction({
@@ -480,7 +408,7 @@
   /* 공통 다중 선택 액션 헬퍼 */
   function _allocBulkAction(opts) {
     var selected = Array.from(_allocState.selectedLots);
-    if (!selected.length) { showToast('warn', opts.label + ': 대상을 먼저 선택하세요'); return; }
+    if (!selected.length) { showToast('warning', opts.label + ': 대상을 먼저 선택하세요'); return; }
     var preview = selected.slice(0, 5).join(', ') + (selected.length > 5 ? ' …외 ' + (selected.length - 5) + '건' : '');
     if (!sqmConfirm(opts.icon + ' ' + opts.label + '\n\n' + selected.length + opts.confirmMsg + '\n\n' + preview)) return;
 
@@ -496,7 +424,7 @@
         showToast('success', opts.icon + ' ' + opts.label + ': ' + okCount + '건 성공');
       } else {
         var errSample = errors.slice(0, 3).map(function(e){ return e.lot + ' (' + e.reason + ')'; }).join(', ');
-        showToast('warn', opts.label + ': 성공 ' + okCount + ' / 실패 ' + errCount + ' (' + errSample + ')');
+        showToast('warning', opts.label + ': 성공 ' + okCount + ' / 실패 ' + errCount + ' (' + errSample + ')');
       }
       _allocState.selectedLots.clear();
       loadAllocationPage();
@@ -769,13 +697,17 @@
           }
           var rows = res.templates.map(function(t){
             var cols = (t.columns || []).length;
+            var safeId = String(t.id || '').replace(/'/g, "\\'");
+            var deleteBtn = t.builtin
+              ? '<span style="color:var(--text-muted);font-size:.78rem">내장 지원</span>'
+              : '<button type="button" onclick="window._atplDelete(\'' + safeId + '\')" ' +
+                'style="background:none;border:1px solid var(--danger);color:var(--danger);border-radius:4px;padding:2px 8px;font-size:.78rem;cursor:pointer">🗑️ 삭제</button>';
             return '<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 12px;border-bottom:1px solid var(--border)">' +
               '<div style="font-size:.87rem">' +
                 '<span style="font-weight:600">' + escapeHtml(t.tab_label) + '</span>' +
                 '<span style="color:var(--text-muted);margin-left:8px;font-size:.8rem">[' + cols + '컬럼]</span>' +
               '</div>' +
-              '<button type="button" onclick="window._atplDelete(\'' + t.id.replace(/\'/g, "\\\'" ) + '\')" ' +
-                'style="background:none;border:1px solid var(--danger);color:var(--danger);border-radius:4px;padding:2px 8px;font-size:.78rem;cursor:pointer">🗑️ 삭제</button>' +
+              deleteBtn +
             '</div>';
           });
           listDiv.innerHTML = rows.join('');
