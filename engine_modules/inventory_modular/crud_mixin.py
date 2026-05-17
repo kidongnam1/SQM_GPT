@@ -120,7 +120,8 @@ class CRUDMixin:
                       container_no: str = None, product: str = None,
                       product_code: str = None, mxbg_pallet: int = 20,
                       net_weight: float = 10000, warehouse: str = 'GY',
-                      arrival_date=None, stock_date=None, **kwargs) -> Dict:
+                      arrival_date=None, stock_date=None,
+                      status: str = 'AVAILABLE', **kwargs) -> Dict:
         """
         Add single LOT inventory (v3.8.7: 18열 전체 지원)
         
@@ -213,19 +214,26 @@ class CRUDMixin:
 
                 # Insert inventory (v3.8.7: 18열 전체, v5.8.8: con_return 추가)
                 con_return = kwargs.get('con_return', '')
+                # v868 PENDING 워크플로우: status 파라미터로 받음 (PDF 입고=PENDING, Excel/기타=AVAILABLE 기본)
+                _safe_status = status if status in ('AVAILABLE', 'PENDING') else 'AVAILABLE'
+                # v868 fix (2026-05-15): tonbag_count 컬럼 INSERT 누락 버그 수정
+                # 정합성 검사가 i.tonbag_count vs COUNT(inventory_tonbag) 비교하는데
+                # tonbag_count를 채우지 않아 항상 0 → 모든 LOT에서 mismatch FAIL 발생
+                # mxbg_pallet개 일반 톤백 + 1개 샘플 톤백 = mxbg_pallet + 1
+                _tonbag_count_total = mxbg_pallet + 1
                 self.db.execute("""
                     INSERT INTO inventory (
                         lot_no, sap_no, bl_no, container_no, product, product_code,
-                        lot_sqm, folio, vessel, mxbg_pallet, net_weight, gross_weight,
+                        lot_sqm, folio, vessel, mxbg_pallet, tonbag_count, net_weight, gross_weight,
                         current_weight, initial_weight, picked_weight,
                         salar_invoice_no, ship_date, arrival_date, con_return, free_time,
                         warehouse, stock_date, packing_type, status, created_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, 'AVAILABLE', ?)
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (lot_no, sap_no, bl_no, container_no, product, product_code,
-                      lot_sqm, folio, vessel, mxbg_pallet, net_weight, gross_weight,
+                      lot_sqm, folio, vessel, mxbg_pallet, _tonbag_count_total, net_weight, gross_weight,
                       _current_weight_init, net_weight,  # v8.7.1: current_weight = net - sample
                       salar_invoice_no, ship_date, arrival_date, con_return, free_time,
-                      warehouse, stock_date, packing_type, now))
+                      warehouse, stock_date, packing_type, _safe_status, now))
 
                 # P3: DB 독립적 ID 조회 (SQLite: lastrowid, PG: RETURNING)
                 if hasattr(self.db, 'insert_returning_id'):
@@ -241,20 +249,25 @@ class CRUDMixin:
                     (inv_id, lot_no, sub, weight_per_bag, now)
                     for sub in range(1, mxbg_pallet + 1)
                 ]
+                # v868: 톤백도 inventory와 동일 status (PENDING/AVAILABLE)
+                _tonbag_rows_with_status = [
+                    (inv_id, lot_no, sub, weight_per_bag, _safe_status, now)
+                    for sub in range(1, mxbg_pallet + 1)
+                ]
                 self.db.executemany("""
                     INSERT INTO inventory_tonbag (
                         inventory_id, lot_no, sub_lt, weight, status,
                         is_sample, created_at
-                    ) VALUES (?, ?, ?, ?, 'AVAILABLE', 0, ?)
-                """, _tonbag_rows)
+                    ) VALUES (?, ?, ?, ?, ?, 0, ?)
+                """, _tonbag_rows_with_status)
 
                 # v3.9.1: 샘플 톤백 자동 생성 (sub_lt=0, SAMPLE_WEIGHT_KG, is_sample=1)
                 self.db.execute("""
                     INSERT INTO inventory_tonbag (
                         inventory_id, lot_no, sub_lt, weight, status,
                         is_sample, created_at
-                    ) VALUES (?, ?, 0, ?, 'AVAILABLE', 1, ?)
-                """, (inv_id, lot_no, SAMPLE_WEIGHT_KG, now))
+                    ) VALUES (?, ?, 0, ?, ?, 1, ?)
+                """, (inv_id, lot_no, SAMPLE_WEIGHT_KG, _safe_status, now))
 
                 logger.info(f"[add_inventory] 샘플 톤백 생성: {lot_no}/0 ({SAMPLE_WEIGHT_KG}kg)")
 
@@ -288,12 +301,13 @@ class CRUDMixin:
         """v5.7.3: Excel 입고용 — dict를 받아 add_inventory(**data) 호출, 반환에 tonbags 키 추가 (GUI 호환)"""
         if not isinstance(data, dict):
             return {'success': False, 'lot_no': '', 'tonbags_created': 0, 'tonbags': 0, 'message': 'data must be dict'}
-        # add_inventory가 받지 않는 키 제거 (location, remark, status는 INSERT에 없음)
+        # v868 PENDING 워크플로우: status 화이트리스트에 추가 (PDF 입고는 PENDING 전달 필요)
+        # add_inventory가 받지 않는 키 제거 (location, remark는 INSERT에 없음)
         allowed = {
             'lot_no', 'sap_no', 'bl_no', 'container_no', 'product', 'product_code',
             'mxbg_pallet', 'net_weight', 'gross_weight', 'warehouse', 'arrival_date', 'stock_date',
             'lot_sqm', 'folio', 'vessel', 'salar_invoice_no', 'ship_date', 'con_return', 'free_time', 'initial_weight', 'current_weight',
-            'packing_type',
+            'packing_type', 'status',
         }
         kwargs = {k: v for k, v in data.items() if k in allowed}
         result = self.add_inventory(**kwargs)

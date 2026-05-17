@@ -1311,6 +1311,9 @@ def pdf_inbound(req: PdfInboundRequest):
                         if not lot_data.get("lot_no"):
                             save_errors.append({"index": idx, "reason": "lot_no 없음"})
                             continue
+                        # v868 PENDING 워크플로우 (053fa7a): PDF 스캔 입고는 포트 입항 단계 → PENDING
+                        # 사용자가 Pending 탭에서 입고 확정해야 AVAILABLE로 전환 (POST /api/inbound/confirm/{lot})
+                        lot_data["status"] = "PENDING"
                         try:
                             result = engine.add_inventory_from_dict(lot_data)
                             if result.get("success"):
