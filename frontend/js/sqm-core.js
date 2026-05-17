@@ -717,20 +717,12 @@
         parent.classList.add('sqm-table-scroll');
       }
       var host = document.createElement('div');
-      host.className = 'sqm-table-export-bar';
-      host.innerHTML =
-        '<button type="button" class="btn btn-ghost btn-xs sqm-table-export-btn" data-sqm-tip="현재 표를 Excel 파일로 내보냅니다">Excel 내보내기</button>';
-      var btn = host.querySelector('button');
-      btn.addEventListener('click', function(ev) {
-        ev.preventDefault();
-        ev.stopPropagation();
-        exportTableToExcel(table);
-      });
-      if (parent && parent.classList.contains('sqm-table-scroll')) {
-        parent.parentNode.insertBefore(host, parent);
-      } else {
-        table.parentNode.insertBefore(host, table);
-      }
+      // v868 fix (2026-05-16 v6): 자동 Excel 내보내기 버튼 비활성화
+      // 각 페이지(Pending/Available/Picked/Allocation)가 헤더에 자체 Excel 버튼을
+      // 명시적으로 추가하므로 자동 추가 시 중복 발생 → 자동 추가 로직 비활성화.
+      // host.className = 'sqm-table-export-bar';
+      // (자동 추가 비활성화 — 위 if 블록 진입 시 아무 작업 안 함)
+      return; // 추가 안 함
     });
   }
 

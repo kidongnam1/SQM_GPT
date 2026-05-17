@@ -629,12 +629,7 @@
         .catch(function(err){ showToast('error', '취소 실패: ' + (err.message || err)); });
     }, false);
 
-    mi('🧹 이 행 초기화 (삭제)', function(){
-      if (!confirm('🧹 ' + lot + '\nallocation 기록 삭제 + inventory AVAILABLE 원복\n(SOLD 는 보호됨)\n계속하시겠습니까?')) return;
-      apiPost('/api/allocation/' + encodeURIComponent(lot) + '/reset', {})
-        .then(function(res){ showToast('success', (res.data && res.data.message) || (lot + ' 초기화됨')); loadAllocationPage(); })
-        .catch(function(err){ showToast('error', '초기화 실패: ' + (err.message || err)); });
-    }, true);
+    // v868 fix (2026-05-16 v3): LOT 초기화 메뉴 제거 — 사용자 미사용 (백엔드 API는 보존)
 
     document.body.appendChild(m);
     /* 다음 클릭 또는 ESC 로 자동 닫기 */
