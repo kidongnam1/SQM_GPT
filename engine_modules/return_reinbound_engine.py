@@ -271,7 +271,7 @@ class ReturnReinboundEngine:
         # (1) 샘플 tonbag 존재 확인 — weight/weight_kg 양쪽 컬럼 허용
         try:
             _sample_row = self.conn.execute(
-                "SELECT id, COALESCE(weight, weight_kg, 0) as w, "
+                "SELECT id, COALESCE(weight, 0) as w, "
                 "status, tonbag_uid FROM inventory_tonbag "
                 "WHERE lot_no = ? AND COALESCE(is_sample,0) = 1 LIMIT 1",
                 (lot_no,)

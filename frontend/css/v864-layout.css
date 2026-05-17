@@ -371,6 +371,30 @@ html[data-table-preset="large"] {
 }
 .onestop-actions .hint { color: var(--text-muted); font-size: 11px; margin-left: auto; }
 
+/* OneStop 액션바: 메인 CTA(▶ 파싱 시작) — 크기·대비·구분선 */
+.onestop-actions #onestop-parse-btn.btn.btn-primary {
+  margin-left: 10px;
+  padding: 10px 20px;
+  min-width: 140px;
+  font-size: 13px;
+  font-weight: 700;
+  border-radius: var(--radius-md, 8px);
+  border: 1px solid var(--border-strong);
+  background: var(--accent);
+  color: var(--text-inverse);
+  box-shadow: 0 2px 14px var(--accent-glow);
+}
+.onestop-actions #onestop-parse-btn.btn.btn-primary:hover:not(:disabled) {
+  background: #7dd4fa;
+  box-shadow: 0 0 18px var(--accent-glow);
+  border-color: var(--accent);
+}
+.onestop-actions #onestop-parse-btn.btn.btn-primary:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
 /* 진행 상태 */
 .onestop-progress {
   padding: 12px 14px; background: var(--panel); border: 1px solid var(--panel-border);
@@ -1244,13 +1268,16 @@ html[data-table-preset="large"] {
 .toolbar-mini {
   display: flex; gap: 6px; margin-bottom: 10px;
 }
-.btn {
+/* design-system.css 의 .btn-primary / .btn-danger 등이 나중에 v864 의 범용 .btn 에 덮이지 않도록 분리 */
+.btn:not(.btn-primary):not(.btn-danger):not(.btn-ghost) {
   padding: 6px 12px; border-radius: 4px; border: 1px solid var(--panel-border);
   background: var(--panel); color: var(--fg); cursor: pointer;
   font-size: 12px;
 }
 .btn-secondary { background: var(--panel); }
-.btn:hover { background: var(--btn-hover); }
+.btn:not(.btn-primary):not(.btn-danger):not(.btn-ghost):hover {
+  background: var(--btn-hover);
+}
 .select {
   padding: 5px 8px; border-radius: 4px;
   border: 1px solid var(--panel-border);
@@ -1734,7 +1761,7 @@ select option {
   box-shadow: 0 8px 40px rgba(0,0,0,.45);
 }
 
-/* 드래그 바 (상단 그립) */
+/* 드래그 바 (상단 그립) — 왼쪽: 화면 제목, 오른쪽: 이동·크기 힌트 */
 #sqm-modal-header {
   flex-shrink: 0;
   cursor: move;
@@ -1742,13 +1769,31 @@ select option {
   background: var(--bg-hover, rgba(0,0,0,.06));
   border-radius: 8px 8px 0 0;
   border-bottom: 1px solid var(--panel-border);
-  padding: 5px 48px 5px 12px;
+  padding: 6px 48px 6px 12px;
   font-size: 11px;
   color: var(--text-muted);
   display: flex;
   align-items: center;
-  gap: 6px;
-  min-height: 28px;
+  gap: 8px;
+  min-height: 30px;
+}
+#sqm-modal-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-primary, var(--fg));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#sqm-modal-drag-hint {
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--text-muted);
+  opacity: 0.85;
+  white-space: nowrap;
 }
 
 /* 스크롤 가능한 콘텐츠 영역 */

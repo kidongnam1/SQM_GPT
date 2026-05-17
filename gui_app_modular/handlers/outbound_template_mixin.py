@@ -237,7 +237,7 @@ class OutboundTemplateMixin:
                 prd = str(lot.get('product') or 'LITHIUM CARBONATE')
                 gw  = float(lot.get('gross_weight') or 0)
                 gw_mt = round(gw/1000, 3) if gw > 0 else 5.13
-                wh  = str(lot.get('warehouse') or '광양')
+                wh  = str(lot.get('warehouse') or 'GY')
                 eta = str(lot.get('arrival_date') or lot.get('inbound_date') or '')
                 fl  = EF if idx % 2 == 0 else OF
 

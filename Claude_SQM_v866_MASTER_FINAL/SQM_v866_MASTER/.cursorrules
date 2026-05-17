@@ -4,7 +4,7 @@
 ## 프로젝트 정체성
 SQM Inventory v866 — PyWebView + FastAPI + Vanilla JS
 진입점: main_webview.py → FastAPI port 8765 → frontend/index.html
-담당자: 남기동 / 광양 GY Logis 물류창고
+담당자: 남기동 / GY Logis warehouse (GY)
 
 ## 폴더 구조 (실제)
 frontend/         ← HTML/CSS/JS (Vanilla, 프레임워크 없음)

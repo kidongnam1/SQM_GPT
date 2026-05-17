@@ -434,9 +434,9 @@ Open settings.ini now?
             self._log(f"❌ AI 채팅 모듈 로드 실패: {e}")
             CustomMessageBox.showerror(self.root, "오류",
                 f"AI 채팅 모듈을 불러올 수 없습니다.\n\n{e}")
-        except (RuntimeError, ValueError, TypeError, OSError) as e:
+        except Exception as e:
             self._log(f"❌ AI 채팅 창 오류: {e}")
-            CustomMessageBox.showerror(self.root, "오류", f"AI 채팅 창 오류:\n{e}")
+            CustomMessageBox.showerror(self.root, "오류", f"AI 채팅 창 오류:\n{type(e).__name__}: {e}")
 
     def _on_container_suffix_toggle(self) -> None:
         """Toggle container suffix display (-1, -2, etc)"""

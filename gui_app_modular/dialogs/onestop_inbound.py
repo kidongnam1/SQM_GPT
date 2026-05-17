@@ -2887,7 +2887,7 @@ class OneStopInboundDialog(InboundUploadMixin, InboundDialogBase):
             row['bl_no'] = str(getattr(do, 'bl_no', ''))
         
         # arrival_date (업로드3/4: D/O 파싱값으로 채움, YYYY-MM-DD)
-        # v5.8.8: 날짜가 아닌 값(예: '광양')이면 넣지 않음 — ARRIVAL 컬럼 혼동 방지
+        # v5.8.8: 날짜가 아닌 값(예: 'GY')이면 넣지 않음 — ARRIVAL 컬럼 혼동 방지
         arr = getattr(do, 'arrival_date', None)
         if arr and str(arr) != 'None':
             _s = str(arr).strip()[:10]

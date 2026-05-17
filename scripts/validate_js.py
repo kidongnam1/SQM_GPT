@@ -6,12 +6,14 @@ import subprocess
 import os
 
 TARGET_FILES = [
+    "frontend/js/sqm-core.js",
     "frontend/js/sqm-inline.js",
     "frontend/js/sqm-allocation.js",
     "frontend/js/sqm-tonbag.js",
     "frontend/js/sqm-logistics.js",
     "frontend/js/sqm-inventory.js",
     "frontend/js/sqm-picked.js",
+    "frontend/js/sqm-onestop-inbound.js",
 ]
 
 print("=" * 60)
@@ -32,22 +34,22 @@ for path in TARGET_FILES:
             text=True
         )
         if result.returncode == 0:
-            print(f"  ✓ OK: {path}")
+            print(f"  [OK] {path}")
         else:
-            print(f"  ✗ ERROR: {path}")
+            print(f"  [ERR] {path}")
             if result.stderr:
                 print(f"    {result.stderr.strip()}")
             all_ok = False
     except subprocess.TimeoutExpired:
-        print(f"  ✗ TIMEOUT: {path}")
+        print(f"  [TIMEOUT] {path}")
         all_ok = False
     except Exception as e:
-        print(f"  ✗ EXCEPTION: {path} — {e}")
+        print(f"  [EXCEPTION] {path} -- {e}")
         all_ok = False
 
 print("=" * 60)
 if all_ok:
-    print("✓ All files passed syntax check")
+    print("[OK] All files passed syntax check")
 else:
-    print("✗ Some files have syntax errors")
+    print("[ERR] Some files have syntax errors")
 print("=" * 60)

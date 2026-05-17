@@ -126,7 +126,7 @@ def _build_html(
     {detail_block}
     <hr style="border:none;border-top:1px solid #eee;margin:16px 0">
     <p style="font-size:11px;color:#999">
-      광양 창고 SQM 재고관리 시스템 자동 발송 메일입니다.<br>
+      GY warehouse SQM inventory auto mail.<br>
       발신 전용 메일입니다. 회신하지 마세요.
     </p>
   </div>
@@ -248,7 +248,7 @@ def notify_daily_summary(
         items += [f"   · {e}" for e in errors[:5]]
 
     body = _build_html(
-        title  = f"{date_str} 광양 창고 처리 현황",
+        title  = f"{date_str} GY warehouse status",
         level  = LEVEL_INFO,
         items  = items,
     )

@@ -282,14 +282,97 @@
     if (m) m.style.display = 'none';
   };
 
+  // v868 fix (2026-05-16): Outbound 그룹화 모드 (LOT / 고객사 / 출고일)
+  window._outboundViewMode = window._outboundViewMode || 'lot';
+
+  function _outboundModeBtn(val, label, cur) {
+    var act = val === cur
+      ? 'background:var(--accent,#3b82f6);color:#fff;border-color:var(--accent,#3b82f6);'
+      : 'background:var(--surface,#1e293b);color:var(--text-muted);border-color:var(--border,#334155);';
+    return '<button class="btn" style="font-size:12px;padding:4px 10px;' + act + '" '
+      + 'onclick="window._outboundViewMode=\'' + val + '\';window.loadOutboundPage()">' + label + '</button>';
+  }
+
+  function _renderOutboundLotTableOnly(rows, baseIdx) {
+    // 그룹 내부 — 헤더 포함된 컴팩트 테이블 (LOT/판매주문/고객사/톤백/중량/출고일)
+    var html = '<table class="data-table" style="margin:0;font-size:12px"><thead><tr>'
+      + '<th>#</th><th>LOT No</th><th style="width:32px">⋯</th><th>판매주문No</th><th>고객사</th>'
+      + '<th>톤백수</th><th>중량(kg)</th><th>출고일</th>'
+      + '</tr></thead><tbody>';
+    rows.forEach(function(r, i) {
+      var lot = escapeHtml(r.lot_no || '');
+      html += '<tr class="outbound-summary-row" data-lot="' + lot + '" style="cursor:pointer" '
+        + 'onclick="window.toggleOutboundDetail(\'' + lot + '\')">'
+        + '<td class="mono-cell" style="color:var(--text-muted)">' + ((baseIdx||0) + i + 1) + '</td>'
+        + '<td class="mono-cell" style="color:var(--accent);font-weight:600">' + lot + '</td>'
+        + '<td style="text-align:center;padding:3px 4px;width:32px">'
+        + '<button class="btn btn-ghost btn-xs" data-lot="' + lot + '" '
+        + 'onclick="event.stopPropagation();window.showOutboundActionMenu(this)" '
+        + 'style="font-size:15px;padding:0 4px;letter-spacing:1px" title="추가기능">⋯</button></td>'
+        + '<td class="mono-cell">' + escapeHtml(r.sales_order_no || '-') + '</td>'
+        + '<td>' + escapeHtml(r.customer || '-') + '</td>'
+        + '<td class="mono-cell" style="text-align:right">' + (r.tonbag_count || 0) + '</td>'
+        + '<td class="mono-cell" style="text-align:right">' + (r.total_kg != null ? fmtN(r.total_kg) : '-') + '</td>'
+        + '<td class="mono-cell">' + escapeHtml(r.sold_date || '-') + '</td>'
+        + '</tr>';
+    });
+    return html + '</tbody></table>';
+  }
+
+  function _renderOutboundGroup(rows, keyFn, labelPrefix, prefixId) {
+    var groups = {};
+    rows.forEach(function(r) {
+      var k = keyFn(r) || '(미지정)';
+      if (!groups[k]) groups[k] = [];
+      groups[k].push(r);
+    });
+    var keys = Object.keys(groups).sort(function(a, b) {
+      if (a.indexOf('미지정') >= 0) return 1;
+      if (b.indexOf('미지정') >= 0) return -1;
+      // 출고일은 최신 우선
+      if (prefixId === 'od') return b.localeCompare(a);
+      return a.localeCompare(b);
+    });
+    var html = '';
+    keys.forEach(function(k, idx) {
+      var lots = groups[k];
+      var sumTonbag = 0, sumKg = 0;
+      lots.forEach(function(r) {
+        if (r.tonbag_count != null) sumTonbag += Number(r.tonbag_count) || 0;
+        if (r.total_kg != null) sumKg += Number(r.total_kg) || 0;
+      });
+      var groupId = 'ogrp-' + prefixId + '-' + idx;
+      html += '<div style="margin-bottom:12px;border:1px solid var(--border,#334155);border-radius:8px;overflow:hidden">'
+        + '<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--surface,#1e293b);cursor:pointer;flex-wrap:wrap" '
+        + 'onclick="(function(){var t=document.getElementById(\'' + groupId + '\');if(t)t.style.display=t.style.display===\'none\'?\'block\':\'none\';})()">'
+        + '<strong style="color:#4caf50;font-family:monospace">' + escapeHtml(labelPrefix + k) + '</strong>'
+        + '<span style="font-size:12px;color:var(--text-muted)">' + lots.length + ' LOT</span>'
+        + '<span style="font-size:12px;color:var(--text-muted)">톤백 ' + sumTonbag + '개</span>'
+        + '<span style="font-size:12px;color:var(--text-muted)">중량 ' + fmtN(sumKg) + ' kg</span>'
+        + '</div>'
+        + '<div id="' + groupId + '" style="display:block">'
+        + _renderOutboundLotTableOnly(lots, 0)
+        + '</div>'
+        + '</div>';
+    });
+    return html;
+  }
+
   function loadOutboundPage() {
     var route = window.getCurrentRoute();
     var c = document.getElementById('page-container');
     if (!c) return;
+    // v868 fix (2026-05-16): 그룹화 모드 — 헤더 토글 버튼이 참조
+    var _outMode = window._outboundViewMode || 'lot';
     c.innerHTML = [
       '<section class="page" data-page="outbound">',
       '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 0 12px">',
       '  <h2 style="margin:0">📤 출고 완료 (Sold / Outbound)</h2>',
+      '  <div style="display:flex;gap:4px;margin-left:12px">' + 
+         _outboundModeBtn('lot', 'LOT별', _outMode) + 
+         _outboundModeBtn('customer', '고객사별', _outMode) + 
+         _outboundModeBtn('date', '출고일별', _outMode) + 
+      '  </div>',
       '  <div style="margin-left:auto;display:flex;gap:8px;align-items:center">',
       '    <button class="btn btn-primary" onclick="window.showOutboundPickingModal()" style="font-weight:600">📋 Picking List 업로드</button>',
       '    <button class="btn" onclick="window.allocRevertStep(\'SOLD\')" style="font-size:12px" title="SOLD 상태를 PICKED로 되돌립니다">↩ SOLD &rarr; PICKED</button>',
@@ -299,7 +382,7 @@
       '<div id="outbound-loading" style="padding:40px;text-align:center;color:var(--text-muted)">⏳ 데이터 로딩 중...</div>',
       '<div style="overflow-x:auto">',
       '  <table class="data-table" id="outbound-table" style="display:none">',
-      '  <thead><tr><th></th><th>#</th><th>LOT No</th><th>판매주문No</th><th>고객사</th><th>톤백수</th><th>중량(kg)</th><th>출고일</th></tr></thead>',
+      '  <thead><tr><th></th><th>#</th><th>LOT No</th><th style="width:32px">⋯</th><th>판매주문No</th><th>고객사</th><th>톤백수</th><th>중량(kg)</th><th>출고일</th></tr></thead>',
       '  <tbody id="outbound-tbody"></tbody>',
       '  </table>',
       '</div>',
@@ -319,6 +402,27 @@
         document.getElementById('outbound-empty').style.display = 'block';
         return;
       }
+      // v868 fix (2026-05-16): 그룹 모드 분기 — 고객사별/출고일별
+      if (_outMode === 'customer' || _outMode === 'date') {
+        var tbl = document.getElementById('outbound-table');
+        if (tbl) tbl.style.display = 'none';
+        var groupHtml;
+        if (_outMode === 'customer') {
+          groupHtml = _renderOutboundGroup(rows, function(r){ return r.customer || ''; }, '고객사: ', 'oc');
+        } else {
+          groupHtml = _renderOutboundGroup(rows, function(r){ return (r.sold_date || '').slice(0,10); }, '출고일: ', 'od');
+        }
+        var sec = c.querySelector('section[data-page="outbound"]');
+        var holder = document.createElement('div');
+        holder.id = 'outbound-group-wrap';
+        holder.style.padding = '4px 0 16px';
+        holder.innerHTML = groupHtml;
+        var existing = document.getElementById('outbound-group-wrap');
+        if (existing) existing.remove();
+        if (sec) sec.appendChild(holder); else c.appendChild(holder);
+        dbgLog('📤','outbound-page','mode=' + _outMode + ' groups rendered','#4caf50');
+        return;
+      }
       var tbody = document.getElementById('outbound-tbody');
       if (tbody) tbody.innerHTML = rows.map(function(r, i){
         var lot = escapeHtml(r.lot_no||'');
@@ -326,6 +430,8 @@
           '<td style="width:24px;text-align:center"><span class="outbound-expand-icon">▶</span></td>' +
           '<td class="mono-cell" style="color:var(--text-muted)">'+(i+1)+'</td>' +
           '<td class="mono-cell" style="color:var(--accent);font-weight:600">'+lot+'</td>' +
+          // v868 fix (2026-05-16): 우클릭 메뉴 버튼 추가
+          '<td style="text-align:center;padding:3px 4px;width:32px"><button class="btn btn-ghost btn-xs" data-lot="'+lot+'" onclick="event.stopPropagation();window.showOutboundActionMenu(this)" style="font-size:15px;padding:0 4px;letter-spacing:1px" title="추가기능">⋯</button></td>' +
           '<td class="mono-cell">'+escapeHtml(r.sales_order_no||'-')+'</td>' +
           '<td>'+escapeHtml(r.customer||'-')+'</td>' +
           '<td class="mono-cell" style="text-align:right">'+(r.tonbag_count||0)+'</td>' +
@@ -343,6 +449,31 @@
       showToast('error', '출고 현황 로드 실패');
     });
   }
+
+  // v868 fix (2026-05-16): Outbound 우클릭 메뉴 신규 — 취소 기능 (SOLD → PICKED)
+  window.showOutboundActionMenu = function(btn) {
+    var lot = btn.dataset.lot || '';
+    if (window._openContextMenu) {
+      window._openContextMenu(btn, [
+        { icon:'📋', label:'LOT 상세 보기', fn:function(){ if(window.showLotDetail) window.showLotDetail(lot); } },
+        { icon:'📄', label:'LOT 번호 복사', fn:function(){ navigator.clipboard && navigator.clipboard.writeText(lot); showToast('info','LOT 복사: '+lot); } },
+        '-',
+        { icon:'↩', label:'SOLD → PICKED 되돌리기', color:'#ef4444', fn:function(){
+            if (!confirm('↩ ' + lot + '\nSOLD → PICKED로 되돌리시겠습니까?')) return;
+            if (window.allocRevertStep) {
+              window.allocRevertStep('SOLD');
+            } else {
+              alert('되돌리기 함수를 찾을 수 없습니다');
+            }
+        } },
+      ]);
+    } else {
+      // _openContextMenu 미정의 시 fallback — confirm 직접 사용
+      if (confirm('↩ ' + lot + '\nSOLD → PICKED로 되돌리시겠습니까?')) {
+        if (window.allocRevertStep) window.allocRevertStep('SOLD');
+      }
+    }
+  };
 
   var _outboundExpandedLot = null;
   window.toggleOutboundDetail = function(lotNo) {

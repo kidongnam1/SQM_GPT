@@ -31,7 +31,7 @@ Date: 2026-05-06  Auditor: 4차 scenario auditor  Scope: P1+P2+P3 patched build
 - Recommendation: Add a client-side toast/banner in the bridge: when `fetch(/api/log/frontend-error)` rejects, show a fixed-position red banner "백엔드 연결 끊김 — 앱을 재시작하세요." This is a JS-only patch.
 
 ### 5. Multi-monitor / DPI mismatch
-- Likelihood: MEDIUM (광양창고 likely has mixed monitors).
+- Likelihood: MEDIUM (GY창고 likely has mixed monitors).
 - Impact: LOW. `load_window_state` clamps to 1024-3840 / 700-2160 (line 106-107) but doesn't validate position vs. current monitor layout. Window may open off-screen if previous monitor disconnected.
 - Current handling: Size-clamped; position not stored — PyWebView centers default.
 - Recommendation: Cosmetic. None required.
@@ -43,7 +43,7 @@ Date: 2026-05-06  Auditor: 4차 scenario auditor  Scope: P1+P2+P3 patched build
 - Recommendation: None. (Note: add `python_requires=">=3.9"` in build manifest for safety.)
 
 ### 7. Ollama not installed
-- Likelihood: HIGH (광양 PCs likely lack Ollama).
+- Likelihood: HIGH (GY PCs likely lack Ollama).
 - Impact: LOW. `find_ollama_cli()` returns "" → `start_ollama_server()` returns False at line 80 in <100ms. `start_ollama_server_async` calls `on_done(False)` from worker thread. UI handler responsibility — verified module is correct, but caller-side handling NOT audited here. The docstring (lines 121-125) clearly warns about thread marshalling.
 - Current handling: Module-level: GOOD. Caller-level: must verify each UI consumer.
 - Recommendation: Grep for `start_ollama_server_async` callsites and confirm each `on_done` shows a "AI 사용 불가" toast on `False`.

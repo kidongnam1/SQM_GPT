@@ -482,7 +482,7 @@ class ScanTabMixin:
                     try:
                         plo = self.db.fetchone(
                             "SELECT sales_order FROM picking_list_order "
-                            "WHERE lot_no=? ORDER BY id DESC LIMIT 1", (lot_no,)
+                            "WHERE picking_no=? ORDER BY id DESC LIMIT 1", (picking_no,)
                         )
                         if plo:
                             _sales_order_no = str(plo.get('sales_order', '') if isinstance(plo, dict)

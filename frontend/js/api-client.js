@@ -1,5 +1,8 @@
-// SQM v8.6.6
+// SQM v8.6.8
 // FastAPI 호출 표준 래퍼. 재시도 3회, 지수백오프.
+// 쓰기 성공 → 딩동댕, 실패 → beep
+import { playSuccess, playError } from './sound.js';
+
 const API_BASE = 'http://127.0.0.1:8765';
 const DEFAULT_TIMEOUT_MS = 5000;
 
@@ -29,6 +32,7 @@ export async function apiCall(method, path, body = null, { timeout = DEFAULT_TIM
   if (body !== null && ['POST', 'PUT', 'DELETE'].includes(opts.method)) {
     opts.body = JSON.stringify(body);
   }
+  const isWrite = ['POST', 'PUT', 'DELETE'].includes(opts.method);
   let lastErr = null;
   for (let i = 0; i < retries; i++) {
     try {
@@ -38,16 +42,18 @@ export async function apiCall(method, path, body = null, { timeout = DEFAULT_TIM
         try { detail = await res.json(); } catch {}
         throw new ApiError(`HTTP ${res.status}`, res.status, detail);
       }
-      try { return await res.json(); }
-      catch { return {}; }
+      const data = await (async () => { try { return await res.json(); } catch { return {}; } })();
+      if (isWrite) playSuccess();
+      return data;
     } catch (e) {
       lastErr = e;
       // 501 "준비 중" 은 재시도 무의미
-      if (e.status === 501 || e.status === 404) throw e;
+      if (e.status === 501 || e.status === 404) { if (isWrite) playError(); throw e; }
       // 지수백오프 500ms / 1s / 2s
       if (i < retries - 1) await new Promise(r => setTimeout(r, 500 * (2 ** i)));
     }
   }
+  if (isWrite) playError();
   throw lastErr || new ApiError('unknown', 0);
 }
 

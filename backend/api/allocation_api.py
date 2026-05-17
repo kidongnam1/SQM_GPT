@@ -392,7 +392,7 @@ def approve_allocation(data: dict = Body(...)):
         updated = 0
         for plan_id in ids:
             cur = con.execute(
-                "UPDATE allocation_plan SET approval_status='APPROVED', updated_at=datetime('now') WHERE id=?",
+                "UPDATE allocation_plan SET status='APPROVED', approved_at=datetime('now') WHERE id=?",
                 (plan_id,)
             )
             updated += cur.rowcount
@@ -692,6 +692,8 @@ def export_allocation_excel():
 
     for row in rows:
         ws.append(list(row))
+        for cell in ws[ws.max_row]:
+            cell.alignment = center
 
     for col in ws.columns:
         max_len = max((len(str(cell.value or "")) for cell in col), default=8)

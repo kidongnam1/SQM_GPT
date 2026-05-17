@@ -263,7 +263,7 @@ _MSC_DO_SUBTEMPLATES: List[Dict[str, Any]] = [
                 ],
                 "type": "number",
             },
-            # 창고 코드 (광양항서부컨테이너터미널 등)
+            # 창고 코드 (GY West Container Terminal 등)
             "warehouse_name": {
                 "label_aliases": ["창고", "CY", "반납지", "Return Yard"],
                 "type": "text",

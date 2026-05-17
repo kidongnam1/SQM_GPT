@@ -1,7 +1,7 @@
 # AUDIT 6차 — Pre-Deployment Final Audit
 
 - **Date**: 2026-05-06
-- **Target**: 광양창고 SQM Inventory v8.6.6 (post-async-patch)
+- **Target**: GY창고 SQM Inventory v8.6.6 (post-async-patch)
 - **Auditor**: 6차 Pre-Deploy Auditor (parallel with 4차/5차)
 - **Reviewer**: 남기동 (CEO, Practical Tech)
 
@@ -88,7 +88,7 @@ Original work order: 6 risks. Recommend appending two entries surfaced during
 ## Final Go / No-Go Recommendation
 
 **GO.** Push to `origin/main` and create signed tag `post-async-patch-20260506`.
-Run the 8-item MANUAL_SMOKE_CHECKLIST against the 광양창고 production box
+Run the 8-item MANUAL_SMOKE_CHECKLIST against the GY창고 production box
 immediately after deploy; if splash >1초 or console.error count ≠ log count,
 roll back via the previous tag.
 

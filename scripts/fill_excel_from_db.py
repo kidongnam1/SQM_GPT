@@ -65,7 +65,7 @@ def derive_terminal(bl_pod: str, warehouse_name: str) -> str:
         return "GWCT"
     if "KIT" in (warehouse_name or "").upper():
         return "KIT"
-    return "GWCT"  # 광양항 기본값
+    return "GWCT"  # GY port default
 
 
 def derive_product_code(product_code: str) -> str:

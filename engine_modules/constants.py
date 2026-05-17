@@ -61,7 +61,7 @@ MOVEMENT_RETURN_DOC_REVIEW = 'RETURN_DOC_REVIEW'  # 반품 후 문서 연계 점
 # ═══════════════════════════════════════════════════════
 # 2. 창고
 # ═══════════════════════════════════════════════════════
-DEFAULT_WAREHOUSE = '광양'
+DEFAULT_WAREHOUSE = 'GY'
 WAREHOUSE_CODE = 'GY'
 
 # ═══════════════════════════════════════════════════════
@@ -167,19 +167,19 @@ ALLOC_WF_APPLIED       = 'APPLIED'           # 최종 적용 완료
 # 단순 참조용: allocation_plan에서 절대 사용 금지 (tonbag 전용 상태)
 # AVAILABLE, PICKED, SOLD, SHIPPED → inventory_tonbag.status 전용
 
-# ─── 광양 거래 선사 목록 (v6.7.3) ──────────────────────────────────────
-# 황산니켈·탄산리튬 주요 수입 선사 (칠레/중국 → 광양항)
+# ─── GY 창고 거래 선사 목록 (v6.7.3) ──────────────────────────────────────
+# 황산니켈·탄산리튬 주요 수입 선사 (칠레/중국 → GY 항구)
 CARRIER_OPTIONS = [
     'UNKNOWN',
-    # ─ 글로벌 대형 선사 (광양 직기항) ─
-    'MSC',          # Mediterranean Shipping Company — 광양 정기 기항
-    'MAERSK',       # A.P. Moller-Maersk — 광양 정기 기항
+    # ─ 글로벌 대형 선사 (GY 직기항) ─
+    'MSC',          # Mediterranean Shipping Company — GY 정기 기항
+    'MAERSK',       # A.P. Moller-Maersk — GY 정기 기항
     'CMA_CGM',      # CMA CGM — 칠레·중국 직항 다수
     'COSCO',        # COSCO Shipping — 중국산 황산니켈 주력
     'EVERGREEN',    # 에버그린 — 중국·동남아
     'ONE',          # Ocean Network Express (K-Line+MOL+NYK)
-    # ─ 한국 선사 (광양 근거리) ─
-    'HMM',          # HMM(현대상선) — 부산·광양 연결
+    # ─ 한국 선사 (GY 근거리) ─
+    'HMM',          # HMM(현대상선) — 부산·GY 연결
     'SINOKOR',      # 시노코르(장금상선) — 한중 노선
     'KMTC',         # KMTC(고려해운) — 한중일 노선
     'HEUNG_A',      # 흥아해운 — 한중 근거리
@@ -188,7 +188,7 @@ CARRIER_OPTIONS = [
     'OTHER',
 ]
 
-# ─── 광양 거래 고객사 preset (v6.7.3) ───────────────────────────────────
+# ─── GY 창고 거래 고객사 preset (v6.7.3) ───────────────────────────────────
 # 주요 배터리 제조사 (중국·한국)
 CUSTOMER_PRESETS = [
     # ─ 중국 배터리 제조사 ─

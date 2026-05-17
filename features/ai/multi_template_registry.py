@@ -28,6 +28,8 @@ from features.ai.carrier_templates.hmm_cmacgm import (
     get_hmm_template_family,
     get_cma_cgm_template_family,
 )
+from features.ai.carrier_templates.hapag import get_hapag_template_family
+from features.ai.carrier_templates.one import get_one_template_family
 from features.ai.carrier_templates.generic import get_generic_template_family
 
 logger = logging.getLogger(__name__)
@@ -40,6 +42,8 @@ _TEMPLATE_FAMILIES: List[Dict[str, Any]] = [
     get_msc_template_family(),     # Template 2: MSC
     get_hmm_template_family(),     # Template 3: HMM
     get_cma_cgm_template_family(), # Template 4: CMA CGM
+    get_hapag_template_family(),   # Template 5: HAPAG (Hapag-Lloyd)
+    get_one_template_family(),     # Template 6: ONE
     get_generic_template_family(), # Template 999: Generic fallback
 ]
 

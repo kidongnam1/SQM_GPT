@@ -3,7 +3,7 @@
 **문서 ID:** SQM-REPORT-20260508-001
 **작성:** 2026-05-09 10:16
 **작성자:** Ruby (Senior Software Architect Mode) + 남기동 대표 (PMO)
-**프로젝트:** SQM Inventory v8.6.7 (광양창고)
+**프로젝트:** SQM Inventory v8.6.7 (GY창고)
 **작업 시간:** 2026-05-08 (금) 약 90분 (저녁 18:00~19:50)
 
 ---

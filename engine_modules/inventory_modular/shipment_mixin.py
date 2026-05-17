@@ -30,9 +30,9 @@ class ShipmentMixin:
             List of shipment records
         """
         query = """
-            SELECT 
+            SELECT
                 id, sap_no, bl_no, folio, product,
-                total_qty_mt, total_lots, ship_date, arrival_date,
+                total_net_weight, total_gross_weight, ship_date, arrival_date,
                 status, created_at
             FROM shipment
             ORDER BY created_at DESC

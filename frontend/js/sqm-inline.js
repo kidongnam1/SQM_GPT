@@ -805,6 +805,10 @@
     switch (route) {
       case 'dashboard':  loadDashboard();     break;
       case 'inventory':  loadInventoryPage();  break;
+      // v868 053fa7a — PENDING 입고 대기 워크플로우 (sqm-inventory.js 노출)
+      case 'pending':    if (window.loadPendingPage)   { window.loadPendingPage();   } else { loadStubPage(route); } break;
+      // v868 v9.5 — AVAILABLE 재고 필터 뷰 (sqm-inventory.js 노출)
+      case 'available':  if (window.loadAvailablePage) { window.loadAvailablePage(); } else { loadStubPage(route); } break;
       case 'allocation': loadAllocationPage(); break;
       case 'picked':     loadPickedPage();     break;
       case 'inbound':    loadInboundPage();    break;
@@ -824,6 +828,10 @@
   }
 
   window.renderPage = renderPage;
+  // v868 fix (2026-05-16): sqm-core.js와 sqm-inline.js가 각자 _currentRoute를 가져 상태 불일치 발생
+  // sqm-inventory.js의 loadPendingPage/loadAvailablePage가 window.getCurrentRoute()로 sqm-core의 stale 값을
+  // 받아 빈 화면이 표시되는 버그 → sqm-inline.js의 _currentRoute(가장 최신)를 반환하도록 덮어씀
+  window.getCurrentRoute = function() { return _currentRoute; };
 
   /* ===================================================
      6. DASHBOARD
@@ -1427,6 +1435,93 @@
   /* [Sprint 1-1-D] 편집 가능 필드 (백엔드 _ALLOC_EDITABLE_FIELDS 와 일치 필요) */
   var ALLOC_EDITABLE_FIELDS = new Set(['customer', 'sale_ref', 'qty_mt', 'outbound_date']);
 
+  /* v868 fix (2026-05-16): Allocation 그룹화 모드 (LOT/컨테이너/입고일) — Pending 패턴 차용 */
+  window._allocViewMode = window._allocViewMode || 'lot';
+  function _allocModeBtn(val, label) {
+    var cur = window._allocViewMode || 'lot';
+    var act = (val === cur)
+      ? 'background:var(--accent,#3b82f6);color:#fff;border-color:var(--accent,#3b82f6);'
+      : 'background:var(--surface,#1e293b);color:var(--text-muted);border-color:var(--border,#334155);';
+    return '<button class="btn" style="font-size:12px;padding:4px 10px;' + act + '" '
+      + 'onclick="window._allocViewMode=\\\'' + val + '\\\';window.renderPage(\\\'allocation\\\')">' + label + '</button>';
+  }
+  function _allocKeyContainer(r) { return r.container_no || r.container || '(컨테이너 미지정)'; }
+  function _allocKeyDate(r) {
+    var d = r.inbound_date || r.arrival_date || r.stock_date || '';
+    d = (d || '').toString().slice(0, 10);
+    return d || '(입고일 미지정)';
+  }
+  function _renderAllocGroupRows(rows, keyFn, labelPrefix, prefix) {
+    var groups = {};
+    rows.forEach(function(r) {
+      var k = keyFn(r) || '(미지정)';
+      if (!groups[k]) groups[k] = [];
+      groups[k].push(r);
+    });
+    var keys = Object.keys(groups).sort(function(a, b) {
+      if (a.indexOf('미지정') >= 0) return 1;
+      if (b.indexOf('미지정') >= 0) return -1;
+      return a.localeCompare(b);
+    });
+    var html = '';
+    keys.forEach(function(k, idx) {
+      var lots = groups[k];
+      var sumMt = 0;
+      lots.forEach(function(r) {
+        var q = (r.total_mt != null) ? Number(r.total_mt) : (r.qty_mt != null ? Number(r.qty_mt) : 0);
+        if (!isNaN(q)) sumMt += q;
+      });
+      var groupId = (prefix || 'ag') + '-' + idx;
+      html += '<div style="margin-bottom:12px;border:1px solid var(--border,#334155);border-radius:8px;overflow:hidden">'
+        + '<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--surface,#1e293b);cursor:pointer" '
+        + 'onclick="window._toggleAllocGroup(\\\'' + groupId + '\\\')">'
+        + '<strong style="color:var(--accent);font-family:monospace">' + escapeHtml(labelPrefix + k) + '</strong>'
+        + '<span style="font-size:12px;color:var(--text-muted)">' + lots.length + ' LOT · ' + sumMt.toFixed(4) + ' MT</span>'
+        + '</div>'
+        + '<div id="' + groupId + '" style="display:block">'
+        + _renderAllocLotTableOnly(lots)
+        + '</div>'
+        + '</div>';
+    });
+    return html;
+  }
+  function _renderAllocLotTableOnly(rows) {
+    var html = '<table class="data-table" style="margin:0;font-size:12px"><thead><tr>'
+      + '<th style="width:32px"></th>'
+      + '<th>LOT NO</th><th>SAP NO</th><th>PRODUCT</th>'
+      + '<th style="text-align:right">QTY (MT)</th>'
+      + '<th>CUSTOMER</th><th>SALE REF</th><th>OUTBOUND DATE</th><th>WH</th><th>STATUS</th>'
+      + '</tr></thead><tbody>';
+    rows.forEach(function(r) {
+      var lot = escapeHtml(r.lot_no || '');
+      var qtyMt = (r.total_mt != null) ? Number(r.total_mt) : (r.qty_mt != null ? Number(r.qty_mt) : 0);
+      var status = (r.status || 'RESERVED').toUpperCase();
+      var statusColor = status === 'SOLD' ? '#66bb6a' : status === 'PICKED' ? '#42a5f5' : 'var(--warning)';
+      var statusFg = status === 'RESERVED' ? '#000' : '#fff';
+      var checked = _allocState.selectedLots.has(lot) ? 'checked' : '';
+      html += '<tr class="alloc-summary-row" data-lot="' + lot + '" data-status="' + status + '" '
+        + 'oncontextmenu="window.allocContextMenu(event, \\\'' + lot + '\\\'); return false;">'
+        + '<td style="text-align:center"><input type="checkbox" ' + checked + ' onclick="event.stopPropagation();window.allocToggleRow(\\\'' + lot + '\\\',this.checked)"></td>'
+        + '<td class="mono-cell" style="color:var(--accent);font-weight:600;cursor:pointer" onclick="window.toggleAllocDetail(\\\'' + lot + '\\\')">'
+        + '<span class="alloc-expand-icon">▶</span> ' + lot + '</td>'
+        + '<td class="mono-cell">' + escapeHtml(r.sap_no || '-') + '</td>'
+        + '<td>' + escapeHtml(r.product || '-') + '</td>'
+        + '<td class="mono-cell" style="text-align:right">' + (qtyMt ? qtyMt.toFixed(4) : '-') + '</td>'
+        + '<td>' + escapeHtml(r.customer || r.sold_to || '-') + '</td>'
+        + '<td class="mono-cell">' + escapeHtml(r.sale_ref || '-') + '</td>'
+        + '<td class="mono-cell">' + escapeHtml(r.outbound_date || r.ship_date || '-') + '</td>'
+        + '<td>' + escapeHtml(r.warehouse || r.wh || '-') + '</td>'
+        + '<td><span class="tag" style="background:' + statusColor + ';color:' + statusFg + '">' + status + '</span></td>'
+        + '</tr>';
+    });
+    return html + '</tbody></table>';
+  }
+  window._toggleAllocGroup = function(id) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    el.style.display = (el.style.display === 'none') ? 'block' : 'none';
+  };
+
   function loadAllocationPage() {
     var route = _currentRoute;
     var c = document.getElementById('page-container');
@@ -1434,44 +1529,26 @@
     _allocState.selectedLots.clear();
     c.innerHTML = [
       '<section class="page" data-page="allocation">',
-      /* ── 헤더 ── */
-      '<div class="alloc-header" style="display:flex;align-items:center;gap:12px;padding:8px 0 8px">',
-      '  <h2 style="margin:0">📋 판매 배정 (Allocation)</h2>',
-      '  <span id="alloc-summary-label" style="color:var(--text-muted);font-size:.9rem"></span>',
-      '  <button class="btn btn-secondary" onclick="renderPage(\'allocation\')" style="margin-left:auto">🔁 새로고침</button>',
+      /* v868 fix (2026-05-16 v5): Pending/Available 패턴으로 완전 통일 — 1줄 헤더 */
+      /* ── 1줄 헤더 (제목 · 건수 · 액션 4개) ── */
+      '<div class="alloc-header" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 0 12px">',
+      '  <h2 style="margin:0;font-size:16px">📋 판매 배정 (Allocation)</h2>',
+      '  <span id="alloc-summary-label" style="color:var(--text-muted);font-size:12px"></span>',
+      /* v868 fix (2026-05-16): Allocation 그룹화 모드 토글 (LOT/컨테이너/입고일) */
+      '  <div style="display:flex;gap:4px;margin-left:8px">',
+      '    ' + _allocModeBtn('lot', 'LOT별'),
+      '    ' + _allocModeBtn('container', '컨테이너별'),
+      '    ' + _allocModeBtn('date', '입고일별'),
+      '  </div>',
+      '  <div style="margin-left:auto;display:flex;gap:6px;align-items:center;flex-wrap:wrap">',
+      '    <button class="btn btn-ghost" style="font-size:12px" onclick="renderPage(\'allocation\')" title="새로고침">🔄</button>',
+      '    <button class="btn btn-primary" style="font-size:12px;padding:4px 10px" onclick="window.allocUploadExcel()" title="배정 Excel 업로드">📂 Excel 업로드</button>',
+      '    <button class="btn btn-secondary" style="font-size:12px;padding:4px 10px" onclick="window.allocExportExcel()" title="현재 배정 데이터 Excel 다운로드">📊 Excel 내보내기</button>',
+      '    <button class="btn" style="font-size:12px;padding:4px 10px" onclick="window.allocOpenLotOverview()" title="LOT별 배정 현황 팝업">📦 LOT 현황</button>',
+      '    <button class="btn btn-danger" style="font-size:12px;padding:4px 10px" onclick="window.allocCancelSelected()" title="체크된 LOT 배정 일괄 취소">❌ 선택 배정 취소</button>',
+      '  </div>',
       '</div>',
-      /* ── 액션 툴바 (v864-2 AllocationDialog primary_buttons 매핑) ── */
-      '<div class="alloc-toolbar" style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:8px 10px;background:var(--panel);border:1px solid var(--panel-border);border-radius:6px;margin-bottom:8px">',
-      '  <button class="btn btn-primary" onclick="window.allocUploadExcel()">📂 Excel 업로드</button>',
-      '  <button class="btn" onclick="window.allocApplyApproved()">📌 승인분 반영</button>',
-      '  <button class="btn" onclick="window.allocShowApprovalQueue()">✅ 승인 대기</button>',
-      '  <span style="width:1px;height:22px;background:var(--panel-border);margin:0 4px"></span>',
-      '  <button class="btn btn-danger" onclick="window.allocCancelSelected()">❌ 선택 배정 취소</button>',
-      '  <span style="width:1px;height:22px;background:var(--panel-border);margin:0 4px"></span>',
-      /* 백엔드 엔드포인트 미구현 — Sprint 1-1-E에서 연결 */
-      '  <button class="btn" onclick="window.allocPickSelected()" title="RESERVED → PICKED">📦 출고 실행 (PICKED)</button>',
-      '  <button class="btn" onclick="window.allocConfirmSelected()" title="PICKED → SOLD">🔒 출고 확정 (SOLD)</button>',
-      '  <button class="btn" onclick="window.allocResetSelected()" title="LOT 배정 완전 삭제">🧹 LOT 초기화</button>',
-      '  <span style="width:1px;height:22px;background:var(--panel-border);margin:0 4px"></span>',
-      '  <button class="btn btn-danger" onclick="window.allocResetAll()" title="모든 배정 취소 + AVAILABLE 원복">⚠️ 전체 초기화</button>',
-      '  <button class="btn" onclick="window.allocCancelBySaleRef()" title="SALE REF 입력 후 해당 배정 전체 취소">🔖 SALE REF 취소</button>',
-      '  <button class="btn" onclick="window.allocOpenLotOverview()" title="LOT별 배정 현황 팝업">📦 LOT 현황</button>',
-      '  <button class="btn btn-secondary" onclick="window.allocExportExcel()" title="현재 배정 데이터 Excel 다운로드">📊 Excel 내보내기</button>',
-      '</div>',
-      /* ── 단계 되돌리기 버튼 행 ── */
-      '<div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:6px 8px;background:var(--panel);border:1px solid var(--panel-border);border-radius:6px;margin-bottom:8px">',
-      '  <span style="font-size:12px;font-weight:600;white-space:nowrap">&#x21A9; 단계 되돌리기:</span>',
-      '  <button class="btn" onclick="window.allocRevertStep(\'RESERVED\')" style="font-size:12px">RESERVED &rarr; AVAILABLE</button>',
-      '  <button class="btn" onclick="window.allocRevertStep(\'PICKED\')" style="font-size:12px">PICKED &rarr; RESERVED</button>',
-      '  <button class="btn" onclick="window.allocRevertStep(\'SOLD\')" style="font-size:12px">SOLD &rarr; PICKED</button>',
-      '</div>',
-      /* ── 상태 필터 ── */
-      '<div class="alloc-filter" style="display:flex;gap:4px;margin-bottom:8px">',
-      '  <button class="alloc-filter-btn active" data-filter="all" onclick="window.allocFilterBy(\'all\')">전체</button>',
-      '  <button class="alloc-filter-btn" data-filter="RESERVED" onclick="window.allocFilterBy(\'RESERVED\')">RESERVED</button>',
-      '  <button class="alloc-filter-btn" data-filter="PICKED" onclick="window.allocFilterBy(\'PICKED\')">PICKED</button>',
-      '  <button class="alloc-filter-btn" data-filter="SOLD" onclick="window.allocFilterBy(\'SOLD\')">SOLD</button>',
-      '</div>',
+      /* v868 fix (2026-05-16 v6): 필터 제거 — 사용자 미사용. 필요시 우클릭 메뉴로 충분 */
       /* ── 로딩 / 빈 상태 ── */
       '<div id="alloc-loading" style="padding:40px;text-align:center;color:var(--text-muted)">⏳ 데이터 로딩 중...</div>',
       '<div class="empty" id="alloc-empty" style="display:none;padding:60px;text-align:center">📭 배정 데이터 없음</div>',
@@ -1534,6 +1611,44 @@
     var table = document.getElementById('alloc-summary-table');
     var empty = document.getElementById('alloc-empty');
     var lbl = document.getElementById('alloc-summary-label');
+
+    /* v868 fix (2026-05-16): 그룹 모드 분기 — 컨테이너/입고일별이면 그룹 컨테이너에 렌더 */
+    var mode = window._allocViewMode || 'lot';
+    var grpHost = document.getElementById('alloc-group-host');
+    if (!grpHost) {
+      var pc = document.getElementById('page-container');
+      var sec = pc ? pc.querySelector('section[data-page="allocation"]') : null;
+      if (sec) {
+        grpHost = document.createElement('div');
+        grpHost.id = 'alloc-group-host';
+        grpHost.style.marginTop = '6px';
+        var detailPanel = document.getElementById('alloc-detail-panel');
+        if (detailPanel) sec.insertBefore(grpHost, detailPanel);
+        else sec.appendChild(grpHost);
+      }
+    }
+    if (mode === 'container' || mode === 'date') {
+      if (!rows.length) {
+        if (table) table.style.display = 'none';
+        if (grpHost) grpHost.innerHTML = '';
+        if (empty) { empty.textContent = '📭 (' + filter + ') 배정 데이터 없음'; empty.style.display = 'block'; }
+        if (lbl) lbl.textContent = '(0/' + _allocState.rows.length + '건)';
+        return;
+      }
+      if (empty) empty.style.display = 'none';
+      if (table) table.style.display = 'none';
+      if (lbl) lbl.textContent = '(' + rows.length + '/' + _allocState.rows.length + '건)';
+      if (grpHost) {
+        if (mode === 'container') {
+          grpHost.innerHTML = _renderAllocGroupRows(rows, _allocKeyContainer, '컨테이너: ', 'agc');
+        } else {
+          grpHost.innerHTML = _renderAllocGroupRows(rows, _allocKeyDate, '입고일: ', 'agd');
+        }
+      }
+      return;
+    }
+    /* LOT 모드: 그룹 호스트 비우고 기본 테이블 사용 */
+    if (grpHost) grpHost.innerHTML = '';
 
     if (!rows.length) {
       if (tbody) tbody.innerHTML = '';
@@ -1959,12 +2074,7 @@
         .catch(function(err){ showToast('error', '취소 실패: ' + (err.message || err)); });
     }, false);
 
-    mi('🧹 이 행 초기화 (삭제)', function(){
-      if (!confirm('🧹 ' + lot + '\nallocation 기록 삭제 + inventory AVAILABLE 원복\n(SOLD 는 보호됨)\n계속하시겠습니까?')) return;
-      apiPost('/api/allocation/' + encodeURIComponent(lot) + '/reset', {})
-        .then(function(res){ showToast('success', (res.data && res.data.message) || (lot + ' 초기화됨')); loadAllocationPage(); })
-        .catch(function(err){ showToast('error', '초기화 실패: ' + (err.message || err)); });
-    }, true);
+    // v868 fix (2026-05-16 v3): LOT 초기화 메뉴 제거 — 사용자 미사용 (백엔드 API는 보존)
 
     document.body.appendChild(m);
     /* 다음 클릭 또는 ESC 로 자동 닫기 */
@@ -6423,8 +6533,35 @@
           return '<tr><td>'+escapeHtml(String(row))+'</td></tr>';
         }).join('')+'</tbody></table>';
       } else {
+        // v868 fix (2026-05-15): 객체/배열을 [object Object]로 표시하던 버그 수정
+        // issues(배열), stats(객체) 등 중첩 데이터를 보기 좋게 포맷
+        var _fmtVal = function(v) {
+          if (v === null || v === undefined) return '-';
+          if (Array.isArray(v)) {
+            if (v.length === 0) return '(빈 배열)';
+            // 배열 안이 객체면 nested table, 원시값이면 콤마 join
+            if (typeof v[0] === 'object' && v[0] !== null) {
+              var keys = Object.keys(v[0]);
+              var head = '<thead><tr>'+keys.map(function(k){return '<th style="font-size:.8rem;padding:4px 8px">'+escapeHtml(k)+'</th>';}).join('')+'</tr></thead>';
+              var body = '<tbody>'+v.map(function(row){
+                return '<tr>'+keys.map(function(k){
+                  var cell = row[k];
+                  return '<td style="font-size:.8rem;padding:4px 8px">'+escapeHtml(cell === null || cell === undefined ? '-' : (typeof cell === 'object' ? JSON.stringify(cell) : String(cell)))+'</td>';
+                }).join('')+'</tr>';
+              }).join('')+'</tbody>';
+              return '<table class="data-table" style="margin:0;font-size:.85rem">'+head+body+'</table>';
+            }
+            return v.map(function(x){return String(x);}).join(', ');
+          }
+          if (typeof v === 'object') {
+            return '<table class="data-table" style="margin:0;font-size:.85rem"><tbody>'+Object.entries(v).map(function(kv2){
+              return '<tr><td style="font-weight:600;padding:3px 8px">'+escapeHtml(kv2[0])+'</td><td style="padding:3px 8px">'+escapeHtml(String(kv2[1]))+'</td></tr>';
+            }).join('')+'</tbody></table>';
+          }
+          return escapeHtml(String(v));
+        };
         html='<table class="data-table"><tbody>'+Object.entries(d).map(function(kv){
-          return '<tr><td style="font-weight:600;width:40%">'+escapeHtml(kv[0])+'</td><td>'+escapeHtml(String(kv[1]))+'</td></tr>';
+          return '<tr><td style="font-weight:600;width:40%;vertical-align:top">'+escapeHtml(kv[0])+'</td><td>'+_fmtVal(kv[1])+'</td></tr>';
         }).join('')+'</tbody></table>';
       }
       document.getElementById('sqm-modal-content').innerHTML='<h2 style="margin-bottom:16px">'+escapeHtml(title)+'</h2>'+html;

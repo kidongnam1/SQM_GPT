@@ -1617,7 +1617,7 @@ arrival_date는 위 날짜들보다 보통 더 이른(과거) 날짜입니다.
 4. 컨테이너: [A-Z]{4}\\d{7} 형식 (예: MSCU1234567)
 5. 씰번호: ML-CL로 시작 (예: ML-CL1234567)
 6. con_return_date: 반납기한 YYYY-MM-DD. 컨테이너마다 동일한 경우 모두 같은 날짜 입력
-7. 반납지: "반납지" 필드 (예: KRKNYTM, 광양항서부컨테이너터미널)
+7. 반납지: "반납지" 필드 (예: KRKNYTM, GY West Container Terminal)
 
 ```json
 {
@@ -1633,7 +1633,7 @@ arrival_date는 위 날짜들보다 보통 더 이른(과거) 날짜입니다.
     "mrn": "MRN 번호 — 공백 포함 정확히 추출 (예: 26HDM UK026I, 26MSCU3082I, 26HLCU9401I, 26MAEUK071I). ⚠️ 마지막 글자가 숫자 '1'이 아닌 알파벳 'I'(아이)인 경우가 많으니 반드시 구별할 것",
     "msn": "MSN 번호 (예: 0001, 5019, 6006, 1020)",
     "containers": [
-        {"container_no": "MSCU1234567", "seal_no": "ML-CL1234567", "size_type": "45G1", "con_return_date": "2026-04-04", "return_place": "광양항서부컨테이너터미널"}
+        {"container_no": "MSCU1234567", "seal_no": "ML-CL1234567", "size_type": "45G1", "con_return_date": "2026-04-04", "return_place": "GY West Container Terminal"}
     ],
     "total_weight_kg": 123150,
     "gross_weight_kg": 123150,  // ⚠️ 반드시 KG 단위 (MT 아님). 문서에 MT로 표기된 경우 ×1000 변환 (예: 102.625MT → 102625kg)

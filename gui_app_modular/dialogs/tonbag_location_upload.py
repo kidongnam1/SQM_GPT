@@ -104,7 +104,7 @@ def _run_with_data(
             return
 
         # ⑤ v6.6.0: 대량이면 PENDING→Supervisor 승인 워크플로
-        # v6.7.7: 5→10으로 조정 (광양 기준 1LOT=톤백10개, LOT단위 이동은 즉시반영)
+        # v6.7.7: 5→10으로 조정 (GY 기준 1LOT=톤백10개, LOT단위 이동은 즉시반영)
         # [P3] v6.8.1: 최초 배치(initial_rows)는 Supervisor 승인 면제
         #   입고 후 처음 랙에 놓는 행위는 이동이 아닌 배치 → 즉시 반영이 원칙
         BATCH_THRESHOLD = 10

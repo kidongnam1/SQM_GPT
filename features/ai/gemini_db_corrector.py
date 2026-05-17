@@ -178,18 +178,23 @@ class GeminiDBCorrector:
 
             # ── audit_log 기록 ───────────────────────────────────
             try:
+                import json as _json
+                _evt_data = _json.dumps({
+                    'table': p['table'],
+                    'field': p['field'],
+                    'lot_no': p.get('lot_no', ''),
+                    'old': str(p['old_value']),
+                    'new': str(p['new_value']),
+                }, ensure_ascii=False)
                 _exec("""
                     INSERT INTO audit_log
-                        (action, table_name, record_id, field_name,
-                         old_value, new_value, operator, created_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                        (event_type, event_data, user_note,
+                         created_by, created_at)
+                    VALUES (?, ?, ?, ?, ?)
                 """, (
-                    'CORRECT',
-                    p['table'],
-                    p.get('lot_no') or p.get('tonbag_uid'),
-                    p['field'],
-                    str(p['old_value']),
-                    str(p['new_value']),
+                    'DB_CORRECT',
+                    _evt_data,
+                    f"{p['field']}: {p['old_value']} -> {p['new_value']}",
                     'Gemini-DB-Corrector',
                     now,
                 ))

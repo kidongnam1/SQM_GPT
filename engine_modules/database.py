@@ -794,7 +794,7 @@ class SQMDatabase(DatabaseSchemaMixin, DatabaseMigrationMixin, DatabaseInterface
             ),
             (
                 "do_update_raw_exact_bl",
-                "SELECT lot_no, bl_no, product, net_weight, status, arrival_date, free_time, free_time_date, con_return, warehouse, container_no "
+                "SELECT lot_no, bl_no, product, net_weight, status, arrival_date, free_time, con_return, warehouse, container_no "
                 "FROM inventory WHERE COALESCE(lot_no,'') <> '' AND COALESCE(bl_no, '') = ? COLLATE NOCASE ORDER BY lot_no",
                 ("258468669",)  # v9.0: 숫자만 조회,
             ),

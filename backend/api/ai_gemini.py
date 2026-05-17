@@ -29,6 +29,10 @@ class TogglePayload(BaseModel):
     enabled: bool
 
 
+class ChatPayload(BaseModel):
+    message: str
+
+
 # ── Helpers ────────────────────────────────────────────────────
 def _mask_key(key: str) -> str:
     if not key:
@@ -227,3 +231,37 @@ def test_connection():
     except Exception as e:
         logger.exception("test_connection error")
         return {"success": False, "ok": False, "source": source, "message": f"❌ 연결 실패: {e}"}
+
+
+# ── AI 채팅 ────────────────────────────────────────────────────
+@router.post("/chat", summary="💬 AI 재고 채팅")
+def chat_message(payload: ChatPayload):
+    import sys
+    if not payload.message or not payload.message.strip():
+        raise HTTPException(400, "메시지가 비어있습니다")
+
+    key, source, model = _fresh_api_key()
+
+    here = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.normpath(os.path.join(here, "..", ".."))
+    db_path = os.path.join(project_root, "data", "db", "sqm_inventory.db")
+
+    if project_root not in sys.path:
+        sys.path.insert(0, project_root)
+
+    try:
+        from features.ai.gemini_chat_query import GeminiChatQuery
+        chat = GeminiChatQuery(db_path=db_path, api_key=key or "")
+        result = chat.ask(payload.message.strip())
+        return {
+            "success": result["success"],
+            "answer": result["answer"],
+            "data": result.get("data", []),
+            "columns": result.get("columns", []),
+            "row_count": result.get("row_count", 0),
+            "query_type": result.get("query_type", ""),
+            "elapsed_ms": result.get("elapsed_ms", 0),
+        }
+    except Exception as e:
+        logger.exception("chat_message error")
+        raise HTTPException(500, f"채팅 오류: {type(e).__name__}: {e}")

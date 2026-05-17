@@ -508,7 +508,7 @@ class DOData:
 
     # 창고 정보
     warehouse_code: str = ""         # 06277057
-    warehouse_name: str = ""         # 광양항서부컨테이너터미널
+    warehouse_name: str = ""         # GY West Container Terminal (KWCT)
     mrn: str = ""                    # 25MAEUK2161
     msn: str = ""                    # 1018
 

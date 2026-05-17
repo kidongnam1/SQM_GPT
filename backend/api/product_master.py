@@ -121,7 +121,7 @@ def list_products():
 
 @router.post("/create")
 def create_product(payload: ProductPayload):
-    name = (payload.product_name or payload.full_name or payload.code).strip()
+    name = (payload.product_name or payload.full_name or payload.code).strip().upper()
     if not name:
         return err_response("product_name(또는 code/full_name) 필수")
     code = payload.code.strip().upper()
@@ -132,6 +132,12 @@ def create_product(payload: ProductPayload):
         if code and con.execute("SELECT 1 FROM product_master WHERE code=?", (code,)).fetchone():
             con.close()
             return err_response(f"이미 존재하는 코드: {code}")
+        # 대소문자/공백 무관 중복 검사
+        if con.execute(
+            "SELECT 1 FROM product_master WHERE UPPER(TRIM(product_name))=UPPER(TRIM(?))", (name,)
+        ).fetchone():
+            con.close()
+            return err_response(f"이미 존재하는 제품명(대소문자 무관): {name}")
         con.execute(
             """INSERT INTO product_master
                (code, product_name, full_name, korean_name,
@@ -160,7 +166,7 @@ def create_product(payload: ProductPayload):
 
 @router.put("/{row_id}")
 def update_product(row_id: int, payload: ProductPayload):
-    name = (payload.product_name or payload.full_name or payload.code).strip()
+    name = (payload.product_name or payload.full_name or payload.code).strip().upper()
     if not name:
         return err_response("product_name(또는 code/full_name) 필수")
     code = payload.code.strip().upper()
@@ -175,6 +181,13 @@ def update_product(row_id: int, payload: ProductPayload):
             if dup:
                 con.close()
                 return err_response(f"코드 중복: {code}")
+        # 대소문자/공백 무관 중복 검사 (자기 자신 제외)
+        if con.execute(
+            "SELECT 1 FROM product_master WHERE UPPER(TRIM(product_name))=UPPER(TRIM(?)) AND id!=?",
+            (name, row_id)
+        ).fetchone():
+            con.close()
+            return err_response(f"이미 존재하는 제품명(대소문자 무관): {name}")
         cur = con.execute(
             """UPDATE product_master
                SET code=?, product_name=?, full_name=?, korean_name=?,

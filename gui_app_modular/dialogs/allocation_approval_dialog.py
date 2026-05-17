@@ -298,12 +298,12 @@ class AllocationApprovalDialog:
                         try:
                             # 해당 allocation_plan의 lot_no 조회
                             _arow = self.engine.db.fetchone(
-                                "SELECT lot_no, sold_to, sale_ref FROM allocation_plan WHERE id=?",
+                                "SELECT lot_no, customer, sale_ref FROM allocation_plan WHERE id=?",
                                 (int(pid),)
                             )
                             _lot = (_arow.get('lot_no','') if isinstance(_arow,dict)
                                     else (_arow[0] if _arow else ''))
-                            _cust = (_arow.get('sold_to','') if isinstance(_arow,dict)
+                            _cust = (_arow.get('customer','') if isinstance(_arow,dict)
                                      else (_arow[1] if _arow else ''))
                             from engine_modules.audit_helper import write_audit, EVT_RESERVED
                             write_audit(

@@ -216,7 +216,7 @@ class PickingTemplateDialog:
 
         rows = [
             ('템플릿 ID *',   self._var_id,        '예) CATL_CIF  (영문+숫자, 공백없이)'),
-            ('템플릿 이름 *', self._var_name,       '예) 🏭 CATL — CIF 광양'),
+            ('템플릿 이름 *', self._var_name,       '예) 🏭 CATL — CIF GY'),
             ('거래처명 *',    self._var_customer,   '예) CATL, BYD, LG에너지솔루션'),
             ('거래처 코드',   self._var_cust_code,  'sold_to 코드 (SAP 기준, 없으면 공란)'),
             ('담당자',        self._var_contact,    '피킹 리스트 Contact Person'),

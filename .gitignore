@@ -33,3 +33,9 @@ tests/workflow_test_report.html
 tests/*.html
 .claude/worktrees/
 .claude/skills/gstack/
+ 
+# v868 fix (2026-05-16): bkit audit/runtime/snapshots 제외 (secret 보호) 
+.bkit/audit/ 
+.bkit/runtime/ 
+.bkit/snapshots/ 
+.bkit/state/ 

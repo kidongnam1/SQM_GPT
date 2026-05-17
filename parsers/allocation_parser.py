@@ -278,7 +278,7 @@ class AllocationParser:
         # 고객명 추출 (패턴 리스트 — CATL/Panasonic/BYD/Northvolt 등 추가 시 한 줄만 추가)
         customer_patterns = [
             ("PT LBM", "PT LBM"), ("PT_LBM", "PT LBM"),
-            # v6.7.3: 광양 거래 고객사 패턴 (constants.CUSTOMER_NAME_MAP 연동)
+            # v6.7.3: GY warehouse customer patterns (constants.CUSTOMER_NAME_MAP)
             ("CATL KOREA", "CATL KOREA"), ("CATL", "CATL"),
             ("CONTEMPORARY AMPEREX", "CATL"),
             ("BYD", "BYD"),

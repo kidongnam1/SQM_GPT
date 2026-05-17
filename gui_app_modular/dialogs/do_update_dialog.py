@@ -458,7 +458,7 @@ class DOUpdateDialog:
 
         base_sql = (
             "SELECT lot_no, bl_no, product, net_weight, status, arrival_date, "
-            "free_time, free_time_date, con_return, warehouse, container_no "
+            "free_time, con_return, warehouse, container_no "
             "FROM inventory WHERE COALESCE(lot_no,'') <> '' "
         )
 

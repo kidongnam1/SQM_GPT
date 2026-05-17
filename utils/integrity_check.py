@@ -313,8 +313,8 @@ class IntegrityChecker:
             for wh in ['A', 'B']:
                 rows = self.db.fetchall(
                     "SELECT COUNT(*) as cnt FROM inventory_tonbag "
-                    "WHERE warehouse = ? AND status NOT IN ('SOLD','DEPLETED')",
-                    (wh,)
+                    "WHERE location LIKE ? AND status NOT IN ('SOLD','DEPLETED')",
+                    (f"{wh}%",)
                 )
                 cnt = int((rows[0].get('cnt', 0) if rows else 0))
                 result = check_warehouse_capacity(wh, cnt)

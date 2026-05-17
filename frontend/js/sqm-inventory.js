@@ -512,27 +512,36 @@
   }
 
   function _renderPendingLotRows(rows) {
+    // v868 fix (2026-05-16 옵션B): 두 탭 공통 15컬럼 통일
     var html = '<div style="overflow-x:auto"><table class="data-table"><thead><tr>'
-      + '<th><input type="checkbox" id="pending-select-all" onchange="window.pendingToggleAll(this)"></th>'
-      + '<th>LOT</th><th>Product</th><th>Grade</th>'
-      + '<th>Qty</th><th>Unit</th><th>BL No</th><th>Container</th><th>Vessel</th>'
-      + '<th>Arrival Date</th><th>등록일</th><th style="width:50px">⚙️</th>'
+      + '<th style="width:28px;text-align:center"><input type="checkbox" id="pending-select-all" onchange="window.pendingToggleAll(this)" title="전체 선택"></th>'
+      + '<th>#</th><th style="text-align:center">LOT</th><th style="width:32px;text-align:center">⋯</th>'
+      + '<th>SAP</th><th>BL</th><th>Product</th>'
+      + '<th>Container</th><th>Vessel</th><th>MXBG</th><th>NET(MT)</th>'
+      + '<th>Status</th><th style="text-align:center;color:#22c55e" title="입고 확정 → AVAILABLE">✅</th>'
+      + '<th>Arrival</th><th>WH</th>'
       + '</tr></thead><tbody>';
-    html += rows.map(function(r) {
+    html += rows.map(function(r, i) {
+      var lotSafe = escapeHtml(r.lot_no || '');
+      var netMt = r.net_weight != null ? fmtN(r.net_weight / 1000) : '-';
       return '<tr>'
-        + '<td style="text-align:center"><input type="checkbox" class="pending-cb" data-lot="' + escapeHtml(r.lot_no||'') + '"></td>'
-        + '<td class="mono-cell" style="color:#94a3b8;font-weight:600">' + escapeHtml(r.lot_no||'') + '</td>'
-        + '<td><span class="tag">' + escapeHtml(r.product||'-') + '</span></td>'
-        + '<td class="mono-cell">' + escapeHtml(r.grade||'-') + '</td>'
-        + '<td class="mono-cell" style="text-align:right">' + (r.quantity!=null?fmtN(r.quantity):(r.net_weight!=null?fmtN(r.net_weight):'-')) + '</td>'
-        + '<td class="mono-cell">' + escapeHtml(r.unit||'-') + '</td>'
-        + '<td class="mono-cell">' + escapeHtml(r.bl_no||'-') + '</td>'
-        + '<td class="mono-cell">' + escapeHtml(r.container_no||'-') + '</td>'
-        + '<td class="mono-cell">' + escapeHtml(r.vessel||'-') + '</td>'
-        + '<td class="mono-cell">' + escapeHtml(r.arrival_date||'-') + '</td>'
-        + '<td class="mono-cell" style="color:var(--text-muted)">' + escapeHtml((r.created_at||'').slice(0,10)) + '</td>'
-        + '<td style="text-align:center"><button class="btn btn-ghost" style="padding:2px 8px;font-size:13px" '
+        + '<td style="text-align:center;padding:3px 6px"><input type="checkbox" class="pending-cb" data-lot="' + lotSafe + '"></td>'
+        + '<td class="mono-cell" style="color:var(--text-muted)">' + (i+1) + '</td>'
+        + '<td class="mono-cell cell-left" style="color:#94a3b8;font-weight:600;padding:6px 10px">' + lotSafe + '</td>'
+        + '<td style="text-align:center;padding:3px 4px;width:32px"><button class="btn btn-ghost btn-xs" style="font-size:15px;padding:0 4px;letter-spacing:1px" title="추가기능" '
         + 'onclick="window.showPendingActionMenu(event,' + JSON.stringify(r.lot_no) + ')">⋯</button></td>'
+        + '<td class="mono-cell">' + escapeHtml(r.sap_no || '-') + '</td>'
+        + '<td class="mono-cell">' + escapeHtml(r.bl_no || '-') + '</td>'
+        + '<td><span class="tag">' + escapeHtml(r.product || '-') + '</span></td>'
+        + '<td class="mono-cell">' + escapeHtml(r.container_no || '-') + '</td>'
+        + '<td class="mono-cell">' + escapeHtml(r.vessel || '-') + '</td>'
+        + '<td class="mono-cell" style="text-align:center">' + (r.mxbg_pallet != null ? r.mxbg_pallet : '-') + '</td>'
+        + '<td class="mono-cell" style="text-align:right">' + netMt + '</td>'
+        + '<td><span class="tag" style="background:rgba(148,163,184,0.15);color:#94a3b8">⏳ PENDING</span></td>'
+        + '<td style="text-align:center;padding:2px 4px"><button class="btn btn-ghost btn-xs" style="color:#22c55e;font-size:13px;padding:1px 5px;border:1px solid #22c55e55" '
+        + 'onclick="window.showPendingConfirmModal(\'' + lotSafe + '\')" title="입고 확정 → AVAILABLE">✅</button></td>'
+        + '<td class="mono-cell">' + escapeHtml(r.arrival_date || '-') + '</td>'
+        + '<td class="mono-cell">' + escapeHtml(r.warehouse || '-') + '</td>'
         + '</tr>';
     }).join('');
     return html + '</tbody></table></div>';
@@ -645,6 +654,7 @@
         + _pendingModeBtn('date', '날짜별', mode)
         + '</div>'
         + '<button class="btn btn-ghost" style="font-size:12px" onclick="window.loadPendingPage()">🔄 새로고침</button>'
+        + '<button class="btn btn-secondary" style="font-size:12px;padding:4px 12px" onclick="window.exportPendingExcel()" title="현재 화면 Pending 데이터를 Excel로 내보냅니다">📊 Excel 내보내기</button>'
         + '<button class="btn" style="background:var(--accent,#3b82f6);color:#fff;font-size:12px;padding:4px 12px" onclick="window.bulkConfirmPending()">✅ 선택 일괄 확정</button>'
         + '</div>';
       if (!rows.length) {
@@ -705,6 +715,58 @@
     next(0);
   };
 
+
+  // v868 fix (2026-05-16): Available 그룹화 헬퍼 — Pending 패턴 차용
+  function _renderAvailableGroup(rows, keyFn, labelPrefix) {
+    var groups = {};
+    rows.forEach(function(r) {
+      var k = keyFn(r) || '(미지정)';
+      if (!groups[k]) groups[k] = [];
+      groups[k].push(r);
+    });
+    var keys = Object.keys(groups).sort();
+    var html = '';
+    keys.forEach(function(k, idx) {
+      var lots = groups[k];
+      var sumNet = 0;
+      lots.forEach(function(r){ if (r.net != null) sumNet += Number(r.net); });
+      var groupId = 'avg-' + idx;
+      html += '<div style="margin-bottom:12px;border:1px solid var(--border,#334155);border-radius:8px;overflow:hidden">'
+        + '<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--surface,#1e293b);cursor:pointer" '
+        + 'onclick="(function(el){var t=document.getElementById(\'' + groupId + '\');if(t)t.style.display=t.style.display===\'none\'?\'block\':\'none\';})(this)">'
+        + '<strong style="color:#22c55e;font-family:monospace">' + escapeHtml(labelPrefix + k) + '</strong>'
+        + '<span style="font-size:12px;color:var(--text-muted)">' + lots.length + ' LOT · ' + fmtN(sumNet) + ' MT</span>'
+        + '</div>'
+        + '<div id="' + groupId + '" style="display:block">'
+        + _renderAvailLotTableOnly(lots)
+        + '</div>'
+        + '</div>';
+    });
+    return html;
+  }
+
+  // LOT별 모드의 테이블 body만 렌더 (그룹 내부용)
+  function _renderAvailLotTableOnly(rows) {
+    // 그룹 내부에서는 헤더 없이 행만 렌더링 — 기존 mainRow 로직 재사용 필요
+    // 임시: 간단한 LOT 목록 표시
+    var html = '<table class="data-table" style="margin:0;font-size:12px"><thead><tr>'
+      + '<th>LOT</th><th>SAP</th><th>Product</th><th>Container</th><th>Vessel</th><th>NET(MT)</th><th>Arrival</th><th>WH</th>'
+      + '</tr></thead><tbody>';
+    rows.forEach(function(r) {
+      html += '<tr>'
+        + '<td class="mono-cell" style="color:var(--accent);font-weight:600">' + escapeHtml(r.lot||'') + '</td>'
+        + '<td class="mono-cell">' + escapeHtml(r.sap||'-') + '</td>'
+        + '<td><span class="tag">' + escapeHtml(r.product||'-') + '</span></td>'
+        + '<td class="mono-cell">' + escapeHtml(r.container||'-') + '</td>'
+        + '<td class="mono-cell">' + escapeHtml(r.vessel||'-') + '</td>'
+        + '<td class="mono-cell" style="text-align:right">' + (r.net!=null?fmtN(r.net):'-') + '</td>'
+        + '<td class="mono-cell">' + escapeHtml((r.arrival_date||'').slice(0,10) || '-') + '</td>'
+        + '<td class="mono-cell">' + escapeHtml(r.wh||'-') + '</td>'
+        + '</tr>';
+    });
+    return html + '</tbody></table>';
+  }
+
   /* ===================================================
      7a-2. PAGE: Available (AVAILABLE 톤백 필터 뷰) — v9.5
      =================================================== */
@@ -746,24 +808,52 @@
         if (r.reserved_mt != null && !isNaN(Number(r.reserved_mt))) sumRsvMt += Number(r.reserved_mt);
         if (r.picked_mt != null && !isNaN(Number(r.picked_mt))) sumPickedMt += Number(r.picked_mt);
       });
+      // v868 fix (2026-05-16): Available에 그룹화 모드 추가 (LOT/컨테이너/입고일)
+      var availMode = window._availViewMode || 'lot';
+      var _availModeBtn = function(val, label, cur) {
+        var act = val === cur
+          ? 'background:var(--accent,#3b82f6);color:#fff;border-color:var(--accent,#3b82f6);'
+          : 'background:var(--surface,#1e293b);color:var(--text-muted);border-color:var(--border,#334155);';
+        return '<button class="btn" style="font-size:12px;padding:4px 10px;' + act + '" '
+          + 'onclick="window._availViewMode=\'' + val + '\';window.loadAvailablePage()">' + label + '</button>';
+      };
       var html = '<section style="padding:12px 16px">'
         + '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap">'
         + '<h2 style="margin:0;font-size:16px;color:#22c55e">✅ Available 재고 — 판매 가능 물량</h2>'
         + '<span style="font-size:12px;color:var(--text-muted)">' + rows.length + ' LOT · Balance ' + fmtN(sumBal) + ' MT</span>'
-        + '<button class="btn btn-ghost" style="font-size:12px;margin-left:auto" onclick="window.loadAvailablePage()">🔄 새로고침</button>'
+        + '<div style="display:flex;gap:4px;margin-left:8px">'
+        + _availModeBtn('lot', 'LOT별', availMode)
+        + _availModeBtn('container', '컨테이너별', availMode)
+        + _availModeBtn('date', '입고일별', availMode)
+        + '</div>'
+        + '<button class="btn btn-secondary" style="font-size:12px" onclick="window.exportAvailableExcel()" title="현재 화면 Available 데이터를 Excel로 내보냅니다">📊 Excel 내보내기</button>'
+        + '<button class="btn btn-ghost" style="font-size:12px" onclick="window.loadAvailablePage()">🔄 새로고침</button>'
         + '</div>'
         + '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap">'
         + '<button class="btn" style="background:#ef4444;color:#fff;font-weight:700;padding:5px 14px;border:none;border-radius:6px;cursor:pointer;font-size:13px" onclick="window.availCancelSelected()">✕ 선택 취소 (→PENDING)</button>'
         + '<span style="font-size:12px;color:var(--text-muted);padding:4px 10px;background:var(--bg-hover,rgba(255,255,255,0.05));border-radius:6px">↩️ 단계 되돌리기: <b style="color:#f59e0b">AVAILABLE → PENDING</b></span>'
         + '</div>'
+        // v868 fix (2026-05-16): 모드별 분기 — 그룹 모드는 별도 렌더
+        ;
+      if (availMode === 'container') {
+        c.innerHTML = html + _renderAvailableGroup(rows, function(r){ return r.container || ''; }, '컨테이너: ') + '</section>';
+        return;
+      }
+      if (availMode === 'date') {
+        c.innerHTML = html + _renderAvailableGroup(rows, function(r){ return (r.date || r.inbound_date || '').slice(0,10); }, '입고일: ') + '</section>';
+        return;
+      }
+      // LOT별 모드 (기본) — 기존 28컬럼 테이블 렌더링 계속
+      html = html
+        // v868 fix (2026-05-16 옵션B): Pending과 동일한 15컬럼 헤더
+        // 톤백 상세(Available/Reserved/Packed 등)는 우클릭 메뉴 "톤백 상세"에서 접근
         + '<div style="overflow-x:auto"><table class="data-table"><thead><tr>'
         + '<th style="width:28px;text-align:center"><input type="checkbox" id="avail-select-all" onchange="window.availToggleAll(this)" title="전체 선택"></th>'
-        + '<th>#</th><th style="text-align:center">LOT</th><th style="width:32px;text-align:center">+</th><th>SAP</th><th>BL</th><th>Product</th>'
+        + '<th>#</th><th style="text-align:center">LOT</th><th style="width:32px;text-align:center">⋯</th>'
+        + '<th>SAP</th><th>BL</th><th>Product</th>'
+        + '<th>Container</th><th>Vessel</th><th>MXBG</th><th>NET(MT)</th>'
         + '<th>Status</th><th style="text-align:center;color:#f59e0b" title="입고취소 → PENDING">↩️</th>'
-        + '<th>Balance(MT)</th><th>NET(MT)</th><th>Container</th>'
-        + '<th>MXBG</th><th>Available</th><th>Reserved</th><th>Packed</th><th>Total Bags</th><th>Remain Bags</th><th>AV</th><th>VR</th><th>AR</th><th>Invoice</th>'
-        + '<th>Ship</th><th>Arrival</th><th>WH</th><th>Customs</th>'
-        + '<th>Inbound(MT)</th><th>Location</th>'
+        + '<th>Arrival</th><th>WH</th>'
         + '</tr></thead><tbody>';
       html += rows.map(function(r, i) {
         var lotKey = escapeHtml(r.lot||'');
@@ -776,66 +866,80 @@
         var remainBags = Math.max(totalBags - availBags - reservedBags - packedBags, 0);
         var sampleRow = '';
         if (hasSample) {
+          // v868 fix (2026-05-16 옵션B): 샘플 행도 15컬럼 매핑 (Pending과 통일)
           sampleRow =
             '<tr style="background:rgba(234,179,8,0.08);border-left:3px solid #eab308">' +
-            '<td class="mono-cell" style="color:#eab308;text-align:center;padding:6px 10px">🔬</td>' +
+            // 1:체크박스 - 🔬
+            '<td style="text-align:center;padding:6px 10px;color:#eab308">🔬</td>' +
+            // 2:# - SP
+            '<td class="mono-cell" style="color:#eab308;text-align:center">SP</td>' +
+            // 3:LOT
             '<td class="mono-cell cell-left" style="color:#eab308;font-weight:700;padding:6px 10px">' + lotKey + '(SP)</td>' +
-            '<td class="mono-cell" style="color:#555">—</td>' +
+            // 4:⋯ - 빈
+            '<td style="text-align:center;color:#555">—</td>' +
+            // 5:SAP
             '<td class="mono-cell" style="color:#94a3b8">' + escapeHtml(r.sap||'') + '</td>' +
+            // 6:BL
             '<td class="mono-cell" style="color:#94a3b8">' + escapeHtml(r.bl||'') + '</td>' +
+            // 7:Product
             '<td><span class="tag" style="background:rgba(234,179,8,0.2);color:#eab308">' + escapeHtml(r.product||'') + '</span></td>' +
-            '<td style="color:#eab308;font-weight:600">SAMPLE</td>' +
-            '<td class="mono-cell" style="text-align:right;color:#eab308;font-weight:600">' + fmtN(r.sample_weight_mt||0) + '</td>' +
-            '<td class="mono-cell" style="text-align:right;color:#eab308">' + fmtN(r.sample_weight_mt||0) + '</td>' +
+            // 8:Container
             '<td class="mono-cell" style="color:#94a3b8">' + parentContainer + '</td>' +
-            '<td class="mono-cell" style="text-align:center;color:#eab308;font-weight:700">' + r.sample_bags + '</td>' +
-            '<td class="mono-cell" style="text-align:center;color:#eab308;font-weight:700">' + r.sample_bags + '</td>' +
-            '<td class="mono-cell" style="text-align:center;color:#555">0</td>' +
-            '<td class="mono-cell" style="text-align:center;color:#555">0</td>' +
-            '<td class="mono-cell" style="text-align:center;color:#eab308;font-weight:700">' + r.sample_bags + '</td>' +
-            '<td class="mono-cell" style="text-align:center;color:#555">0</td>' +
-            '<td class="mono-cell" style="text-align:right;color:#eab308">' + fmtN(r.sample_weight_mt||0) + '</td>' +
-            '<td class="mono-cell" style="text-align:right;color:#555">0</td>' +
-            '<td class="mono-cell" style="text-align:right;color:#555">0</td>' +
-            '<td colspan="8" style="color:#555">—</td>' +
+            // 9:Vessel
+            '<td class="mono-cell" style="color:#94a3b8">' + escapeHtml(r.vessel||'-') + '</td>' +
+            // 10:MXBG - 빈
+            '<td class="mono-cell" style="text-align:center;color:#555">—</td>' +
+            // 11:NET(MT)
+            '<td class="mono-cell" style="text-align:right;color:#eab308;font-weight:600">' + fmtN(r.sample_weight_mt||0) + '</td>' +
+            // 12:Status
+            '<td><span class="tag" style="background:rgba(234,179,8,0.2);color:#eab308">SAMPLE</span></td>' +
+            // 13:↩ 자리 - 빈
+            '<td style="text-align:center;color:#555">—</td>' +
+            // 14:Arrival
+            '<td class="mono-cell">' + escapeHtml((r.arrival_date||'').slice(0,10) || '-') + '</td>' +
+            // 15:WH
+            '<td class="mono-cell">' + escapeHtml(r.wh||'-') + '</td>' +
             '</tr>';
         }
         var lotSafe = (r.lot||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+        // v868 fix (2026-05-16 옵션B): mainRow도 15컬럼 매핑 (Pending과 통일)
         var mainRow =
           '<tr style="' + (hasSample ? 'border-left:3px solid #22c55e' : '') + '">'
+          // 1:체크박스
           + '<td style="text-align:center;padding:3px 6px"><input type="checkbox" class="avail-cb" data-lot="' + lotKey + '"></td>'
+          // 2:#
           + '<td class="mono-cell" style="color:var(--text-muted)">' + (i+1) + '</td>'
+          // 3:LOT
           + '<td class="mono-cell cell-left" style="color:var(--accent);font-weight:600;padding:6px 10px">' + lotKey + '</td>'
-          + '<td style="text-align:center;padding:3px 4px;width:32px"><button class="btn btn-ghost btn-xs" data-lot="' + lotKey + '" onclick="window.showInvActionMenu(this)" style="font-size:15px;padding:0 4px;letter-spacing:1px" title="추가기능">⋯</button></td>'
+          // 4:⋯ (액션 메뉴 — 톤백 상세는 여기서)
+          + '<td style="text-align:center;padding:3px 4px;width:32px"><button class="btn btn-ghost btn-xs" data-lot="' + lotKey + '" onclick="window.showInvActionMenu(this)" style="font-size:15px;padding:0 4px;letter-spacing:1px" title="추가기능 (톤백 상세 등)">⋯</button></td>'
+          // 5:SAP
           + '<td class="mono-cell">' + escapeHtml(r.sap||'') + '</td>'
+          // 6:BL
           + '<td class="mono-cell">' + escapeHtml(r.bl||'') + '</td>'
+          // 7:Product
           + '<td><span class="tag">' + escapeHtml(r.product||'') + '</span></td>'
-          + '<td><span class="tag" style="background:rgba(34,197,94,0.15);color:#22c55e">✅ AVAILABLE</span></td>'
-          + '<td style="text-align:center;padding:2px 4px"><button class="btn btn-ghost btn-xs" onclick="window.revertToPending(\'' + lotSafe + '\')" title="입고 취소 → PENDING" style="color:#f59e0b;font-size:13px;padding:1px 5px;border:1px solid #f59e0b55">↩️</button></td>'
-          + '<td class="mono-cell" style="text-align:right">' + (r.balance!=null?fmtN(r.balance):'-') + '</td>'
-          + '<td class="mono-cell" style="text-align:right">' + (r.net!=null?fmtN(r.net):'-') + '</td>'
+          // 8:Container
           + '<td class="mono-cell">' + escapeHtml(r.container||'') + '</td>'
+          // 9:Vessel
+          + '<td class="mono-cell">' + escapeHtml(r.vessel||'-') + '</td>'
+          // 10:MXBG (클릭 시 톤백 모달)
           + '<td class="mono-cell" style="text-align:center">'
             + (r.mxbg_pallet > 0
               ? '<button class="btn btn-ghost btn-xs" style="font-weight:700;color:var(--accent)" '
-                + 'data-lot="' + lotKey + '" onclick="window.showTonbagModal(this.dataset.lot)">' + r.mxbg_pallet + '</button>'
+                + 'data-lot="' + lotKey + '" onclick="window.showTonbagModal(this.dataset.lot)" title="톤백 상세 보기">' + r.mxbg_pallet + '</button>'
               : '-')
           + '</td>'
-          + '<td class="mono-cell" style="text-align:center;color:#22c55e;font-weight:700">' + availBags + '</td>'
-          + '<td class="mono-cell" style="text-align:center;color:#3b82f6;font-weight:700">' + reservedBags + '</td>'
-          + '<td class="mono-cell" style="text-align:center;color:#f59e0b;font-weight:700">' + packedBags + '</td>'
-          + '<td class="mono-cell" style="text-align:center">' + totalBags + '</td>'
-          + '<td class="mono-cell" style="text-align:center;font-weight:700">' + remainBags + '</td>'
-          + '<td class="mono-cell" style="text-align:right;color:#22c55e;font-weight:700">' + (r.avail_mt!=null?fmtN(r.avail_mt):'-') + '</td>'
-          + '<td class="mono-cell" style="text-align:right;color:#3b82f6;font-weight:700">' + (r.reserved_mt!=null?fmtN(r.reserved_mt):'-') + '</td>'
-          + '<td class="mono-cell" style="text-align:right;color:#f59e0b;font-weight:700">' + (r.picked_mt!=null?fmtN(r.picked_mt):'-') + '</td>'
-          + '<td class="mono-cell">' + escapeHtml(r.invoice_no||'') + '</td>'
-          + '<td class="mono-cell">' + escapeHtml((r.ship_date||'').slice(0,10)) + '</td>'
+          // 11:NET(MT)
+          + '<td class="mono-cell" style="text-align:right">' + (r.net!=null?fmtN(r.net):'-') + '</td>'
+          // 12:Status
+          + '<td><span class="tag" style="background:rgba(34,197,94,0.15);color:#22c55e">✅ AVAILABLE</span></td>'
+          // 13:↩️ (PENDING으로 되돌리기)
+          + '<td style="text-align:center;padding:2px 4px"><button class="btn btn-ghost btn-xs" onclick="window.revertToPending(\'' + lotSafe + '\')" title="입고 취소 → PENDING" style="color:#f59e0b;font-size:13px;padding:1px 5px;border:1px solid #f59e0b55">↩️</button></td>'
+          // 14:Arrival
           + '<td class="mono-cell">' + escapeHtml((r.arrival_date||'').slice(0,10)) + '</td>'
-          + '<td class="mono-cell">' + escapeHtml(r.wh||'') + '</td>'
-          + '<td class="mono-cell">' + escapeHtml(r.customs||'') + '</td>'
-          + '<td class="mono-cell" style="text-align:right">' + (r.initial_weight!=null?fmtN(r.initial_weight):'-') + '</td>'
-          + '<td><span class="tag">' + escapeHtml(r.location||'-') + '</span></td>'
+          // 15:WH
+          + '<td class="mono-cell">' + escapeHtml(r.wh||'-') + '</td>'
           + '</tr>';
         return mainRow + sampleRow;
       }).join('');
@@ -990,8 +1094,9 @@
     lotInfo.appendChild(document.createTextNode('LOT: '));
     lotInfo.appendChild(lotSpan);
     var label = document.createElement('label');
-    label.style.cssText = 'font-size:13px;color:var(--text-muted);display:block;margin-bottom:6px';
-    label.textContent = '\uc785\uace0 \ud655\uc815\uc77c (YYYY-MM-DD)';
+    // v868 fix (2026-05-16): 입고 확정일 강조 — 사용자가 명확히 인지
+    label.style.cssText = 'font-size:14px;font-weight:600;color:#22c55e;display:block;margin-bottom:8px;padding:6px 8px;background:rgba(34,197,94,0.08);border-left:3px solid #22c55e;border-radius:4px';
+    label.innerHTML = '\ud83d\udcc5 <strong>\uc785\uace0 \ud655\uc815\uc77c</strong> \u2014 \uc774 \ub0a0\uc9dc\ub85c \ucc3d\uace0 \ubc18\uc785 \ucc98\ub9ac\ub429\ub2c8\ub2e4 (YYYY-MM-DD)';
     var input = document.createElement('input');
     input.id = 'pending-confirm-date';
     input.type = 'date';
@@ -1124,5 +1229,26 @@
   };
 
 
+  // v868 fix (2026-05-16): Pending/Available 탭 Excel 내보내기 헬퍼
+  window.exportPendingExcel = function() {
+    var tbl = document.querySelector('#page-container table.data-table');
+    if (!tbl) { if (window.showToast) showToast('warn', '내보낼 테이블이 없습니다'); return; }
+    var ts = new Date().toISOString().slice(0,10);
+    if (window.exportTableToExcel) {
+      window.exportTableToExcel(tbl, 'pending_' + ts + '.xlsx');
+    } else {
+      alert('Excel 내보내기 함수를 찾을 수 없습니다 (exportTableToExcel)');
+    }
+  };
+  window.exportAvailableExcel = function() {
+    var tbl = document.querySelector('#page-container table.data-table');
+    if (!tbl) { if (window.showToast) showToast('warn', '내보낼 테이블이 없습니다'); return; }
+    var ts = new Date().toISOString().slice(0,10);
+    if (window.exportTableToExcel) {
+      window.exportTableToExcel(tbl, 'available_' + ts + '.xlsx');
+    } else {
+      alert('Excel 내보내기 함수를 찾을 수 없습니다 (exportTableToExcel)');
+    }
+  };
   window.loadInventoryPage  = loadInventoryPage;
 })();

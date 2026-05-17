@@ -9,6 +9,7 @@ v5.8.6.B: Ship Date 하이브리드 추출 (Gemini 우선 + 정규식 폴백)
 """
 
 import logging
+import os
 import re
 import json
 import time
@@ -452,14 +453,16 @@ class BLMixin:
     def _parse_by_coord_table(self, words: List[Dict], carrier_id: str) -> dict:
         if not words:
             return {}
-        table = self.CARRIER_COORD_TABLE.get((carrier_id or "").upper(), {})
+        table, db_page_indexes = self._get_bl_coord_table(carrier_id)
         if not table:
             return {}
         parsed = {}
         for field, box in table.items():
             if not isinstance(box, tuple) or len(box) != 4:
                 continue
-            _page_idx = 1 if field in ("gross_weight_p1",) else 0
+            _page_idx = db_page_indexes.get(field)
+            if _page_idx is None:
+                _page_idx = 1 if field in ("gross_weight_p1",) else 0
             raw = self._by_coord(words, box[0], box[1], box[2], box[3], page=_page_idx)
             if not raw:
                 continue
@@ -502,6 +505,59 @@ class BLMixin:
                 if cleaned:
                     parsed[field] = cleaned
         return parsed
+
+    def _get_bl_coord_table(self, carrier_id: str):
+        carrier = (carrier_id or "").upper()
+        code_table = self.CARRIER_COORD_TABLE.get(carrier, {})
+        db_table, db_page_indexes = self._load_bl_coord_table_from_db(carrier)
+        if db_table:
+            merged = dict(code_table)
+            merged.update(db_table)
+            return merged, db_page_indexes
+        return code_table, {}
+
+    def _load_bl_coord_table_from_db(self, carrier_id: str):
+        if not carrier_id:
+            return {}, {}
+        try:
+            from config import DB_PATH
+        except Exception as exc:
+            logger.debug("[BL] coordinate DB config unavailable: %s", exc)
+            return {}, {}
+        if not DB_PATH or not os.path.exists(str(DB_PATH)):
+            return {}, {}
+
+        try:
+            import sqlite3
+
+            table = {}
+            page_indexes = {}
+            with sqlite3.connect(str(DB_PATH)) as con:
+                cur = con.execute(
+                    """
+                    SELECT field_name, page_index, x1_pct, x2_pct, y1_pct, y2_pct
+                    FROM carrier_field_coord
+                    WHERE UPPER(carrier_id) = ?
+                      AND UPPER(document_type) = 'BL'
+                      AND is_active = 1
+                      AND (COALESCE(valid_from, '') = '' OR valid_from <= date('now'))
+                      AND (COALESCE(valid_to, '') = '' OR valid_to >= date('now'))
+                    ORDER BY field_name, page_index
+                    """,
+                    (carrier_id,),
+                )
+                rows = cur.fetchall()
+            for field, page_index, x1, x2, y1, y2 in rows:
+                field_name = str(field or "").strip()
+                if not field_name:
+                    continue
+                table[field_name] = (float(x1), float(x2), float(y1), float(y2))
+                if page_index is not None:
+                    page_indexes[field_name] = int(page_index)
+            return table, page_indexes
+        except Exception as exc:
+            logger.debug("[BL] coordinate DB lookup failed; using in-code table: %s", exc)
+            return {}, {}
 
     def _extract_words(self, pdf_path: str, max_pages: int = 3) -> List[Dict]:
         """PyMuPDF 단어 좌표 추출."""

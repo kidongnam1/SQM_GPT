@@ -48,7 +48,7 @@
 
 ## 🎯 프로젝트 목표
 
-Tkinter + ttkbootstrap 기반 **SQM Inventory v864.2** (광양 GY Logis 물류창고 재고관리 시스템)를
+Tkinter + ttkbootstrap 기반 **SQM Inventory v864.2** (GY Logis 물류창고 재고관리 시스템)를
 **PyWebView 5 + HTML/CSS/JS + FastAPI** 기반 **v866**으로 완전 마이그레이션.
 
 **핵심 원칙:** UI와 기능(Behavior) 둘 다 v864.2와 100% 동일. 껍데기만 HTML로 바뀔 뿐, 사용자 경험은 변하지 않아야 함.
@@ -321,7 +321,7 @@ sqm-inline.js (391KB, 7133줄) → 6개 IIFE 파일로 분할 완료
 ## 👤 개발자 정보
 
 - **사용자:** Nam Ki-dong (남기동) — Practical Tech CEO
-- **사업:** LPG 충전소(서울) + GY Logis 물류창고(광양) + 건설업
+- **사업:** LPG 충전소(서울) + GY Logis 물류창고(GY) + 건설업
 - **개발 실력:** 숙련된 Python 프로그래머 (SQM v864.2 직접 개발)
 - **선호 설명:** 중학생 수준, 간결, 논리적 단계, 결정적 결론
 - **OS:** Windows, D:\program 폴더, CMD 환경

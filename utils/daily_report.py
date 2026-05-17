@@ -183,7 +183,7 @@ def _write_excel(data: dict, filepath: str) -> bool:
     # ── 1. 요약 시트 ────────────────────────────────────────────
     ws_sum = wb.active
     ws_sum.title = '일별요약'
-    ws_sum['A1'] = f'SQM 광양 창고 일별 처리 현황 — {date_str}'
+    ws_sum['A1'] = f'SQM GY daily operations — {date_str}'
     ws_sum['A1'].font = TITLE_FONT
     ws_sum.merge_cells('A1:D1')
 

@@ -196,9 +196,9 @@ def return_create(payload: dict):
         # return_history INSERT
         con.execute("""
             INSERT INTO return_history
-                (lot_no, tonbag_uid, reason, weight_kg, return_date,
-                 status, created_at)
-            VALUES (?, ?, ?, ?, ?, 'RETURNED', ?)
+                (lot_no, sub_lt, reason, weight_kg, return_date,
+                 remark, created_at)
+            VALUES (?, ?, ?, ?, ?, 'RETURN', ?)
         """, (lot_no, tonbag_uid, reason, weight_kg, today, ts))
 
         # stock_movement 기록
@@ -290,11 +290,13 @@ def export_invoice_excel(lot_no: Optional[str] = QP(None)):
             cell.font = hdr_font
             cell.alignment = Alignment(horizontal="center")
 
+        center = Alignment(horizontal="center", vertical="center")
         row_fill = PatternFill("solid", fgColor="EBF3FB")
         for i, r in enumerate(rows):
             ws.append(list(r))
-            if i % 2 == 1:
-                for cell in ws[ws.max_row]:
+            for cell in ws[ws.max_row]:
+                cell.alignment = center
+                if i % 2 == 1:
                     cell.fill = row_fill
 
         # 열 너비
@@ -360,15 +362,10 @@ def db_reset(body: dict = Body(default={})):
         # Python sqlite3는 DELETE 시 자동 BEGIN -> VACUUM이 트랜잭션 내부에서 실행되어 실패
         # 해결: 먼저 DELETE 트랜잭션 커밋 + 연결 종료 -> 별도 연결로 VACUUM
         con.commit()  # DELETE 트랜잭션 종료
+        # WAL checkpoint(TRUNCATE): WAL 파일을 main DB에 병합 후 0바이트로 리셋
+        # VACUUM은 다른 커넥션이 열려 있으면 실패하므로 checkpoint 사용
+        con.execute("PRAGMA wal_checkpoint(TRUNCATE)")
         con.close()
-
-        # VACUUM은 별도 연결에서 실행 (autocommit 모드)
-        import sqlite3 as _sqlite3
-        con_vacuum = _sqlite3.connect(db_file, timeout=10)
-        try:
-            con_vacuum.execute("VACUUM")
-        finally:
-            con_vacuum.close()
 
         return ok_response(
             data={"tables_cleared": deleted, "backup": backup_name},

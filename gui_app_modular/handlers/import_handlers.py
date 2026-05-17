@@ -433,7 +433,7 @@ class ImportHandlersMixin:
                     'ship_date': safe_date(row.get(col_map.get('ship_date', ''), '')),
                     'arrival_date': safe_date(row.get(col_map.get('arrival_date', 'arrival_date'), '')),
                     'free_time': int(safe_float(row.get(col_map.get('free_time', ''), 0))),
-                    'warehouse': safe_str(row.get(col_map.get('warehouse', 'warehouse'), '광양')),
+                    'warehouse': safe_str(row.get(col_map.get('warehouse', 'warehouse'), 'GY')),
                     'stock_date': safe_date(row.get(col_map.get('stock_date', 'stock_date'), '')),
                     'location': safe_str(row.get(col_map.get('location', ''), '')),
                     'remark': safe_str(row.get(col_map.get('remark', ''), '')),
@@ -513,7 +513,7 @@ class ImportHandlersMixin:
                 'ship_date': safe_date(_get(row, 'ship_date') or ''),
                 'arrival_date': safe_date(_get(row, 'arrival_date') or ''),
                 'free_time': int(safe_float(_get(row, 'free_time') or 0) or 0),
-                'warehouse': safe_str(_get(row, 'warehouse') or '') or '광양',
+                'warehouse': safe_str(_get(row, 'warehouse') or '') or 'GY',
             }
         
         rows_valid = []
@@ -619,7 +619,7 @@ class ImportHandlersMixin:
                     'ship_date': safe_date(row.get(col_map.get('ship_date', ''), '')),
                     'arrival_date': safe_date(row.get(col_map.get('arrival_date', 'arrival_date'), '')),
                     'free_time': int(safe_float(row.get(col_map.get('free_time', ''), 0))),
-                    'warehouse': safe_str(row.get(col_map.get('warehouse', 'warehouse'), '광양')),
+                    'warehouse': safe_str(row.get(col_map.get('warehouse', 'warehouse'), 'GY')),
                     'stock_date': safe_date(row.get(col_map.get('stock_date', 'stock_date'), '')),
                     'location': safe_str(row.get(col_map.get('location', ''), '')),
                     'remark': safe_str(row.get(col_map.get('remark', ''), '')),
@@ -645,7 +645,11 @@ class ImportHandlersMixin:
         self._safe_refresh()
     def _get_basic_column_mapping(self, columns) -> Dict[str, str]:
         """기본 컬럼 매핑 (Column Alias 없을 때)"""
-        col_map = {}
+        try:
+            from utils.sqm_legacy_excel import build_inventory_column_map
+            col_map = build_inventory_column_map(columns, include_sale_ref=False)
+        except Exception:
+            col_map = {}
         columns_lower = {str(c).lower().strip(): c for c in columns}
         
         mappings = {
@@ -658,9 +662,12 @@ class ImportHandlersMixin:
             'arrival_date': ['arrival_date', 'arrival', '입항일'],
             'stock_date': ['stock_date', 'inbound_date', '입고일'],
             'warehouse': ['warehouse', 'wh', '창고'],
+            'salar_invoice_no': ['salar_invoice_no', 'salar invoice no.', 'salar invoice no', 'invoice', '인보이스'],
         }
         
         for std_key, candidates in mappings.items():
+            if std_key in col_map:
+                continue
             for candidate in candidates:
                 if candidate in columns_lower:
                     col_map[std_key] = columns_lower[candidate]

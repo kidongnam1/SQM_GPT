@@ -602,7 +602,7 @@ def get_allocation_detail(lot_no: str, plan_date: str = ""):
         if plan_date and plan_date != "0000-00-00":
             rows = con.execute("""
                 SELECT ap.lot_no,
-                       ap.tonbag_no,
+                       ap.sub_lt,
                        ap.customer,
                        COALESCE(ap.qty_mt, 0)                         AS qty_mt,
                        ap.sale_ref,
@@ -612,12 +612,12 @@ def get_allocation_detail(lot_no: str, plan_date: str = ""):
                 WHERE ap.lot_no = ?
                   AND ap.status = 'RESERVED'
                   AND COALESCE(date(ap.outbound_date), '0000-00-00') = ?
-                ORDER BY ap.tonbag_no
+                ORDER BY ap.sub_lt
             """, (lot_no, plan_date)).fetchall()
         else:
             rows = con.execute("""
                 SELECT ap.lot_no,
-                       ap.tonbag_no,
+                       ap.sub_lt,
                        ap.customer,
                        COALESCE(ap.qty_mt, 0)                         AS qty_mt,
                        ap.sale_ref,
@@ -626,13 +626,13 @@ def get_allocation_detail(lot_no: str, plan_date: str = ""):
                 FROM allocation_plan ap
                 WHERE ap.lot_no = ?
                   AND ap.status = 'RESERVED'
-                ORDER BY ap.tonbag_no
+                ORDER BY ap.sub_lt
             """, (lot_no,)).fetchall()
         con.close()
         return ok_response(data={
             "items": _rows_to_list(rows),
             "total": len(rows),
-            "columns": ["lot_no", "tonbag_no", "customer", "qty_mt",
+            "columns": ["lot_no", "sub_lt", "customer", "qty_mt",
                          "sale_ref", "status", "created_at"]
         })
     except Exception as e:

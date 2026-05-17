@@ -216,7 +216,7 @@ def phase7_prepare():
     if plan.exists():
         log(f"📋 Phase 7 PLAN: {plan}")
         log("\n다음 단계:")
-        log("  1. dist/SQM_v864_4.exe 를 GY Logis 광양 PC 에 배포")
+        log("  1. dist/SQM_v864_4.exe 를 GY Logis warehouse PC 에 배포")
         log("  2. 사장님이 매일 실사용 + REPORTS/PHASE7_DAY1.md ... DAY7.md 작성")
         log("  3. Critical 버그 발견 시 scripts/autonomous_runner.py --hotfix 실행")
         log("  4. 7일 후 GO 승인 시 Phase 8 으로 진행")

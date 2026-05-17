@@ -69,7 +69,7 @@ class EmailConfigDialog:
             ('발신자 주소', 'from_addr', ''),
             ('수신자 (쉼표 구분)', 'recipients_str', ''),
             ('회사명', 'company_name', '(주)지와이로지스'),
-            ('창고명', 'warehouse', '광양 창고'),
+            ('창고명', 'warehouse', 'GY'),
             ('반품 임계 건수', 'threshold_count', '3'),
             ('조회 기간 (일)', 'threshold_days', '30'),
         ]

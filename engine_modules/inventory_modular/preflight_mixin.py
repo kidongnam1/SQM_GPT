@@ -230,10 +230,10 @@ class PreflightMixin:
 
                     # Create outbound item record
                     self.db.execute("""
-                        INSERT INTO outbound_item 
-                        (outbound_id, lot_no, qty_mt, picked_weight, product)
-                        VALUES (?, ?, ?, ?, ?)
-                    """, (outbound_id, lot_no, qty_mt, picked_from_lot, item.get('product', '')))
+                        INSERT INTO outbound_item
+                        (outbound_id, lot_no, qty_kg, status)
+                        VALUES (?, ?, ?, 'PICKED')
+                    """, (outbound_id, lot_no, picked_from_lot))
 
                     total_picked += picked_from_lot
                     lots_processed += 1

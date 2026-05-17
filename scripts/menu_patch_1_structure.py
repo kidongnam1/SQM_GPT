@@ -158,7 +158,6 @@ STEP4_REMOVE = """\
       <div class="submenu-parent" tabindex="0">
         <button class="submenu-parent-btn" type="button">✨ Gemini AI</button>
         <div class="submenu-dropdown">
-          <button data-action="onAiChat" title="Gemini AI와 재고/물류 관련 질문을 나눕니다">💬 AI 채팅</button>
           <button data-action="onGeminiApiSettings" title="Gemini API 키를 등록·변경합니다">🔐 API 키 설정</button>
           <button data-action="onGeminiApiTest" title="현재 API 키로 Gemini 연결 상태를 테스트합니다">🧪 API 연결 테스트</button>
         </div>
@@ -184,7 +183,6 @@ STEP4_INSERT_REPLACEMENT = """\
       <div class="submenu-parent" tabindex="0">
         <button class="submenu-parent-btn" type="button">✨ Gemini AI</button>
         <div class="submenu-dropdown">
-          <button data-action="onAiChat" title="Gemini AI와 재고/물류 관련 질문을 나눕니다">💬 AI 채팅</button>
           <button data-action="onGeminiApiSettings" title="Gemini API 키를 등록·변경합니다">🔐 API 키 설정</button>
           <button data-action="onGeminiApiTest" title="현재 API 키로 Gemini 연결 상태를 테스트합니다">🧪 API 연결 테스트</button>
         </div>

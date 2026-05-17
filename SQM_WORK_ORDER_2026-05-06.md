@@ -4,7 +4,7 @@
 **작성:** 2026-05-06 (수)
 **작성자:** Ruby (Senior Software Architect Mode)
 **발주:** 남기동 대표님
-**프로젝트:** SQM Inventory v8.6.6 (광양창고)
+**프로젝트:** SQM Inventory v8.6.6 (GY창고)
 
 ---
 

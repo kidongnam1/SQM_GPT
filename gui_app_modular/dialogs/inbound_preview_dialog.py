@@ -120,7 +120,7 @@ class ManualInboundPreviewDialog:
                 p.get('mxbg_pallet', 10),
                 p.get('product', ''),
                 p.get('container_no', ''),
-                p.get('warehouse', '광양'),
+                p.get('warehouse', 'GY'),
             ))
 
         # 더블클릭 편집 바인딩

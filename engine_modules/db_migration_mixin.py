@@ -84,6 +84,7 @@ class DatabaseMigrationMixin:
         self._migrate_v872_sold_table_dedup_index()         # v8.7.2 P4: sold_table 중복 방지 인덱스
         self._migrate_v868_pending_workflow_columns()        # v8.6.8: PENDING 워크플로우 컬럼 (port_date, inbound_type)
         self._migrate_v868_packing_type_column()             # v8.6.8: 팔레트 구성 (1pack/2pack) 컬럼
+        self._migrate_v873_carrier_field_coord()             # v8.7.3: BL 선사별 좌표 룰 DB화
 
     def _migrate_v868_packing_type_column(self) -> None:
         """
@@ -115,6 +116,126 @@ class DatabaseMigrationMixin:
             )
         except Exception as e:
             logger.warning(f"[v8.6.8] packing_type 컬럼 마이그레이션 실패: {e}")
+
+    def _migrate_v873_carrier_field_coord(self) -> None:
+        """
+        v8.7.3: BL 선사별 필드 좌표 룰 테이블 생성 + 현재 parser 상수 seed.
+
+        기존 parsers/document_parser_modular/bl_mixin.py 의 CARRIER_COORD_TABLE
+        기본값을 DB로 이관하기 위한 기반 테이블. 사용자가 DB에서 수정한 룰을
+        덮어쓰지 않도록 INSERT OR IGNORE 로만 초기 seed 한다.
+        """
+        try:
+            self.execute("""
+                CREATE TABLE IF NOT EXISTS carrier_field_coord (
+                    coord_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    carrier_id TEXT NOT NULL,
+                    document_type TEXT NOT NULL DEFAULT 'BL',
+                    field_name TEXT NOT NULL,
+                    page_index INTEGER DEFAULT 0,
+                    x1_pct REAL NOT NULL,
+                    x2_pct REAL NOT NULL,
+                    y1_pct REAL NOT NULL,
+                    y2_pct REAL NOT NULL,
+                    post_regex TEXT DEFAULT '',
+                    anchor_word TEXT DEFAULT '',
+                    valid_from TEXT DEFAULT '2026-01-01',
+                    valid_to TEXT DEFAULT '',
+                    is_active INTEGER DEFAULT 1,
+                    updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(carrier_id, document_type, field_name, valid_from)
+                )
+            """)
+            self.execute(
+                "CREATE INDEX IF NOT EXISTS idx_carrier_field_coord_active "
+                "ON carrier_field_coord(carrier_id, document_type, is_active)"
+            )
+            self.execute(
+                "CREATE INDEX IF NOT EXISTS idx_carrier_field_coord_field "
+                "ON carrier_field_coord(carrier_id, document_type, field_name, is_active)"
+            )
+        except (sqlite3.OperationalError, OSError) as e:
+            logger.warning(f"[v8.7.3] carrier_field_coord 테이블/인덱스 생성 실패: {e}")
+            return
+
+        coord_table = {
+            "MAERSK": {
+                "bl_no": (85.0, 95.0, 6.0, 7.5),
+                "vessel": (5.0, 25.0, 33.3, 34.6),
+                "voyage_no": (26.0, 40.0, 33.3, 34.6),
+                "port_of_loading": (5.0, 26.0, 36.5, 37.8),
+                "port_of_discharge": (26.0, 46.0, 36.5, 37.8),
+                "ship_date": (5.0, 22.0, 79.5, 81.5),
+                "shipper": (5.0, 49.0, 8.5, 15.5),
+                "consignee": (5.0, 49.0, 17.5, 23.5),
+                "gross_weight_p1": (5.0, 25.0, 37.0, 39.5),
+            },
+            "MSC": {
+                "bl_no": (65.0, 90.0, 2.0, 3.5),
+                "vessel": (3.0, 17.0, 29.5, 31.0),
+                "voyage_no": (18.2, 22.0, 29.5, 31.0),
+                "port_of_loading": (30.0, 58.0, 29.0, 31.0),
+                "port_of_discharge": (30.0, 58.0, 32.0, 34.0),
+                "ship_date": (12.0, 58.0, 80.0, 96.0),
+            },
+            "HAPAG": {
+                "bl_no": (60.0, 82.0, 10.5, 12.0),
+                "vessel": (6.0, 40.0, 36.5, 38.0),
+                "voyage_no": (40.0, 47.5, 36.5, 38.0),
+                "port_of_loading": (6.0, 45.0, 41.0, 42.5),
+                "port_of_discharge": (49.0, 76.0, 38.0, 40.5),
+                "ship_date": (68.0, 90.0, 88.0, 89.5),
+                "shipper": (5.0, 48.0, 3.5, 13.5),
+                "consignee": (5.0, 48.0, 13.5, 23.0),
+                "gross_weight_p1": (65.0, 82.0, 69.0, 74.0),
+            },
+            "ONE": {
+                "bl_no": (78.0, 97.0, 7.5, 9.0),
+                "vessel": (4.0, 21.0, 35.0, 36.3),
+                "voyage_no": (19.0, 27.0, 35.0, 36.3),
+                "port_of_loading": (30.0, 56.0, 35.0, 36.8),
+                "port_of_discharge": (4.0, 21.0, 38.0, 39.5),
+                "ship_date": (80.0, 96.0, 74.5, 76.5),
+                "shipper": (4.0, 45.0, 7.0, 14.5),
+                "consignee": (4.0, 45.0, 15.0, 24.0),
+                "gross_weight_p0": (72.0, 84.0, 49.0, 51.5),
+            },
+        }
+
+        try:
+            seed_count = 0
+            for carrier_id, fields in coord_table.items():
+                for field_name, box in fields.items():
+                    self.execute("""
+                        INSERT OR IGNORE INTO carrier_field_coord (
+                            carrier_id, document_type, field_name, page_index,
+                            x1_pct, x2_pct, y1_pct, y2_pct,
+                            post_regex, anchor_word, valid_from, valid_to,
+                            is_active
+                        ) VALUES (
+                            :carrier_id, 'BL', :field_name, :page_index,
+                            :x1_pct, :x2_pct, :y1_pct, :y2_pct,
+                            '', '', '2026-01-01', '',
+                            1
+                        )
+                    """, {
+                        "carrier_id": carrier_id,
+                        "field_name": field_name,
+                        "page_index": 1 if field_name == "gross_weight_p1" else 0,
+                        "x1_pct": box[0],
+                        "x2_pct": box[1],
+                        "y1_pct": box[2],
+                        "y2_pct": box[3],
+                    })
+                    seed_count += 1
+            self.commit()
+            logger.info(f"[v8.7.3] carrier_field_coord BL 좌표 seed 확인 완료 ({seed_count}건)")
+        except (sqlite3.OperationalError, sqlite3.IntegrityError, OSError) as e:
+            logger.warning(f"[v8.7.3] carrier_field_coord seed 실패: {e}")
+            try:
+                self.rollback()
+            except Exception:
+                logger.debug("[SUPPRESSED] exception in db_migration_mixin.py")  # noqa
 
     def _migrate_v868_pending_workflow_columns(self) -> None:
         """

@@ -40,7 +40,7 @@ _DEFAULT_CONFIG = {
     'threshold_count': 3,     # N건 이상 반품 시 알림
     'threshold_days': 30,     # 최근 N일 이내
     'company_name': '(주)지와이로지스',
-    'warehouse': '광양 창고',
+    'warehouse': 'GY',
 }
 
 

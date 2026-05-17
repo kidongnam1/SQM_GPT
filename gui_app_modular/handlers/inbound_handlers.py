@@ -426,7 +426,7 @@ class ImportHandlersMixin:
                     'ship_date': safe_date(row.get(col_map.get('ship_date', ''), '')),
                     'arrival_date': safe_date(row.get(col_map.get('arrival_date', 'arrival_date'), '')),
                     'free_time': int(safe_float(row.get(col_map.get('free_time', ''), 0))),
-                    'warehouse': safe_str(row.get(col_map.get('warehouse', 'warehouse'), '광양')),
+                    'warehouse': safe_str(row.get(col_map.get('warehouse', 'warehouse'), 'GY')),
                     'stock_date': safe_date(row.get(col_map.get('stock_date', 'stock_date'), '')),
                     'location': safe_str(row.get(col_map.get('location', ''), '')),
                     'remark': safe_str(row.get(col_map.get('remark', ''), '')),
@@ -506,7 +506,7 @@ class ImportHandlersMixin:
                 'ship_date': safe_date(_get(row, 'ship_date') or ''),
                 'arrival_date': safe_date(_get(row, 'arrival_date') or ''),
                 'free_time': int(safe_float(_get(row, 'free_time') or 0) or 0),
-                'warehouse': safe_str(_get(row, 'warehouse') or '') or '광양',
+                'warehouse': safe_str(_get(row, 'warehouse') or '') or 'GY',
             }
 
         rows_valid = []
@@ -636,7 +636,7 @@ class ImportHandlersMixin:
                     'ship_date': safe_date(row.get(col_map.get('ship_date', ''), '')),
                     'arrival_date': safe_date(row.get(col_map.get('arrival_date', 'arrival_date'), '')),
                     'free_time': int(safe_float(row.get(col_map.get('free_time', ''), 0))),
-                    'warehouse': safe_str(row.get(col_map.get('warehouse', 'warehouse'), '광양')),
+                    'warehouse': safe_str(row.get(col_map.get('warehouse', 'warehouse'), 'GY')),
                     'stock_date': safe_date(row.get(col_map.get('stock_date', 'stock_date'), '')),
                     'location': safe_str(row.get(col_map.get('location', ''), '')),
                     'remark': safe_str(row.get(col_map.get('remark', ''), '')),

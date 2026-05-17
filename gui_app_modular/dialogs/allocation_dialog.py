@@ -1390,7 +1390,7 @@ class AllocationDialog:
             filter_frm = ttk.LabelFrame(status_win, text="필터 (고객사/LOT/기간)")
             filter_frm.pack(fill=X, padx=5, pady=(5, 2))
             ttk.Label(filter_frm, text="고객사").grid(row=0, column=0, padx=4, pady=4, sticky="w")
-            # v6.7.3: 고객사 Combobox (광양 거래처 preset)
+            # v6.7.3: 고객사 Combobox (GY warehouse 거래처 preset)
             _cust_cb = ttk.Combobox(
                 filter_frm, textvariable=customer_var, width=26,
                 values=[''] + CUSTOMER_PRESETS, state='normal'
