@@ -435,6 +435,26 @@
     });
   }
   window.showPickingListPdfModal = showPickingListPdfModal;
+  /* Picking List Excel 업로드 (피킹 이력 반영) */
+  function showPickingListExcelModal() {
+    _showExcelUploadModal({
+      title: '📋 Picking List Excel 업로드',
+      subtitle: 'Picking List Excel(.xlsx) 을 업로드하면 자동 파싱하여 picking_table 에 반영합니다.',
+      endpoint: '/api/outbound/picking-import-excel',
+      onSuccess: function(d) {
+        var warnHtml = '';
+        if (d.warnings && d.warnings.length) {
+          warnHtml = '<details style="margin-top:8px"><summary style="cursor:pointer;color:var(--warning)">⚠️ 경고 ' + d.warnings.length + '건</summary><pre style="white-space:pre-wrap;font-size:.8rem;margin-top:8px">' + escapeHtml(d.warnings.join('\n')) + '</pre></details>';
+        }
+        return '<div style="color:var(--text-muted);font-size:.85rem">파일: ' + escapeHtml(d.filename||'-') +
+               ' · 방법: ' + escapeHtml(d.parse_method||'-') +
+               ' · LOT ' + (d.total_lots||0) + '개 · 일반 ' + (d.total_normal_mt||0) + ' MT · 샘플 ' + (d.total_sample_kg||0) + ' KG' +
+               ' · <strong style="color:var(--accent)">반영 ' + (d.applied||0) + '건</strong>' +
+               '</div>' + warnHtml;
+      }
+    });
+  }
+  window.showPickingListExcelModal = showPickingListExcelModal;
 
   /* ===================================================
      8p. 바코드 스캔 업로드 — CSV/Excel 파일 업로드

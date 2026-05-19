@@ -405,6 +405,14 @@ try:
 except Exception as e:
     logging.warning(f"warehouse_api router load failed: {e}")
 
+# v8.6.9: Location Map API (위치재고조회 엑셀 import — 신형식 + [N] + diff)
+try:
+    from backend.api.location_map_api import router as location_map_router
+    app.include_router(location_map_router)
+    logging.info("location_map_api router loaded OK (POST /api/location-map/preview)")
+except Exception as e:
+    logging.warning(f"location_map_api router load failed: {e}")
+
 try:
     from backend.api.report_templates import router as report_templates_router
     app.include_router(report_templates_router)

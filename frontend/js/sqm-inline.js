@@ -836,10 +836,25 @@
         var el = document.getElementById(id);
         if (el) el.textContent = (v === null || v === undefined) ? '-' : String(v);
       }
-      sv('kpi-inbound-val',        d.today_inbound_mt    !== undefined ? d.today_inbound_mt    : (d.inbound_today   || d.inbound   || '-'));
-      sv('kpi-outbound-today-val', d.today_outbound_mt   !== undefined ? d.today_outbound_mt   : (d.outbound_today  || d.outbound  || '-'));
-      sv('kpi-stock-lots-val',     d.current_stock_lots  !== undefined ? d.current_stock_lots  : (d.stock_lots      || d.lots      || '-'));
-      sv('kpi-unassigned-val',     d.unassigned_locations !== undefined ? d.unassigned_locations : (d.unassigned_bags || d.unassigned|| '-'));
+      /* v8.6.9 — 5카드 × (톤백/샘플) 2줄 분리 표시 */
+      function _setTxt(id, txt) { var el = document.getElementById(id); if (el) el.textContent = txt; }
+      function _fmtV(v) { return (v === null || v === undefined || v === '') ? '-' : String(v); }
+      function _setSplit(prefix, tonbag, sample, unit) {
+        _setTxt(prefix + '-tonbag', '톤백 ' + _fmtV(tonbag) + ' ' + unit);
+        _setTxt(prefix + '-sample', '샘플 ' + _fmtV(sample) + ' ' + unit);
+      }
+      _setSplit('kpi-prev-stock',    d.prev_stock_tonbag_mt,     d.prev_stock_sample_mt,     'MT');
+      _setSplit('kpi-inbound',       d.today_inbound_tonbag_mt,  d.today_inbound_sample_mt,  'MT');
+      _setSplit('kpi-outbound',      d.today_outbound_tonbag_mt, d.today_outbound_sample_mt, 'MT');
+      _setSplit('kpi-current-stock', d.current_stock_tonbag_mt,  d.current_stock_sample_mt,  'MT');
+      _setSplit('kpi-unassigned',    d.unassigned_tonbag_bags,   d.unassigned_sample_bags,   '개');
+      /* 구 ID 호환 (다른 화면이 참조할 수 있음) */
+      sv('kpi-inbound-val',        d.today_inbound_mt    !== undefined ? d.today_inbound_mt    : '-');
+      sv('kpi-outbound-today-val', d.today_outbound_mt   !== undefined ? d.today_outbound_mt   : '-');
+      sv('kpi-stock-lots-val',     d.current_stock_lots  !== undefined ? d.current_stock_lots  : '-');
+      sv('kpi-current-stock-val',  d.current_stock_mt    !== undefined ? d.current_stock_mt    : '-');
+      sv('kpi-prev-stock-val',     d.prev_stock_mt       !== undefined ? d.prev_stock_mt       : '-');
+      sv('kpi-unassigned-val',     d.unassigned_total    !== undefined ? d.unassigned_total    : (d.unassigned_locations || '-'));
       if (window._updateWeightBadge) window._updateWeightBadge();
     }).catch(function(){});
   }
@@ -4886,6 +4901,7 @@
     'onQuickOutboundPaste': {m:'JS', u:'quick-outbound-paste', lbl:'빠른 출고 (붙여넣기)'},
     /* v864.3 Phase 4-B: Picking List PDF 업로드 */
     'onPickingListUpload':  {m:'JS', u:'picking-list-pdf', lbl:'Picking List 업로드 (PDF)'},
+    'onPickingListExcelUpload':  {m:'JS', u:'picking-list-excel', lbl:'Picking List 업로드 (Excel)'},
     'onOutboundScheduled': {m:'JS', u:'outbound',                                 lbl:'출고 예정'},
     /* v864.3 Phase 4-B: 출고 확정 네이티브 폼 */
     'onOutboundConfirm': {m:'JS', u:'outbound-confirm', lbl:'출고 확정'},
@@ -5001,6 +5017,8 @@
     'onStockTrendChart':   {m:'GET', u:'/api/q/inventory-trend',                   lbl:'📊 재고 추이 차트'},
     /* v8.6.8: 창고 셀 점유 대시보드 */
     'onWarehouseDashboard':{m:'JS', u:'warehouse-dashboard',                       lbl:'📊 창고 현황 (대시보드)'},
+    /* v8.6.9: 위치재고조회 엑셀 import */
+    'onLocationMapImport':{m:'JS', u:'location-map-import', lbl:'📥 위치재고 엑셀 Import'},
 
     /* 전역 검색: v866는 Inventory 탭 검색으로 대체 (기능 단위 동등 목표) */
     'onGlobalSearch':      {m:'JS', u:'inventory',                                lbl:'🔍 전역 검색'},
@@ -5064,6 +5082,7 @@
     'allocation-upload': function(){ window.showAllocationUploadModal(); },
     'tonbag-location-upload': function(){ window.showTonbagLocationUploadModal(); },
     'picking-list-pdf': function(){ window.showPickingListPdfModal(); },
+    'picking-list-excel': function(){ window.showPickingListExcelModal(); },
     'barcode-scan-upload': function(){ window.showBarcodeScanUploadModal(); },
     'do-upload': function(){ window.showDoUploadModal(); },
     'sales-order-upload': function(){ window.showSalesOrderUploadModal(); },
@@ -5102,6 +5121,7 @@
     'return-statistics-modal': function(){ window.showReturnStatisticsModal(); },
     'advanced-tools-hub': function(){ window.showAdvancedToolsHubModal(); },
     'warehouse-dashboard': function(){ _openWarehouseDashboard(); },
+    'location-map-import': function(){ if (typeof window.showLocationMapImportModal === 'function') { window.showLocationMapImportModal(); } else { showToast('error', '위치재고 import 모듈 미로드'); } },
 
     /* exports */
     'export-dl-e1': function(conf){ sqmDownloadFileUrl(API + '/api/action/export-engine-excel?option=1', conf.lbl); },

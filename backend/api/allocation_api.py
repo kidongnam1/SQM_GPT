@@ -150,6 +150,70 @@ def _ai_match_columns(df, context_rows: int = 3) -> dict:
         return {}
 
 
+def _rows_from_registered_templates(excel_path: str):
+    """등록된 .json 템플릿(resources/templates/allocation/*.json)으로 파싱 시도.
+
+    각 템플릿의 sheet / header_row 를 적용해 Excel 을 읽고, 컬럼 시그니처가
+    충분히 일치하면 표준 키 매핑(_match_alloc_columns)을 수행한다.
+    [양식 가져오기]로 등록한 외부 양식을 실제 import 에 연결하는 단계.
+    반환: (df, header_0based, col_map, template_id) 또는 (None, None, None, None)
+    """
+    import json as __json
+    try:
+        import pandas as pd
+    except ImportError:
+        return None, None, None, None
+    try:
+        base = _alloc_template_dir()
+    except Exception as exc:
+        logger.debug("[allocation-import] 템플릿 디렉터리 접근 실패: %s", exc)
+        return None, None, None, None
+
+    for jf in sorted(base.glob('*.json')):
+        try:
+            tpl = __json.loads(jf.read_text(encoding='utf-8'))
+        except Exception:
+            continue
+        header_row = tpl.get('header_row')          # 1-based
+        if not isinstance(header_row, int) or header_row < 1:
+            continue
+        sheet = tpl.get('sheet')
+        tpl_cols = {str(c).strip().lower()
+                    for c in (tpl.get('columns') or []) if str(c).strip()}
+        try:
+            read_kw = {'header': header_row - 1}
+            if sheet and sheet not in ('자동선택', ''):
+                read_kw['sheet_name'] = sheet
+            df = pd.read_excel(excel_path, **read_kw)
+        except Exception as exc:
+            logger.debug("[allocation-import] 템플릿 %s 적용 실패: %s", jf.stem, exc)
+            continue
+        if df is None or df.empty:
+            continue
+        # 시그니처 검증 — 업로드 파일 컬럼이 템플릿 columns 와 충분히 겹쳐야 함
+        file_cols = {str(c).strip().lower() for c in df.columns if str(c).strip()}
+        if tpl_cols:
+            overlap = len(file_cols & tpl_cols)
+            if overlap < max(2, len(tpl_cols) // 2):
+                continue                            # 이 템플릿 양식 아님
+        col_map = _match_alloc_columns(df.columns)
+        # 템플릿에 사용자 지정 매핑(column_map)이 있으면 우선 적용 — 비표준 컬럼명 지원
+        _tpl_map = tpl.get('column_map') or {}
+        if _tpl_map:
+            _df_cols = {str(c).strip().lower(): c for c in df.columns}
+            for _mk, _mname in _tpl_map.items():
+                _actual = _df_cols.get(str(_mname).strip().lower())
+                if _actual is not None:
+                    col_map[_mk] = _actual
+        if 'lot_no' in col_map and ('sold_to' in col_map or 'qty_mt' in col_map):
+            logger.info(
+                "[allocation-import] 등록 템플릿 매칭: %s (header=%d행)",
+                tpl.get('id', jf.stem), header_row,
+            )
+            return df, header_row - 1, col_map, tpl.get('id', jf.stem)
+    return None, None, None, None
+
+
 @router.post("/bulk-import-excel", summary="📍 Allocation 입력 — Excel 업로드 (F014)")
 async def bulk_import_allocation(file: UploadFile = File(...)):
     """
@@ -212,9 +276,20 @@ async def bulk_import_allocation(file: UploadFile = File(...)):
             if canonical_rows:
                 logger.info("[allocation-import] alias 매핑 실패 → 정본 AllocationParser 폴백 성공: %d행", len(canonical_rows))
 
-        # Stage 3: Gemini AI 폴백 — alias + 정본 파서 모두 실패 시
+        # Stage 2.5: 등록된 .json 템플릿 폴백 — [양식 가져오기]로 등록한 외부 양식 적용
+        tpl_used = None
         if (df is None or df.empty) and not canonical_rows:
-            logger.info("[allocation-import] alias/정본 파서 실패 → Gemini AI 폴백 시도")
+            _t_df, _t_header, _t_map, _t_id = _rows_from_registered_templates(tmp_path)
+            if _t_df is not None:
+                df = _t_df
+                header_used = _t_header
+                col_map_override = _t_map
+                tpl_used = _t_id
+                logger.info("[allocation-import] alias/정본 파서 실패 → 등록 템플릿 폴백 성공: id=%s", _t_id)
+
+        # Stage 3: Gemini AI 폴백 — alias + 정본 파서 + 등록 템플릿 모두 실패 시
+        if (df is None or df.empty) and not canonical_rows:
+            logger.info("[allocation-import] alias/정본/템플릿 실패 → Gemini AI 폴백 시도")
             for header_row in (0, 1, 2, 3, 4, 5):
                 try:
                     candidate = pd.read_excel(tmp_path, header=header_row)
@@ -236,7 +311,11 @@ async def bulk_import_allocation(file: UploadFile = File(...)):
                 "(정본 파서/AI 폴백도 실패. 컬럼명을 확인하거나 표준 양식을 사용하세요)")
 
         col_map = col_map_override if col_map_override else (_match_alloc_columns(df.columns) if df is not None else {})
-        _mapping_source = "정본파서" if canonical_rows else ("AI폴백" if col_map_override else "alias")
+        _mapping_source = (
+            "정본파서" if canonical_rows
+            else ("등록템플릿(" + str(tpl_used) + ")") if tpl_used
+            else ("AI폴백" if col_map_override else "alias")
+        )
         logger.info(
             "[allocation-import] header=%s, %s행, 매핑(%s): %s",
             header_used,
@@ -945,7 +1024,8 @@ def _find_header_row(filepath: _Path):
 async def template_upload(
     file: UploadFile = File(...),
     label: str = "",
-    action: str = "check"
+    action: str = "check",
+    column_map: str = ""
 ):
     """
     고객사 Allocation xlsx 파일을 업로드하면:
@@ -989,6 +1069,20 @@ async def template_upload(
                 'qty_mt_max': 0.01,
             },
         }
+
+        # 사용자 지정 컬럼 매핑 (비표준 컬럼명 → 표준키) 파싱·검증
+        user_col_map = {}
+        if column_map:
+            try:
+                _raw_map = _json.loads(column_map)
+                _valid_keys = {'lot_no', 'qty_mt', 'sold_to', 'sale_ref', 'outbound_date'}
+                for _k, _v in (_raw_map or {}).items():
+                    if _k in _valid_keys and _v and str(_v).strip() in columns:
+                        user_col_map[_k] = str(_v).strip()
+            except Exception as _exc:
+                logger.warning("[template-upload] column_map 파싱 실패: %s", _exc)
+        if user_col_map:
+            mapping['column_map'] = user_col_map
 
         # 저장
         base = _alloc_template_dir()
@@ -1085,6 +1179,33 @@ async def template_list():
             "header_row": 0,
             "builtin": True,
             "description": "정본 AllocationParser 내장 지원",
+        },
+        {
+            "id": "builtin_easpring",
+            "tab_label": "📄 Easpring 계열",
+            "columns": ["LOT", "PRODUCT", "QTY(MT)", "SC RCVD"],
+            "sheet": "자동선택",
+            "header_row": 0,
+            "builtin": True,
+            "description": "정본 AllocationParser 내장 지원 (14행 헤더 / SC RCVD)",
+        },
+        {
+            "id": "builtin_shipper",
+            "tab_label": "📄 화주원본 계열",
+            "columns": ["LOT", "QTY(MT)", "SOLD TO"],
+            "sheet": "자동선택",
+            "header_row": 0,
+            "builtin": True,
+            "description": "정본 AllocationParser 내장 지원 (1행 합계 / 2행 헤더)",
+        },
+        {
+            "id": "builtin_legacy",
+            "tab_label": "📄 기존 계열",
+            "columns": ["LOT", "PRODUCT", "QTY(MT)", "SOLD TO"],
+            "sheet": "자동선택",
+            "header_row": 0,
+            "builtin": True,
+            "description": "정본 AllocationParser 내장 지원 (1행 타이틀 / 3행 헤더)",
         },
     ]
     for jf in sorted(base.glob("*.json")):

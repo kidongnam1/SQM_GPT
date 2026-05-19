@@ -133,6 +133,7 @@
       </div>
       <hr class="menu-sep">
       <button data-action="onInventoryMove" title="창고 내 톤백의 위치(구역/행/열)를 엑셀·지도 형태로 매핑합니다">📍 톤백 위치 매핑</button>
+      <button data-action="onLocationMapImport" title="위치재고조회 엑셀(신형식 G동-칸-열-층 [N])을 업로드하여 LOT↔셀 매핑을 검증·diff·반영합니다">📥 위치재고 엑셀 Import</button>
       <button data-action="onWarehouseDashboard" title="5동/6동 평면도 + 셀별 점유 현황 (EMPTY/OCCUPIED/HALF)">📊 창고 현황 (대시보드)</button>
 
     </div>
@@ -142,9 +143,11 @@
   <div class="menu-btn" data-menu="Allocation" tabindex="0" role="menuitem">📋 <span>Allocation</span> <span class="caret">▼</span>
     <div class="menu-dropdown">
       <button data-action="onInventoryAllocation" title="고객사별 제품 배정(Allocation)을 입력합니다">📋 Allocation 입력</button>
-      <button data-action="onApprovalQueue" title="출고 승인 대기 중인 요청 목록을 확인합니다">✅ 승인 대기</button>
+      <!-- ??: ?? ?? ????? ?? ?? ??? ???? ??. ?? ??? ??. -->
+      <!-- <button data-action="onApprovalQueue" title="출고 승인 대기 중인 요청 목록을 확인합니다">✅ 승인 대기</button> -->
       <button data-action="onApplyApproved" title="승인 완료된 예약 건을 실제 재고에 반영합니다">📌 예약 반영 (승인분)</button>
-      <button data-action="onApprovalHistory" title="과거 승인/반려 이력을 조회합니다">📜 승인 이력 조회</button>
+      <!-- ??: ?? ?????? ???? ???? ??. ?? ??? ??. -->
+      <!-- <button data-action="onApprovalHistory" title="과거 승인/반려 이력을 조회합니다">📜 승인 이력 조회</button> -->
       <button data-action="onLotAllocationAudit" title="LOT별 Allocation 및 톤백 현황을 감사합니다">📊 LOT Allocation 현황</button>
       <hr style="border:none;border-top:1px solid var(--border);margin:4px 0">
       <button data-action="onImportAllocationTemplate" title="고객사 Excel 양식을 가져와 Allocation 템플릿으로 등록합니다">📥 양식 가져오기</button>
@@ -351,10 +354,26 @@
     </div>
     <div id="dashboard-container" class="page-content">
       <div id="kpi-row" class="kpi-row">
-        <div class="kpi-card" id="kpi-inbound"><div class="kpi-icon">📥</div><div class="kpi-label">오늘 입고 (MT)</div><div class="kpi-value" id="kpi-inbound-val">--</div></div>
-        <div class="kpi-card" id="kpi-outbound-today"><div class="kpi-icon">📤</div><div class="kpi-label">오늘 출고 (MT)</div><div class="kpi-value" id="kpi-outbound-today-val">--</div></div>
-        <div class="kpi-card" id="kpi-stock-lots"><div class="kpi-icon">📦</div><div class="kpi-label">현재 재고 LOT</div><div class="kpi-value" id="kpi-stock-lots-val">--</div></div>
-        <div class="kpi-card" id="kpi-unassigned"><div class="kpi-icon">📍</div><div class="kpi-label">위치 미배정</div><div class="kpi-value" id="kpi-unassigned-val">--</div></div>
+        <div class="kpi-card" id="kpi-prev-stock">
+          <div class="kpi-icon">📊</div><div class="kpi-label">전일 재고</div>
+          <div class="kpi-split"><span class="kpi-tonbag" id="kpi-prev-stock-tonbag">톤백 -- MT</span><span class="kpi-sample" id="kpi-prev-stock-sample">샘플 -- MT</span></div>
+        </div>
+        <div class="kpi-card" id="kpi-inbound">
+          <div class="kpi-icon">📥</div><div class="kpi-label">오늘 입고</div>
+          <div class="kpi-split"><span class="kpi-tonbag" id="kpi-inbound-tonbag">톤백 -- MT</span><span class="kpi-sample" id="kpi-inbound-sample">샘플 -- MT</span></div>
+        </div>
+        <div class="kpi-card" id="kpi-outbound-today">
+          <div class="kpi-icon">📤</div><div class="kpi-label">오늘 출고</div>
+          <div class="kpi-split"><span class="kpi-tonbag" id="kpi-outbound-tonbag">톤백 -- MT</span><span class="kpi-sample" id="kpi-outbound-sample">샘플 -- MT</span></div>
+        </div>
+        <div class="kpi-card" id="kpi-current-stock">
+          <div class="kpi-icon">📦</div><div class="kpi-label">현재 재고</div>
+          <div class="kpi-split"><span class="kpi-tonbag" id="kpi-current-stock-tonbag">톤백 -- MT</span><span class="kpi-sample" id="kpi-current-stock-sample">샘플 -- MT</span></div>
+        </div>
+        <div class="kpi-card" id="kpi-unassigned">
+          <div class="kpi-icon">📍</div><div class="kpi-label">미배정 톤백</div>
+          <div class="kpi-split"><span class="kpi-tonbag" id="kpi-unassigned-tonbag">톤백 -- 개</span><span class="kpi-sample" id="kpi-unassigned-sample">샘플 -- 개</span></div>
+        </div>
       </div>
       <div id="dashboard-detail" style="padding:8px 16px;"></div>
     </div>
@@ -366,7 +385,7 @@
   <div id="alerts-content" class="alerts-content">🔔 알림 로딩 중...</div>
 </div>
 
-  <script src="js/sqm-core.js?v=20260517p22"></script>
+  <script src="js/sqm-core.js?v=20260518kpi1"></script>
     <script src="js/sqm-inventory.js?v=20260517a"></script>
     <script src="js/sqm-allocation.js?v=20260517b"></script>
     <script src="js/sqm-picked.js?v=20260517b"></script>
@@ -377,11 +396,12 @@
   <script src="js/sqm-listview.js?v=20260514a"></script>
   <script src="js/sqm-case3-dialog.js?v=20260513a"></script>
   <script src="js/sqm-location-mapping.js?v=20260513a"></script>
+  <script src="js/sqm-location-map-import.js?v=20260519a"></script>
   <script src="js/sqm-warehouse-dashboard.js?v=20260513a"></script>
     <script src="js/sqm-revert.js?v=20260512b"></script>
     <script src="js/sqm-weight-panel.js?v=20260517b"></script>
     <script src="js/sqm-settings-templates.js?v=20260517a"></script>
-    <script src="js/sqm-inline.js?v=20260517p29"></script>
+    <script src="js/sqm-inline.js?v=20260518kpi1"></script>
     <script src="js/sqm-upload-modals.js?v=20260517a"></script>
     <script src="js/sqm-aux-modals.js?v=20260517a"></script>
     <script src="js/sqm-tools-modals.js?v=20260517a"></script>

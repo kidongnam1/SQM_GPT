@@ -24,8 +24,8 @@ test.describe('SQM 라우터 회귀 — Preparing: 버그 차단', () => {
 
   for (const tab of TABS) {
     test(`탭 [${tab.label}] — "Preparing:" 없음`, async ({ page }) => {
-      // 사이드바 탭 클릭 (data-page 또는 data-tab 속성으로 찾음)
-      const selector = `[data-page="${tab.name}"], [data-tab="${tab.name}"], nav a[href="#${tab.name}"]`;
+      // 현재 사이드바 구현의 정식 라우트 속성
+      const selector = `[data-route="${tab.name}"]`;
       const btn = page.locator(selector).first();
       await btn.click();
 
@@ -49,7 +49,7 @@ test.describe('SQM 라우터 회귀 — Preparing: 버그 차단', () => {
     });
 
     for (const tab of TABS) {
-      const selector = `[data-page="${tab.name}"], [data-tab="${tab.name}"], nav a[href="#${tab.name}"]`;
+      const selector = `[data-route="${tab.name}"]`;
       const btn = page.locator(selector).first();
       if (await btn.count() > 0) {
         await btn.click();
@@ -61,7 +61,7 @@ test.describe('SQM 라우터 회귀 — Preparing: 버그 차단', () => {
   });
 
   test('Available 탭 — 핵심 컬럼과 그룹 전환 버튼 유지', async ({ page }) => {
-    await page.locator('[data-page="available"], [data-tab="available"]').first().click();
+    await page.locator('[data-route="available"]').first().click();
     await expect(page.locator('#page-container')).toContainText('Con Return');
     await expect(page.locator('#page-container')).toContainText('Free');
     await expect(page.getByText('LOT별', { exact: true })).toBeVisible();
@@ -69,11 +69,25 @@ test.describe('SQM 라우터 회귀 — Preparing: 버그 차단', () => {
     await expect(page.getByText('입고일별', { exact: true })).toBeVisible();
   });
 
+  test('Pending 탭 — 추가기능 버튼 onclick이 깨지지 않음', async ({ page }) => {
+    await page.locator('[data-route="pending"]').first().click();
+    const buttons = page.locator('button[title="추가기능"]');
+
+    if (await buttons.count() === 0) {
+      test.skip(true, '입고대기 LOT가 없어 버튼 렌더링 검증을 건너뜀');
+    }
+
+    const onclick = await buttons.first().getAttribute('onclick');
+    expect(onclick).toContain('showPendingActionMenu(event,');
+    expect(onclick).not.toContain('JSON.stringify');
+    expect(onclick).not.toContain('""');
+  });
+
   test('Picked 탭 — 그룹 모드 전환 중 치명 콘솔 오류 없음', async ({ page }) => {
     const consoleErrors = [];
     page.on('pageerror', (err) => consoleErrors.push(err.message));
 
-    await page.locator('[data-page="picked"], [data-tab="picked"]').first().click();
+    await page.locator('[data-route="picked"]').first().click();
     await page.getByText('고객사별', { exact: true }).click();
     await page.waitForTimeout(300);
     await page.getByText('입고일별', { exact: true }).click();
@@ -133,7 +147,7 @@ test.describe('SQM 라우터 회귀 — Preparing: 버그 차단', () => {
   });
 
   test('Move 탭 — LOT 이동 입력으로 표시', async ({ page }) => {
-    await page.locator('[data-page="move"], [data-tab="move"]').first().click();
+    await page.locator('[data-route="move"]').first().click();
     await expect(page.locator('#move-lot-no')).toBeVisible();
     await expect(page.locator('#move-lot-no')).toHaveAttribute('placeholder', 'LOT No');
   });

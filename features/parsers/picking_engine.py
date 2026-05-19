@@ -167,7 +167,7 @@ class PickingEngine:
             """
             SELECT id, lot_no, sub_lt, weight, tonbag_uid
             FROM inventory_tonbag
-            WHERE lot_no = ? AND status = 'RESERVED'  # noqa: STATUS_RESERVED
+            WHERE lot_no = ? AND status = 'RESERVED'  -- noqa: STATUS_RESERVED
             ORDER BY sub_lt ASC
             """,
             (lot_no,),
@@ -244,7 +244,7 @@ class PickingEngine:
             """
             SELECT id, lot_no, sub_lt, weight, tonbag_uid
             FROM inventory_tonbag
-            WHERE lot_no = ? AND status = 'RESERVED'  # noqa: STATUS_RESERVED
+            WHERE lot_no = ? AND status = 'RESERVED'  -- noqa: STATUS_RESERVED
               AND (is_sample = 1 OR sub_lt = 0)
             LIMIT 1
             """,

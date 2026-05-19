@@ -348,6 +348,103 @@ async def picking_list_pdf(file: UploadFile = File(...)):
 
 
 # ────────────────────────────────────────────────────────────
+@router.post("/picking-import-excel", summary="📋 Picking List Excel 업로드 (피킹 이력 반영)")
+async def picking_import_excel(file: UploadFile = File(...)):
+    """
+    Picking List Excel(.xlsx/.xls) 파싱 → apply_picking_list_to_db() 호출.
+    PDF(picking-list-pdf)와 동일한 picking_engine 을 공유한다.
+    """
+    if not file.filename:
+        raise HTTPException(400, "파일명 없음")
+    if not file.filename.lower().endswith((".xlsx", ".xls")):
+        raise HTTPException(400, f"Excel 파일만 지원. 받은 파일: {file.filename}")
+
+    try:
+        from backend.api import engine, ENGINE_AVAILABLE
+    except Exception as e:
+        raise HTTPException(500, f"엔진 로드 실패: {e}")
+    if not ENGINE_AVAILABLE or engine is None:
+        raise HTTPException(500, "엔진 사용 불가")
+
+    try:
+        from features.parsers.picking_excel_parser import parse_picking_list_excel
+        from features.parsers.picking_engine import apply_picking_list_to_db
+    except ImportError as e:
+        raise HTTPException(500, f"Picking 엔진 import 실패: {e}")
+
+    tmp_path = None
+    try:
+        content = await file.read()
+        if not content:
+            raise HTTPException(400, "빈 파일")
+        ext = os.path.splitext(file.filename)[1].lower()
+        with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as tmp:
+            tmp.write(content)
+            tmp_path = tmp.name
+        logger.info(f"[picking-import-excel] 수신: {file.filename} ({len(content)} bytes)")
+
+        doc = parse_picking_list_excel(tmp_path)
+        if not doc.get("parse_ok"):
+            return {
+                "ok": False,
+                "data": {
+                    "filename": file.filename,
+                    "parse_ok": False,
+                    "warnings": doc.get("warnings", []),
+                    "total_lots": doc.get("total_lots", 0),
+                    "items": doc.get("items", [])[:10],
+                },
+                "error": "Picking List Excel 파싱 실패",
+                "detail": {"code": "PARSE_FAILED", "warnings": doc.get("warnings", [])},
+                "message": "Picking List Excel 파싱 실패 — 파일 내용을 확인해주세요",
+            }
+
+        result = apply_picking_list_to_db(engine, doc, tmp_path)
+
+        if result.get("success"):
+            applied = int(result.get("applied", 0) or result.get("picked", 0) or 0)
+            logger.info(f"[picking-import-excel] 반영 완료: {applied}건 ({file.filename})")
+            return {
+                "ok": True,
+                "data": {
+                    "filename": file.filename,
+                    "parse_method": doc.get("parse_method"),
+                    "total_lots": doc.get("total_lots", 0),
+                    "total_normal_mt": doc.get("total_normal_mt", 0),
+                    "total_sample_kg": doc.get("total_sample_kg", 0),
+                    "applied": applied,
+                    "warnings": doc.get("warnings", []),
+                    "details": result.get("details", [])[:30],
+                },
+                "message": f"Picking List 반영 완료 ({applied}건)",
+            }
+        return {
+            "ok": False,
+            "data": {
+                "filename": file.filename,
+                "total_lots": doc.get("total_lots", 0),
+                "errors": result.get("errors", []),
+                "warnings": doc.get("warnings", []),
+            },
+            "error": "Picking List 반영 실패",
+            "detail": {"code": "APPLY_FAILED", "errors": result.get("errors", [])},
+            "message": "DB 반영 실패 — 상세 errors 확인",
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"[picking-import-excel] 에러: {e}")
+        raise HTTPException(500, f"Internal error: {e}")
+    finally:
+        if tmp_path and os.path.exists(tmp_path):
+            try:
+                os.unlink(tmp_path)
+            except Exception:
+                pass
+
+
+# ─────────────────────────────────────────────────────────────
 # F016 빠른 출고 (붙여넣기) — 여러 LOT 텍스트 → 일괄 즉시 출고
 # 각 행: "LOT_NO TAB COUNT" 또는 "LOT_NO,COUNT"
 # 고객명 공통 1개 (모든 LOT 동일)

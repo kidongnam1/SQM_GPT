@@ -4030,6 +4030,7 @@
     'onQuickOutboundPaste': {m:'JS', u:'quick-outbound-paste', lbl:'빠른 출고 (붙여넣기)'},
     /* v864.3 Phase 4-B: Picking List PDF 업로드 */
     'onPickingListUpload':  {m:'JS', u:'picking-list-pdf', lbl:'Picking List 업로드 (PDF)'},
+    'onPickingListExcelUpload':  {m:'JS', u:'picking-list-excel', lbl:'Picking List 업로드 (Excel)'},
     'onOutboundScheduled': {m:'JS', u:'outbound',                                 lbl:'출고 예정'},
     /* v864.3 Phase 4-B: 출고 확정 네이티브 폼 */
     'onOutboundConfirm': {m:'JS', u:'outbound-confirm', lbl:'출고 확정'},
@@ -4233,6 +4234,10 @@
       }
       if (conf.u === 'picking-list-pdf') {
         showPickingListPdfModal();
+        return;
+      }
+      if (conf.u === 'picking-list-excel') {
+        window.showPickingListExcelModal();
         return;
       }
       if (conf.u === 'quick-outbound-paste') {

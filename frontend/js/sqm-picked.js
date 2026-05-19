@@ -110,10 +110,10 @@
       + '<th style="text-align:center">LOT No</th>'
       + '<th>피킹No</th><th>고객사</th>'
       + '<th style="text-align:right">톤백수</th><th style="text-align:right">중량(kg)</th>'
-      + '<th style="text-align:center">MXBG</th>'
-      + '<th style="text-align:center">Available</th>'
-      + '<th style="text-align:center">Reserved</th>'
-      + '<th style="text-align:center">Packed</th>'
+      + '<th title="총 톤백 개수 (MAXI BAG)" style="text-align:center">MXBG</th>'
+      + '<th title="가용 톤백 수(개) — 바로 배분 가능한 톤백" style="text-align:center">Available</th>'
+      + '<th title="예약 톤백 수(개) — 배정 잡힌 톤백" style="text-align:center">Reserved</th>'
+      + '<th title="피킹/포장된 톤백 수(개)" style="text-align:center">Packed</th>'
       + '<th>Title Transfer</th>'
       + '<th style="width:32px;text-align:center">⋯</th>'
       + '</tr></thead><tbody>';
@@ -129,10 +129,10 @@
         + '<td>' + escapeHtml(r.customer || r.picked_to || '') + '</td>'
         + '<td class="mono-cell" style="text-align:right">' + (r.tonbag_count || 0) + '</td>'
         + '<td class="mono-cell" style="text-align:right">' + (r.total_kg != null ? fmtN(r.total_kg) : '-') + '</td>'
-        + '<td class="mono-cell" style="text-align:center">' + (r.mxbg_pallet != null ? r.mxbg_pallet : '-') + '</td>'
-        + '<td class="mono-cell" style="text-align:center;color:#22c55e;font-weight:700">' + availBags + '</td>'
-        + '<td class="mono-cell" style="text-align:center;color:#3b82f6;font-weight:700">' + reservedBags + '</td>'
-        + '<td class="mono-cell" style="text-align:center;color:#f59e0b;font-weight:700">' + packedBags + '</td>'
+        + '<td title="총 톤백 개수 (MAXI BAG)" class="mono-cell" style="text-align:center">' + (r.mxbg_pallet != null ? r.mxbg_pallet : '-') + '</td>'
+        + '<td title="가용 톤백 수(개) — 바로 배분 가능한 톤백" class="mono-cell" style="text-align:center;color:#22c55e;font-weight:700">' + availBags + '</td>'
+        + '<td title="예약 톤백 수(개) — 배정 잡힌 톤백" class="mono-cell" style="text-align:center;color:#3b82f6;font-weight:700">' + reservedBags + '</td>'
+        + '<td title="피킹/포장된 톤백 수(개)" class="mono-cell" style="text-align:center;color:#f59e0b;font-weight:700">' + packedBags + '</td>'
         + '<td class="mono-cell">' + escapeHtml(r.picking_date || '') + '</td>'
         + '<td style="text-align:center;padding:3px 4px"><button class="btn btn-ghost btn-xs" data-lot="' + lot + '" onclick="event.stopPropagation();window.showPickedActionMenu(this)" style="font-size:15px;padding:0 4px;letter-spacing:1px" title="추가기능">⋯</button></td>'
         + '</tr>';
@@ -162,8 +162,8 @@
       '    ' + _pickedModeBtnHtml('customer', '고객사별', pickedMode),
       '    ' + _pickedModeBtnHtml('date', '입고일별', pickedMode),
       '  </div>',
+      '  <button class="btn" style="font-size:12px;padding:4px 10px;background:rgba(239,68,68,0.15);color:#ef4444;border:1px solid #ef444455" onclick="window.allocRevertStep(\'PICKED\')" title="PICKED 상태를 RESERVED로 되돌립니다">↩️ 선택 취소(→RESERVED)</button>',
       '  <div style="margin-left:auto;display:flex;gap:8px;align-items:center">',
-      '    <button class="btn" onclick="window.allocRevertStep(\'PICKED\')" style="font-size:12px" title="PICKED 상태를 RESERVED로 되돌립니다">↩ PICKED &rarr; RESERVED</button>',
       '    <button class="btn btn-secondary" onclick="window.exportPickedExcel()" style="font-size:12px" title="현재 Picked 데이터를 Excel로 내보냅니다">📊 Excel 내보내기</button>',
       '    <button class="btn btn-secondary" onclick="renderPage(\'picked\')">🔁 새로고침</button>',
       '  </div>',
@@ -171,7 +171,7 @@
       '<div id="picked-loading" style="padding:40px;text-align:center;color:var(--text-muted)">⏳ 데이터 로딩 중...</div>',
       '<div style="overflow-x:auto">',
       '  <table class="data-table" id="picked-table" style="display:none">',
-      '  <thead><tr><th style="color:var(--text-muted);text-align:center;width:32px">#</th><th></th><th style="text-align:center">LOT No</th><th style="width:32px;text-align:center">+</th><th>피킹No</th><th>고객사</th><th>톤백수</th><th>중량(kg)</th><th>MXBG</th><th>Available</th><th>Reserved</th><th>Packed</th><th>Total Bags</th><th>Remain Bags</th><th>AV</th><th>VR</th><th>AR</th><th>Title Transfer Date</th></tr></thead>',
+      '  <thead><tr><th style="color:var(--text-muted);text-align:center;width:32px">#</th><th></th><th style="text-align:center">LOT No</th><th style="width:32px;text-align:center">+</th><th>피킹No</th><th>고객사</th><th>톤백수</th><th>중량(kg)</th><th title="총 톤백 개수 (MAXI BAG)">MXBG</th><th title="가용 톤백 수(개) — 바로 배분 가능한 톤백">Available</th><th title="예약 톤백 수(개) — 배정 잡힌 톤백">Reserved</th><th title="피킹/포장된 톤백 수(개)">Packed</th><th title="전체 톤백 수(개)">Total Bags</th><th title="남은 톤백 수 = 전체 − 가용 − 예약 − 피킹">Remain Bags</th><th title="가용 중량 AV (Available MT) — 아직 배정 안 된, 바로 배분 가능한 물량">AV</th><th title="예약 중량 VR (Reserved MT) — RESERVED 상태로 배정 잡힌 물량">VR</th><th title="피킹 중량 AR (Picked MT) — 출고 작업 중(PICKED)인 물량">AR</th><th>Title Transfer Date</th></tr></thead>',
       '  <tbody id="picked-tbody"></tbody>',
       '  </table>',
       '</div>',
@@ -224,15 +224,15 @@
           '<td>'+escapeHtml(r.customer||r.picked_to||'')+'</td>' +
           '<td class="mono-cell" style="text-align:right">'+(r.tonbag_count||0)+'</td>' +
           '<td class="mono-cell" style="text-align:right">'+(r.total_kg!=null?fmtN(r.total_kg):'-')+'</td>' +
-          '<td class="mono-cell" style="text-align:center">'+(r.mxbg_pallet!=null?r.mxbg_pallet:'-')+'</td>' +
-          '<td class="mono-cell" style="text-align:center;color:#22c55e;font-weight:700">'+availBags+'</td>' +
-          '<td class="mono-cell" style="text-align:center;color:#3b82f6;font-weight:700">'+reservedBags+'</td>' +
-          '<td class="mono-cell" style="text-align:center;color:#f59e0b;font-weight:700">'+packedBags+'</td>' +
-          '<td class="mono-cell" style="text-align:center">'+totalBags+'</td>' +
-          '<td class="mono-cell" style="text-align:center;font-weight:700">'+remainBags+'</td>' +
-          '<td class="mono-cell" style="text-align:right;color:#22c55e;font-weight:700">'+(availMt ? availMt.toFixed(3) : '0')+'</td>' +
-          '<td class="mono-cell" style="text-align:right;color:#3b82f6;font-weight:700">'+(reservedMt ? reservedMt.toFixed(3) : '0')+'</td>' +
-          '<td class="mono-cell" style="text-align:right;color:#f59e0b;font-weight:700">'+(pickedMt ? pickedMt.toFixed(3) : '0')+'</td>' +
+          '<td title="총 톤백 개수 (MAXI BAG)" class="mono-cell" style="text-align:center">'+(r.mxbg_pallet!=null?r.mxbg_pallet:'-')+'</td>' +
+          '<td title="가용 톤백 수(개) — 바로 배분 가능한 톤백" class="mono-cell" style="text-align:center;color:#22c55e;font-weight:700">'+availBags+'</td>' +
+          '<td title="예약 톤백 수(개) — 배정 잡힌 톤백" class="mono-cell" style="text-align:center;color:#3b82f6;font-weight:700">'+reservedBags+'</td>' +
+          '<td title="피킹/포장된 톤백 수(개)" class="mono-cell" style="text-align:center;color:#f59e0b;font-weight:700">'+packedBags+'</td>' +
+          '<td title="전체 톤백 수(개)" class="mono-cell" style="text-align:center">'+totalBags+'</td>' +
+          '<td title="남은 톤백 수 = 전체 − 가용 − 예약 − 피킹" class="mono-cell" style="text-align:center;font-weight:700">'+remainBags+'</td>' +
+          '<td title="가용 중량 AV (Available MT) — 아직 배정 안 된, 바로 배분 가능한 물량" class="mono-cell" style="text-align:right;color:#22c55e;font-weight:700">'+(availMt ? availMt.toFixed(3) : '0')+'</td>' +
+          '<td title="예약 중량 VR (Reserved MT) — RESERVED 상태로 배정 잡힌 물량" class="mono-cell" style="text-align:right;color:#3b82f6;font-weight:700">'+(reservedMt ? reservedMt.toFixed(3) : '0')+'</td>' +
+          '<td title="피킹 중량 AR (Picked MT) — 출고 작업 중(PICKED)인 물량" class="mono-cell" style="text-align:right;color:#f59e0b;font-weight:700">'+(pickedMt ? pickedMt.toFixed(3) : '0')+'</td>' +
           '<td class="mono-cell">'+escapeHtml(r.picking_date||'')+'</td>' +
           '</tr>';
       }).join('');

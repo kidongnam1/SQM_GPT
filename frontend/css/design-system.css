@@ -527,6 +527,28 @@ h4 { font-size: 12px; font-weight: 500; text-transform: uppercase; letter-spacin
   font-family: var(--font-mono);
 }
 
+/* v8.6.9 — KPI 카드 톤백/샘플 분리 (2줄 표시, 균등 크기) */
+.kpi-split {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  line-height: 1.25;
+}
+.kpi-tonbag {
+  font-family: var(--font-mono);
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--kpi-color, var(--text-primary));
+  letter-spacing: 0.2px;
+}
+.kpi-sample {
+  font-family: var(--font-mono);
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--text-muted);
+  letter-spacing: 0.2px;
+}
+
 .kpi-delta {
   font-size: 11px;
   margin-top: 8px;

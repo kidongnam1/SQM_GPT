@@ -88,15 +88,15 @@
       '    <th>SAP NO</th>',
       '    <th>PRODUCT</th>',
       '    <th style="text-align:right">QTY (MT)</th>',
-      '    <th>MXBG</th>',
-      '    <th>Available</th>',
-      '    <th>Reserved</th>',
-      '    <th>Packed</th>',
-      '    <th>Total Bags</th>',
-      '    <th>Remain Bags</th>',
-      '    <th>AV</th>',
-      '    <th>VR</th>',
-      '    <th>AR</th>',
+      '    <th title="총 톤백 개수 (MAXI BAG)">MXBG</th>',
+      '    <th title="가용 톤백 수(개) — 바로 배분 가능한 톤백">Available</th>',
+      '    <th title="예약 톤백 수(개) — 배정 잡힌 톤백">Reserved</th>',
+      '    <th title="피킹/포장된 톤백 수(개)">Packed</th>',
+      '    <th title="전체 톤백 수(개)">Total Bags</th>',
+      '    <th title="남은 톤백 수 = 전체 − 가용 − 예약 − 피킹">Remain Bags</th>',
+      '    <th title="가용 중량 AV (Available MT) — 아직 배정 안 된, 바로 배분 가능한 물량">AV</th>',
+      '    <th title="예약 중량 VR (Reserved MT) — RESERVED 상태로 배정 잡힌 물량">VR</th>',
+      '    <th title="피킹 중량 AR (Picked MT) — 출고 작업 중(PICKED)인 물량">AR</th>',
       '    <th>CUSTOMER</th>',
       '    <th>SALE REF</th>',
       '    <th>OUTBOUND DATE</th>',
@@ -204,15 +204,15 @@
         '<td class="mono-cell">' + escapeHtml(r.sap_no || '-') + '</td>' +
         '<td>' + escapeHtml(r.product || '-') + '</td>' +
         editTd('qty_mt', (qtyMt ? qtyMt.toFixed(4) : '-'), 'mono-cell', 'text-align:right') +
-        '<td class="mono-cell" style="text-align:center">' + (r.mxbg_pallet != null ? r.mxbg_pallet : '-') + '</td>' +
-        '<td class="mono-cell" style="text-align:center;color:#22c55e;font-weight:700">' + availBags + '</td>' +
-        '<td class="mono-cell" style="text-align:center;color:#3b82f6;font-weight:700">' + reservedBags + '</td>' +
-        '<td class="mono-cell" style="text-align:center;color:#f59e0b;font-weight:700">' + packedBags + '</td>' +
-        '<td class="mono-cell" style="text-align:center">' + totalBags + '</td>' +
-        '<td class="mono-cell" style="text-align:center;font-weight:700">' + remainBags + '</td>' +
-        '<td class="mono-cell" style="text-align:right;color:#22c55e;font-weight:700">' + (availMt ? availMt.toFixed(3) : '0') + '</td>' +
-        '<td class="mono-cell" style="text-align:right;color:#3b82f6;font-weight:700">' + (reservedMt ? reservedMt.toFixed(3) : '0') + '</td>' +
-        '<td class="mono-cell" style="text-align:right;color:#f59e0b;font-weight:700">' + (pickedMt ? pickedMt.toFixed(3) : '0') + '</td>' +
+        '<td title="총 톤백 개수 (MAXI BAG)" class="mono-cell" style="text-align:center">' + (r.mxbg_pallet != null ? r.mxbg_pallet : '-') + '</td>' +
+        '<td title="가용 톤백 수(개) — 바로 배분 가능한 톤백" class="mono-cell" style="text-align:center;color:#22c55e;font-weight:700">' + availBags + '</td>' +
+        '<td title="예약 톤백 수(개) — 배정 잡힌 톤백" class="mono-cell" style="text-align:center;color:#3b82f6;font-weight:700">' + reservedBags + '</td>' +
+        '<td title="피킹/포장된 톤백 수(개)" class="mono-cell" style="text-align:center;color:#f59e0b;font-weight:700">' + packedBags + '</td>' +
+        '<td title="전체 톤백 수(개)" class="mono-cell" style="text-align:center">' + totalBags + '</td>' +
+        '<td title="남은 톤백 수 = 전체 − 가용 − 예약 − 피킹" class="mono-cell" style="text-align:center;font-weight:700">' + remainBags + '</td>' +
+        '<td title="가용 중량 AV (Available MT) — 아직 배정 안 된, 바로 배분 가능한 물량" class="mono-cell" style="text-align:right;color:#22c55e;font-weight:700">' + (availMt ? availMt.toFixed(3) : '0') + '</td>' +
+        '<td title="예약 중량 VR (Reserved MT) — RESERVED 상태로 배정 잡힌 물량" class="mono-cell" style="text-align:right;color:#3b82f6;font-weight:700">' + (reservedMt ? reservedMt.toFixed(3) : '0') + '</td>' +
+        '<td title="피킹 중량 AR (Picked MT) — 출고 작업 중(PICKED)인 물량" class="mono-cell" style="text-align:right;color:#f59e0b;font-weight:700">' + (pickedMt ? pickedMt.toFixed(3) : '0') + '</td>' +
         editTd('customer', escapeHtml(r.customer || r.sold_to || '-'), '', '') +
         editTd('sale_ref', escapeHtml(r.sale_ref || '-'), 'mono-cell', '') +
         editTd('outbound_date', escapeHtml(r.outbound_date || r.ship_date || '-'), 'mono-cell', '') +
@@ -801,6 +801,37 @@
     }
 
     // ── 분석 결과 표시 + 확인 UI ───────────────────────────
+    // ── 컬럼 매핑 편집기 (비표준 컬럼명 → 표준키) ───────────
+    var _MAP_FIELDS = [
+      ['lot_no',        'LOT 번호',  /lot/i,                                       true],
+      ['qty_mt',        '수량 (MT)', /qty|quantity|balance|weight|수량/i,           true],
+      ['sold_to',       '고객사',    /sold|customer|buyer|consignee|고객|거래처/i,  false],
+      ['sale_ref',      'Sale Ref',  /sale.?ref|sc.?no|contract|참조/i,             false],
+      ['outbound_date', '출고일',    /outbound|ship|delivery|출고|선적/i,           false]
+    ];
+    function _buildMapEditor(columns) {
+      var rows = _MAP_FIELDS.map(function(f){
+        var key = f[0], lbl = f[1], rx = f[2], req = f[3];
+        var guess = '';
+        columns.some(function(c){ if (rx.test(String(c))) { guess = c; return true; } return false; });
+        var opts = '<option value="">(자동 감지)</option>' + columns.map(function(c){
+          var sel = (c === guess) ? ' selected' : '';
+          return '<option value="' + escapeHtml(String(c)) + '"' + sel + '>' + escapeHtml(String(c)) + '</option>';
+        }).join('');
+        return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:5px">' +
+          '<label style="width:104px;font-size:.82rem;color:var(--text-muted)">' + lbl +
+            (req ? ' <span style="color:var(--danger)">*</span>' : '') + '</label>' +
+          '<select id="atpl-map-' + key + '" style="flex:1;padding:4px 6px;border:1px solid var(--border);' +
+            'border-radius:5px;background:var(--bg);color:var(--text-primary);font-size:.83rem">' + opts + '</select>' +
+        '</div>';
+      }).join('');
+      return '<div style="background:var(--bg-hover);border:1px solid var(--border);border-radius:6px;padding:10px 12px;margin-bottom:10px">' +
+        '<div style="font-size:.83rem;font-weight:600;color:var(--text-muted);margin-bottom:8px">🔗 컬럼 매핑 — 표준 항목에 엑셀 컬럼 연결</div>' +
+        rows +
+        '<div style="font-size:.76rem;color:var(--text-muted);margin-top:4px">(자동 감지)로 두면 import 시 별칭 규칙으로 매칭합니다. 비표준 컬럼명은 직접 지정하세요.</div>' +
+      '</div>';
+    }
+
     function showAnalysisResult(res) {
       var cols = (res.columns || []).join(', ');
       var preview = '<div style="background:var(--bg-hover);border:1px solid var(--border);border-radius:6px;padding:10px 12px;margin-bottom:10px">' +
@@ -821,6 +852,8 @@
           '<br><span style="color:var(--text-muted);font-size:.8rem">계속 등록할 수 있지만, 실제 사용 전 Excel 양식에 해당 컬럼을 추가하세요.</span>' +
           '</div>';
       }
+
+      preview += _buildMapEditor(res.columns || []);
 
       if (!res.duplicate) {
         // 비중복 → 추가 확인
@@ -854,6 +887,12 @@
       fd.append('file', _pendingFile);
       if (label) fd.append('label', label);
       fd.append('action', action);
+      var _cmap = {};
+      ['lot_no','qty_mt','sold_to','sale_ref','outbound_date'].forEach(function(k){
+        var _el = document.getElementById('atpl-map-' + k);
+        if (_el && _el.value) _cmap[k] = _el.value;
+      });
+      if (Object.keys(_cmap).length) fd.append('column_map', JSON.stringify(_cmap));
 
       resultDiv.innerHTML = '<span style="color:var(--text-muted)">⏳ 저장 중...</span>';
       fetch(window.API + '/api/allocation/template-upload', { method:'POST', body:fd })

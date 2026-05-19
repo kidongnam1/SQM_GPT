@@ -1049,10 +1049,25 @@ window.SQM_STATUS_MAP = window.SQM_STATUS_MAP || {
         var el = document.getElementById(id);
         if (el) el.textContent = (v === null || v === undefined) ? '-' : String(v);
       }
-      sv('kpi-inbound-val',        d.today_inbound_mt    !== undefined ? d.today_inbound_mt    : (d.inbound_today   || d.inbound   || '-'));
-      sv('kpi-outbound-today-val', d.today_outbound_mt   !== undefined ? d.today_outbound_mt   : (d.outbound_today  || d.outbound  || '-'));
-      sv('kpi-stock-lots-val',     d.current_stock_lots  !== undefined ? d.current_stock_lots  : (d.stock_lots      || d.lots      || '-'));
-      sv('kpi-unassigned-val',     d.unassigned_locations !== undefined ? d.unassigned_locations : (d.unassigned_bags || d.unassigned|| '-'));
+      /* v8.6.9 — 5카드 × (톤백/샘플) 2줄 분리 표시 */
+      function _setTxt(id, txt) { var el = document.getElementById(id); if (el) el.textContent = txt; }
+      function _fmtV(v) { return (v === null || v === undefined || v === '') ? '-' : String(v); }
+      function _setSplit(prefix, tonbag, sample, unit) {
+        _setTxt(prefix + '-tonbag', '톤백 ' + _fmtV(tonbag) + ' ' + unit);
+        _setTxt(prefix + '-sample', '샘플 ' + _fmtV(sample) + ' ' + unit);
+      }
+      _setSplit('kpi-prev-stock',    d.prev_stock_tonbag_mt,     d.prev_stock_sample_mt,     'MT');
+      _setSplit('kpi-inbound',       d.today_inbound_tonbag_mt,  d.today_inbound_sample_mt,  'MT');
+      _setSplit('kpi-outbound',      d.today_outbound_tonbag_mt, d.today_outbound_sample_mt, 'MT');
+      _setSplit('kpi-current-stock', d.current_stock_tonbag_mt,  d.current_stock_sample_mt,  'MT');
+      _setSplit('kpi-unassigned',    d.unassigned_tonbag_bags,   d.unassigned_sample_bags,   '개');
+      /* 구 ID 호환 (다른 화면이 참조할 수 있음) */
+      sv('kpi-inbound-val',        d.today_inbound_mt    !== undefined ? d.today_inbound_mt    : '-');
+      sv('kpi-outbound-today-val', d.today_outbound_mt   !== undefined ? d.today_outbound_mt   : '-');
+      sv('kpi-stock-lots-val',     d.current_stock_lots  !== undefined ? d.current_stock_lots  : '-');
+      sv('kpi-current-stock-val',  d.current_stock_mt    !== undefined ? d.current_stock_mt    : '-');
+      sv('kpi-prev-stock-val',     d.prev_stock_mt       !== undefined ? d.prev_stock_mt       : '-');
+      sv('kpi-unassigned-val',     d.unassigned_total    !== undefined ? d.unassigned_total    : (d.unassigned_locations || '-'));
     }).catch(function(){});
   }
 

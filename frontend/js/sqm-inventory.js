@@ -94,7 +94,7 @@
         '<div style="overflow-x:auto"><table class="data-table"><thead><tr>' +
         '<th>#</th><th style="text-align:center !important">LOT</th><th style="width:36px;text-align:center">+</th><th>SAP</th><th>BL</th><th>Product</th>' +
         '<th>Status</th><th>Balance(MT)</th><th>NET(MT)</th><th>Container</th>' +
-        '<th>MXBG</th><th>Available</th><th>Reserved</th><th>Packed</th><th>Total Bags</th><th>Remain Bags</th><th>AV</th><th>VR</th><th>AR</th><th>Invoice</th>' +
+        '<th title="총 톤백 개수 (MAXI BAG)">MXBG</th><th title="가용 톤백 수(개) — 바로 배분 가능한 톤백">Available</th><th title="예약 톤백 수(개) — 배정 잡힌 톤백">Reserved</th><th title="피킹/포장된 톤백 수(개)">Packed</th><th title="전체 톤백 수(개)">Total Bags</th><th title="남은 톤백 수 = 전체 − 가용 − 예약 − 피킹">Remain Bags</th><th title="가용 중량 AV (Available MT) — 아직 배정 안 된, 바로 배분 가능한 물량">AV</th><th title="예약 중량 VR (Reserved MT) — RESERVED 상태로 배정 잡힌 물량">VR</th><th title="피킹 중량 AR (Picked MT) — 출고 작업 중(PICKED)인 물량">AR</th><th>Invoice</th>' +
         '<th>Ship</th><th>Arrival</th><th>Con Return</th><th>Free</th>' +
         '<th>WH</th><th>Customs</th><th>Inbound(MT)</th><th>Outbound(MT)</th><th>Location</th><th></th>' +
         '</tr></thead><tbody>';
@@ -170,21 +170,21 @@
           '<td class="mono-cell" style="text-align:right">'+(r.balance!=null?fmtN(r.balance):'-')+'</td>' +
           '<td class="mono-cell" style="text-align:right">'+(r.net!=null?fmtN(r.net):'-')+'</td>' +
           '<td class="mono-cell">'+parentContainer+'</td>' +
-          '<td class="mono-cell" style="text-align:center;padding:6px 10px;line-height:1.2">' +
+          '<td title="총 톤백 개수 (MAXI BAG)" class="mono-cell" style="text-align:center;padding:6px 10px;line-height:1.2">' +
           (r.mxbg_pallet > 0
             ? '<button class="btn btn-ghost btn-xs" style="font-weight:700;color:var(--accent);padding:0 4px;line-height:1.1;min-height:18px" '
             + 'onclick="window.showTonbagModal(\'' + lotKey + '\')" title="톤백 세부 보기">'
             + r.mxbg_pallet + '</button>'
             : '-') +
           '</td>' +
-          '<td class="mono-cell" style="text-align:center;color:#22c55e;font-weight:700">'+availBags+'</td>' +
-          '<td class="mono-cell" style="text-align:center;color:#3b82f6;font-weight:700">'+reservedBags+'</td>' +
-          '<td class="mono-cell" style="text-align:center;color:#f59e0b;font-weight:700">'+packedBags+'</td>' +
-          '<td class="mono-cell" style="text-align:center">'+totalBags+'</td>' +
-          '<td class="mono-cell" style="text-align:center;font-weight:700">'+remainBags+'</td>' +
-          '<td class="mono-cell" style="text-align:right;color:#22c55e;font-weight:700">'+(r.avail_mt!=null?fmtN(r.avail_mt):'-')+'</td>' +
-          '<td class="mono-cell" style="text-align:right;color:#3b82f6;font-weight:700">'+(r.reserved_mt!=null?fmtN(r.reserved_mt):'-')+'</td>' +
-          '<td class="mono-cell" style="text-align:right;color:#f59e0b;font-weight:700">'+(r.picked_mt!=null?fmtN(r.picked_mt):'-')+'</td>' +
+          '<td title="가용 톤백 수(개) — 바로 배분 가능한 톤백" class="mono-cell" style="text-align:center;color:#22c55e;font-weight:700">'+availBags+'</td>' +
+          '<td title="예약 톤백 수(개) — 배정 잡힌 톤백" class="mono-cell" style="text-align:center;color:#3b82f6;font-weight:700">'+reservedBags+'</td>' +
+          '<td title="피킹/포장된 톤백 수(개)" class="mono-cell" style="text-align:center;color:#f59e0b;font-weight:700">'+packedBags+'</td>' +
+          '<td title="전체 톤백 수(개)" class="mono-cell" style="text-align:center">'+totalBags+'</td>' +
+          '<td title="남은 톤백 수 = 전체 − 가용 − 예약 − 피킹" class="mono-cell" style="text-align:center;font-weight:700">'+remainBags+'</td>' +
+          '<td title="가용 중량 AV (Available MT) — 아직 배정 안 된, 바로 배분 가능한 물량" class="mono-cell" style="text-align:right;color:#22c55e;font-weight:700">'+(r.avail_mt!=null?fmtN(r.avail_mt):'-')+'</td>' +
+          '<td title="예약 중량 VR (Reserved MT) — RESERVED 상태로 배정 잡힌 물량" class="mono-cell" style="text-align:right;color:#3b82f6;font-weight:700">'+(r.reserved_mt!=null?fmtN(r.reserved_mt):'-')+'</td>' +
+          '<td title="피킹 중량 AR (Picked MT) — 출고 작업 중(PICKED)인 물량" class="mono-cell" style="text-align:right;color:#f59e0b;font-weight:700">'+(r.picked_mt!=null?fmtN(r.picked_mt):'-')+'</td>' +
           '<td class="mono-cell">'+escapeHtml(r.invoice_no||'')+'</td>' +
           '<td class="mono-cell">'+escapeHtml((r.ship_date||'').slice(0,10))+'</td>' +
           '<td class="mono-cell">'+escapeHtml((r.arrival_date||'').slice(0,10))+'</td>' +
@@ -524,7 +524,6 @@
       + '</tr></thead><tbody>';
     html += rows.map(function(r, i) {
       var lotSafe = escapeHtml(r.lot_no || '');
-      var lotJson = JSON.stringify(r.lot_no || '');
       var netMt = r.net_weight != null ? fmtN(r.net_weight / 1000) : '-';
       var ibDate = (r.inbound_date || '').slice(0, 10);
       return '<tr>'
@@ -532,7 +531,7 @@
         + '<td class="mono-cell" style="color:var(--text-muted)">' + (i+1) + '</td>'
         + '<td class="mono-cell cell-left" style="color:#94a3b8;font-weight:600;padding:6px 10px">' + lotSafe + '</td>'
         + '<td style="text-align:center;padding:3px 4px;width:32px"><button class="btn btn-ghost btn-xs" style="font-size:15px;padding:0 4px;letter-spacing:1px" title="추가기능" '
-        + 'onclick="window.showPendingActionMenu(event,' + lotJson + ')">\u29bf</button></td>'
+        + 'onclick="window.showPendingActionMenu(event,\'' + lotSafe + '\')">\u29bf</button></td>'
         + '<td class="mono-cell">' + escapeHtml(r.sap_no || '-') + '</td>'
         + '<td class="mono-cell">' + escapeHtml(r.bl_no || '-') + '</td>'
         + '<td><span class="tag">' + escapeHtml(r.product || '-') + '</span></td>'
@@ -547,7 +546,7 @@
         + '<td class="mono-cell" style="padding:2px 4px">'
           + '<button class="btn btn-ghost btn-xs" style="font-size:12px;padding:2px 8px;width:100%;text-align:left;'
           + (ibDate ? 'color:#22c55e;font-weight:600' : 'color:var(--text-muted)') + '" '
-          + 'onclick="window.pendingEditInboundDate(this,' + lotJson + ',\'' + ibDate + '\')" '
+          + 'onclick="window.pendingEditInboundDate(this,\'' + lotSafe + '\',\'' + ibDate + '\')" '
           + 'title="실제 입고일 편집 (클릭)">' + (ibDate || '\ud83d\udcc5 미지정') + '</button>'
         + '</td>'
         + '<td class="mono-cell">' + escapeHtml(r.warehouse || '-') + '</td>'
@@ -609,7 +608,7 @@
           + '<td class="mono-cell">' + escapeHtml(r.vessel||'-') + '</td>'
           + '<td class="mono-cell">' + escapeHtml(r.arrival_date||'-') + '</td>'
           + '<td style="text-align:center"><button class="btn btn-ghost" style="padding:1px 8px;font-size:12px" '
-          + 'onclick="window.showPendingActionMenu(event,' + JSON.stringify(r.lot_no) + ')">⋯</button></td>'
+          + 'onclick="window.showPendingActionMenu(event,\'' + escapeHtml(r.lot_no||'') + '\')">⋯</button></td>'
           + '</tr>';
       });
 
@@ -854,14 +853,14 @@
         + '<h2 style="margin:0;font-size:16px;color:#22c55e">✅ Available 재고 — 판매 가능 물량</h2>'
         + '<span style="font-size:12px;color:var(--text-muted)">' + rows.length + ' LOT · Balance ' + fmtN(sumBal) + ' MT</span>'
         + '<button class="btn btn-ghost" style="font-size:12px;margin-left:auto" onclick="window.loadAvailablePage()">🔄 새로고침</button>'
-        + '<button class="btn" style="font-size:12px;padding:4px 10px;background:rgba(245,158,11,0.15);color:#f59e0b;border:1px solid #f59e0b55" onclick="window.availCancelSelected()">↩️ 선택 취소(→PENDING)</button>'
+        + '<button class="btn" style="font-size:12px;padding:4px 10px;background:rgba(239,68,68,0.15);color:#ef4444;border:1px solid #ef444455" onclick="window.availCancelSelected()">↩️ 선택 취소(→PENDING)</button>'
         + '<div style="display:flex;gap:4px">' + _availModeBtn('lot','LOT별') + _availModeBtn('container','컨테이너별') + _availModeBtn('date','입고일별') + '</div>'
         + '</div>'
         + '<div style="overflow-x:auto"><table class="data-table"><thead><tr>'
         + '<th style="width:36px;text-align:center"><input type="checkbox" onclick="window.availToggleAll(this)"></th>'
         + '<th>#</th><th style="text-align:left !important">LOT</th><th>SAP</th><th>BL</th><th>Product</th>'
-        + '<th>Status</th><th>Balance(MT)</th><th>Avail/Rsv(MT)</th><th>NET(MT)</th><th>Container</th>'
-        + '<th>MXBG</th><th>Avail</th><th>Invoice</th>'
+        + '<th>Status</th><th>Balance(MT)</th><th title="앞=가용 중량(MT, 바로 배분 가능) / 뒤=예약(RESERVED) 중량.  예: 3.000/▲2.000 → 총 5MT 중 2MT 예약·3MT 배분 가능">Avail/Rsv(MT)</th><th>NET(MT)</th><th>Container</th>'
+        + '<th title="총 톤백 개수 (MAXI BAG)">MXBG</th><th title="가용 톤백 수(개) — 바로 배분 가능한 톤백">Avail</th><th>Invoice</th>'
         + '<th>Ship</th><th>Arrival</th><th>Con Return</th><th>Free</th><th>WH</th>'
         + '<th>Inbound(MT)</th><th>Location</th><th></th>'
         + '</tr></thead><tbody>';
@@ -886,7 +885,14 @@
             '<td class="mono-cell" style="color:#94a3b8">' + parentContainer + '</td>' +
             '<td class="mono-cell" style="text-align:center;color:#eab308;font-weight:700">' + r.sample_bags + '</td>' +
             '<td class="mono-cell" style="text-align:center;color:#eab308;font-weight:700">' + r.sample_bags + '</td>' +
-            '<td colspan="8" style="color:#555">—</td>' +
+            '<td class="mono-cell" style="color:#94a3b8">' + escapeHtml(r.invoice_no||'') + '</td>' +
+            '<td class="mono-cell" style="color:#94a3b8">' + escapeHtml((r.ship_date||'').slice(0,10)) + '</td>' +
+            '<td class="mono-cell" style="color:#94a3b8">' + escapeHtml((r.arrival_date||'').slice(0,10)) + '</td>' +
+            '<td class="mono-cell" style="color:#94a3b8">' + escapeHtml((r.con_return||'').slice(0,10)) + '</td>' +
+            '<td class="mono-cell" style="text-align:center;color:#94a3b8">' + (r.free_time!=null?r.free_time:'-') + '</td>' +
+            '<td class="mono-cell" style="color:#94a3b8">' + escapeHtml(r.wh||'') + '</td>' +
+            '<td class="mono-cell" style="text-align:right;color:#eab308">' + fmtN(r.sample_weight_mt||0) + '</td>' +
+            '<td><span class="tag" style="background:rgba(234,179,8,0.1);color:#94a3b8">' + escapeHtml(r.location||'-') + '</span></td>' +
             '<td></td>' +
             '</tr>';
         }
@@ -901,20 +907,20 @@
           + '<td><span class="tag">' + escapeHtml(r.product||'') + '</span></td>'
           + '<td><span class="tag" style="background:rgba(34,197,94,0.15);color:#22c55e">✅ AVAILABLE</span></td>'
           + '<td class="mono-cell" style="text-align:right">' + (r.balance!=null?fmtN(r.balance):'-') + '</td>'
-          + '<td class="mono-cell" style="text-align:right">'
+          + '<td title="앞=가용 중량(MT, 바로 배분 가능) / 뒤=예약(RESERVED) 중량.  예: 3.000/▲2.000 → 총 5MT 중 2MT 예약·3MT 배분 가능" class="mono-cell" style="text-align:right">'
             + '<span style="color:#22c55e;font-weight:700">' + (r.avail_mt!=null?fmtN(r.avail_mt):'-') + '</span>'
             + '<span style="color:#94a3b8;font-size:11px"> / </span>'
             + '<span style="color:#3b82f6">' + (r.reserved_mt!=null&&r.reserved_mt>0?'▲'+fmtN(r.reserved_mt):'0') + '</span>'
           + '</td>'
           + '<td class="mono-cell" style="text-align:right">' + (r.net!=null?fmtN(r.net):'-') + '</td>'
           + '<td class="mono-cell">' + escapeHtml(r.container||'') + '</td>'
-          + '<td class="mono-cell" style="text-align:center">'
+          + '<td title="총 톤백 개수 (MAXI BAG)" class="mono-cell" style="text-align:center">'
             + (r.mxbg_pallet > 0
               ? '<button class="btn btn-ghost btn-xs" style="font-weight:700;color:var(--accent)" '
                 + 'data-lot="' + lotKey + '" onclick="window.showTonbagModal(this.dataset.lot)" title="톤백 상세 보기">' + r.mxbg_pallet + '</button>'
               : '-')
           + '</td>'
-          + '<td class="mono-cell" style="text-align:center">' + (r.avail_bags!=null?r.avail_bags:'-') + '</td>'
+          + '<td title="가용 톤백 수(개) — 바로 배분 가능한 톤백" class="mono-cell" style="text-align:center">' + (r.avail_bags!=null?r.avail_bags:'-') + '</td>'
           + '<td class="mono-cell">' + escapeHtml(r.invoice_no||'') + '</td>'
           + '<td class="mono-cell">' + escapeHtml((r.ship_date||'').slice(0,10)) + '</td>'
           + '<td class="mono-cell">' + escapeHtml((r.arrival_date||'').slice(0,10)) + '</td>'

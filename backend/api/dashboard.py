@@ -28,8 +28,15 @@ def _get_db_path() -> str:
 
 def _run_kpi_queries(db_path: str) -> dict:
     """
-    KPI 집계 SQL 4종 실행.
-    movement_date 가 NULL 인 레코드는 created_at 으로 대체 (COALESCE).
+    KPI 집계 — inventory_tonbag 기반, is_sample 컬럼으로 톤백/샘플 분리.
+
+    5개 카드 × (톤백 / 샘플) = 10개 무게 필드 + 미배정 개수 2개.
+
+      카드 1: 전일 재고  = 현재 재고 - 오늘 입고 + 오늘 출고 (출고로 어제 마감 복원)
+      카드 2: 오늘 입고  = inbound_date = 오늘
+      카드 3: 오늘 출고  = outbound_date = 오늘
+      카드 4: 현재 재고  = status NOT IN (SOLD, RETURNED, PENDING)
+      카드 5: 미배정 톤백 = 현재 재고 중 location 비어있음 (개수 단위)
     """
     con = sqlite3.connect(db_path, timeout=5, check_same_thread=False)
     con.execute("PRAGMA journal_mode=WAL")
@@ -37,48 +44,100 @@ def _run_kpi_queries(db_path: str) -> dict:
     try:
         cur = con.cursor()
 
-        # ① 오늘 입고량 (MT)
+        # ─── 오늘 입고 (톤백/샘플) — inventory_tonbag.inbound_date 기준 ───
         cur.execute("""
-            SELECT COALESCE(SUM(qty_kg), 0) / 1000.0
-            FROM stock_movement
-            WHERE movement_type = 'INBOUND'
-              AND DATE(COALESCE(movement_date, created_at), 'localtime')
-                  = DATE('now', 'localtime')
+            SELECT
+                ROUND(COALESCE(SUM(CASE WHEN COALESCE(is_sample,0)=0 THEN weight ELSE 0 END),0)/1000.0, 3),
+                ROUND(COALESCE(SUM(CASE WHEN COALESCE(is_sample,0)=1 THEN weight ELSE 0 END),0)/1000.0, 3)
+            FROM inventory_tonbag
+            WHERE DATE(COALESCE(inbound_date, created_at), 'localtime') = DATE('now', 'localtime')
         """)
-        today_inbound_mt = round(float(cur.fetchone()[0] or 0.0), 3)
+        r = cur.fetchone()
+        today_inbound_tonbag_mt = float(r[0] or 0.0)
+        today_inbound_sample_mt = float(r[1] or 0.0)
 
-        # ② 오늘 출고량 (MT)
+        # ─── 오늘 출고 (톤백/샘플) — outbound_date 기준 ───
         cur.execute("""
-            SELECT COALESCE(SUM(qty_kg), 0) / 1000.0
-            FROM stock_movement
-            WHERE movement_type = 'OUTBOUND'
-              AND DATE(COALESCE(movement_date, created_at), 'localtime')
-                  = DATE('now', 'localtime')
+            SELECT
+                ROUND(COALESCE(SUM(CASE WHEN COALESCE(is_sample,0)=0 THEN weight ELSE 0 END),0)/1000.0, 3),
+                ROUND(COALESCE(SUM(CASE WHEN COALESCE(is_sample,0)=1 THEN weight ELSE 0 END),0)/1000.0, 3)
+            FROM inventory_tonbag
+            WHERE outbound_date IS NOT NULL
+              AND DATE(outbound_date, 'localtime') = DATE('now', 'localtime')
         """)
-        today_outbound_mt = round(float(cur.fetchone()[0] or 0.0), 3)
+        r = cur.fetchone()
+        today_outbound_tonbag_mt = float(r[0] or 0.0)
+        today_outbound_sample_mt = float(r[1] or 0.0)
 
-        # ③ 현재 재고 LOT 수 (출고/반품/판매 완료 제외)
+        # ─── 현재 재고 (톤백/샘플) — alive status ───
+        cur.execute("""
+            SELECT
+                ROUND(COALESCE(SUM(CASE WHEN COALESCE(is_sample,0)=0 THEN weight ELSE 0 END),0)/1000.0, 3),
+                ROUND(COALESCE(SUM(CASE WHEN COALESCE(is_sample,0)=1 THEN weight ELSE 0 END),0)/1000.0, 3)
+            FROM inventory_tonbag
+            WHERE status NOT IN ('SOLD','RETURNED','PENDING')
+        """)
+        r = cur.fetchone()
+        current_stock_tonbag_mt = float(r[0] or 0.0)
+        current_stock_sample_mt = float(r[1] or 0.0)
+
+        # ─── 전일 재고 = 현재 재고 - 오늘 입고 + 오늘 출고 ───
+        prev_stock_tonbag_mt = round(current_stock_tonbag_mt - today_inbound_tonbag_mt + today_outbound_tonbag_mt, 3)
+        prev_stock_sample_mt = round(current_stock_sample_mt - today_inbound_sample_mt + today_outbound_sample_mt, 3)
+
+        # ─── 미배정 톤백 (개수, 톤백/샘플 분리) ───
+        cur.execute("""
+            SELECT
+                SUM(CASE WHEN COALESCE(is_sample,0)=0 THEN 1 ELSE 0 END),
+                SUM(CASE WHEN COALESCE(is_sample,0)=1 THEN 1 ELSE 0 END)
+            FROM inventory_tonbag
+            WHERE (location IS NULL OR TRIM(location)='')
+              AND status NOT IN ('SOLD','RETURNED','PENDING')
+        """)
+        r = cur.fetchone()
+        unassigned_tonbag_bags = int(r[0] or 0)
+        unassigned_sample_bags = int(r[1] or 0)
+
+        # ─── 호환용 (구 키, 합산값) ───
+        today_inbound_mt     = round(today_inbound_tonbag_mt + today_inbound_sample_mt, 3)
+        today_outbound_mt    = round(today_outbound_tonbag_mt + today_outbound_sample_mt, 3)
+        current_stock_mt     = round(current_stock_tonbag_mt + current_stock_sample_mt, 3)
+        prev_stock_mt        = round(prev_stock_tonbag_mt + prev_stock_sample_mt, 3)
+        unassigned_total     = unassigned_tonbag_bags + unassigned_sample_bags
+
+        # ─── 현재 재고 LOT 수 (기존 호환 키, 일부 화면이 참조) ───
         cur.execute("""
             SELECT COUNT(DISTINCT lot_no)
             FROM inventory
-            WHERE status NOT IN ('SOLD', 'RETURNED', 'PENDING')
+            WHERE status NOT IN ('SOLD','RETURNED','PENDING')
         """)
         current_stock_lots = int(cur.fetchone()[0] or 0)
 
-        # ④ 위치 미배정 톤백 수 (출고/판매 제외, location 없음)
-        cur.execute("""
-            SELECT COUNT(*)
-            FROM inventory_tonbag
-            WHERE (location IS NULL OR TRIM(location) = '')
-              AND status NOT IN ('SOLD', 'RETURNED', 'PENDING')
-        """)
-        unassigned_locations = int(cur.fetchone()[0] or 0)
-
         return {
-            "today_inbound_mt":     today_inbound_mt,
-            "today_outbound_mt":    today_outbound_mt,
-            "current_stock_lots":   current_stock_lots,
-            "unassigned_locations": unassigned_locations,
+            # 카드 1: 전일 재고
+            "prev_stock_tonbag_mt":     prev_stock_tonbag_mt,
+            "prev_stock_sample_mt":     prev_stock_sample_mt,
+            "prev_stock_mt":            prev_stock_mt,
+            # 카드 2: 오늘 입고
+            "today_inbound_tonbag_mt":  today_inbound_tonbag_mt,
+            "today_inbound_sample_mt":  today_inbound_sample_mt,
+            "today_inbound_mt":         today_inbound_mt,
+            # 카드 3: 오늘 출고
+            "today_outbound_tonbag_mt": today_outbound_tonbag_mt,
+            "today_outbound_sample_mt": today_outbound_sample_mt,
+            "today_outbound_mt":        today_outbound_mt,
+            # 카드 4: 현재 재고
+            "current_stock_tonbag_mt":  current_stock_tonbag_mt,
+            "current_stock_sample_mt":  current_stock_sample_mt,
+            "current_stock_mt":         current_stock_mt,
+            # 카드 5: 미배정 톤백 (개)
+            "unassigned_tonbag_bags":   unassigned_tonbag_bags,
+            "unassigned_sample_bags":   unassigned_sample_bags,
+            "unassigned_total":         unassigned_total,
+            # 호환 (구 키)
+            "current_stock_lots":       current_stock_lots,
+            "unassigned_locations":     unassigned_total,
+            "unassigned_main_bags":     unassigned_tonbag_bags,
         }
     finally:
         con.close()
@@ -92,11 +151,31 @@ def get_dashboard_kpi():
     Response:
         ok: bool
         data:
-            today_inbound_mt:    float  (MT, 오늘 입고)
-            today_outbound_mt:   float  (MT, 오늘 출고)
-            current_stock_lots:  int    (현재 재고 LOT 수)
-            unassigned_locations: int   (위치 미배정 톤백 수)
-            updated_at:          str    (KST ISO 8601)
+            # 카드 1: 전일 재고 (어제 마감)
+            prev_stock_tonbag_mt:     float (MT, 톤백)
+            prev_stock_sample_mt:     float (MT, 샘플)
+            prev_stock_mt:            float (MT, 합산)
+            # 카드 2: 오늘 입고
+            today_inbound_tonbag_mt:  float
+            today_inbound_sample_mt:  float
+            today_inbound_mt:         float
+            # 카드 3: 오늘 출고
+            today_outbound_tonbag_mt: float
+            today_outbound_sample_mt: float
+            today_outbound_mt:        float
+            # 카드 4: 현재 재고
+            current_stock_tonbag_mt:  float
+            current_stock_sample_mt:  float
+            current_stock_mt:         float
+            # 카드 5: 미배정 톤백 (개수)
+            unassigned_tonbag_bags:   int
+            unassigned_sample_bags:   int
+            unassigned_total:         int
+            # 호환 (구 키)
+            current_stock_lots:       int
+            unassigned_locations:     int
+            unassigned_main_bags:     int
+            updated_at:               str (KST ISO 8601)
     """
     now_str = datetime.now(KST).isoformat(timespec="seconds")
 
@@ -112,11 +191,25 @@ def get_dashboard_kpi():
         return {
             "ok": False,
             "data": {
-                "today_inbound_mt":     0.0,
-                "today_outbound_mt":    0.0,
-                "current_stock_lots":   0,
-                "unassigned_locations": 0,
-                "updated_at":           now_str,
+                "prev_stock_tonbag_mt":     0.0,
+                "prev_stock_sample_mt":     0.0,
+                "prev_stock_mt":            0.0,
+                "today_inbound_tonbag_mt":  0.0,
+                "today_inbound_sample_mt":  0.0,
+                "today_inbound_mt":         0.0,
+                "today_outbound_tonbag_mt": 0.0,
+                "today_outbound_sample_mt": 0.0,
+                "today_outbound_mt":        0.0,
+                "current_stock_tonbag_mt":  0.0,
+                "current_stock_sample_mt":  0.0,
+                "current_stock_mt":         0.0,
+                "unassigned_tonbag_bags":   0,
+                "unassigned_sample_bags":   0,
+                "unassigned_total":         0,
+                "current_stock_lots":       0,
+                "unassigned_locations":     0,
+                "unassigned_main_bags":     0,
+                "updated_at":               now_str,
             },
             "error": str(exc),
         }

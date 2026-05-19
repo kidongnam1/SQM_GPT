@@ -1433,6 +1433,10 @@ nav.menubar .menu-btn.open > .menu-dropdown,
 .kpi-row .kpi-icon   { font-size: 22px; margin-bottom: 4px; }
 .kpi-row .kpi-label  { font-size: 11px; color: var(--status-fg); font-weight: 600; margin-bottom: 4px; }
 .kpi-row .kpi-value  { font-size: 24px; font-weight: 700; color: var(--fg); font-family: monospace; }
+/* v8.6.9 — KPI 카드 톤백/샘플 분리 (2줄 표시, 균등 크기) */
+.kpi-row .kpi-split  { display: flex; flex-direction: column; gap: 3px; line-height: 1.25; }
+.kpi-row .kpi-tonbag { font-size: 16px; font-weight: 600; color: var(--fg); font-family: monospace; letter-spacing: 0.2px; }
+.kpi-row .kpi-sample { font-size: 16px; font-weight: 600; color: var(--text-muted, #94a3b8); font-family: monospace; letter-spacing: 0.2px; }
 
 /* ── Flex Column 레이아웃: 헤더·풋터 고정, 본문 신축 ─────────────── */
 /* body가 flex column이므로 고정 높이 요소는 shrink 방지 */
