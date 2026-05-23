@@ -197,51 +197,6 @@
     }
   });
 
-  /* ===================================================
-     1c. CONTEXT MENU — 테이블 행 우클릭 (v864.2 동일)
-     =================================================== */
-  var _ctxMenu = null;
-  function showContextMenu(e, items) {
-    e.preventDefault();
-    hideContextMenu();
-    var m = document.createElement('div');
-    m.className = 'ctx-menu';
-    m.style.cssText = 'position:fixed;z-index:9999;background:var(--panel-bg);border:1px solid var(--panel-border);border-radius:6px;padding:4px 0;min-width:160px;box-shadow:0 4px 16px rgba(0,0,0,.4);font-size:13px;';
-    m.style.left = e.clientX+'px';
-    m.style.top = e.clientY+'px';
-    items.forEach(function(it){
-      if (it === '---') { var hr=document.createElement('hr'); hr.style.cssText='margin:4px 8px;border:0;border-top:1px solid var(--panel-border)'; m.appendChild(hr); return; }
-      var d = document.createElement('div');
-      d.style.cssText = 'padding:6px 16px;cursor:pointer;color:var(--fg);white-space:nowrap;';
-      d.textContent = it.label;
-      d.addEventListener('mouseenter', function(){ d.style.background='var(--btn-hover)'; });
-      d.addEventListener('mouseleave', function(){ d.style.background=''; });
-      d.addEventListener('click', function(){ hideContextMenu(); if(it.action) it.action(); });
-      m.appendChild(d);
-    });
-    document.body.appendChild(m);
-    _ctxMenu = m;
-    // 화면 밖으로 넘어가면 보정
-    var r=m.getBoundingClientRect();
-    if(r.right>window.innerWidth) m.style.left=(window.innerWidth-r.width-4)+'px';
-    if(r.bottom>window.innerHeight) m.style.top=(window.innerHeight-r.height-4)+'px';
-  }
-  function hideContextMenu(){ if(_ctxMenu){ _ctxMenu.remove(); _ctxMenu=null; } }
-  document.addEventListener('click', hideContextMenu);
-  document.addEventListener('contextmenu', function(e){
-    var tr = e.target.closest('.data-table tbody tr');
-    if (!tr) return;
-    var cells = tr.querySelectorAll('td');
-    var lotCell = tr.querySelector('td:nth-child(1)') || {};
-    var lot = (lotCell.textContent||'').trim();
-    showContextMenu(e, [
-      {label:'📋 LOT 상세 보기', action:function(){ if(window.showLotDetail) window.showLotDetail(lot); else showToast('info','LOT: '+lot); }},
-      {label:'📤 Excel 내보내기', action:function(){ dispatchAction('onExport'); }},
-      '---',
-      {label:'📊 재고 현황', action:function(){ renderPage('inventory'); }},
-      {label:'🔄 새로고침', action:function(){ renderPage(_currentRoute||'dashboard'); }},
-    ]);
-  });
 
 
 
