@@ -667,7 +667,7 @@
         + '<button class="btn" style="background:var(--accent,#3b82f6);color:#fff;font-size:12px;padding:4px 12px" onclick="window.bulkConfirmPending()">✅ 선택 일괄 확정</button>'
         + '</div>';
       if (!rows.length) {
-        html += '<div class="empty" style="padding:60px;text-align:center;color:var(--text-muted)">⏳ 입고 대기 중인 화물 없음</div></section>';
+        html += '<div class="empty" style="padding:60px;text-align:center;color:var(--text-muted);font-size:3em;font-weight:600;line-height:1.4">⏳ 입고 대기 중인 화물 없음</div></section>';
         c.innerHTML = html;
         return;
       }
