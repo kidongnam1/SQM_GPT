@@ -130,71 +130,6 @@
       });
   }
 
-  /* ===================================================
-     0. ON-SCREEN DEBUG LOG PANEL
-     F12 없이 화면 우측 하단에서 직접 확인
-     F8 토글 / 기본: 숨김 (Ctrl+Shift+D → 알캡처 충돌로 F8 변경)
-     =================================================== */
-  var _dbgLogs = [];
-  var _dbgMax  = 30;
-  var _dbgEl   = null;
-
-  function dbgLog(icon, label, detail, color) {
-    var ts = new Date().toTimeString().slice(0,8);
-    _dbgLogs.push({ts:ts, icon:icon, label:label, detail:detail, color:color||'#aaa'});
-    if (_dbgLogs.length > _dbgMax) _dbgLogs.shift();
-    _dbgRefresh();
-  }
-
-  function _dbgRefresh() {
-    if (!_dbgEl || !_dbgEl.__body) return;
-    _dbgEl.__body.innerHTML = _dbgLogs.slice().reverse().map(function(r){
-      return '<div style="padding:2px 0;border-bottom:1px solid #222;color:'+r.color+'">'+
-        '<span style="opacity:.6;font-size:10px">'+r.ts+'</span> '+
-        r.icon+' <b>'+escapeHtml(r.label)+'</b>'+
-        (r.detail ? '<div style="font-size:10px;color:#888;padding-left:8px">'+escapeHtml(String(r.detail).slice(0,120))+'</div>' : '')+
-        '</div>';
-    }).join('');
-  }
-
-  function _dbgBuild() {
-    var wrap = document.createElement('div');
-    wrap.id = 'sqm-debug-panel';
-    wrap.style.cssText = [
-      'position:fixed','bottom:8px','right:8px','width:340px','z-index:99999',
-      'font-family:monospace','font-size:11px','border-radius:6px',
-      'box-shadow:0 2px 12px rgba(0,0,0,.6)','display:none'
-    ].join(';');
-
-    var hdr = document.createElement('div');
-    hdr.style.cssText = 'background:#1a1a2e;color:#00e5ff;padding:4px 8px;border-radius:6px 6px 0 0;display:flex;align-items:center;gap:6px;cursor:pointer;user-select:none';
-    hdr.innerHTML = '<span>🔍 SQM Debug Log</span><span style="font-size:10px;opacity:.6">(F8 토글)</span><button id="sqm-dbg-clear" style="margin-left:auto;background:#c00;color:#fff;border:none;border-radius:3px;padding:0 6px;cursor:pointer;font-size:10px">Clear</button>';
-
-    var body = document.createElement('div');
-    body.style.cssText = 'background:#0d0d1a;color:#ccc;padding:6px;max-height:260px;overflow-y:auto;border-radius:0 0 6px 6px';
-
-    wrap.appendChild(hdr);
-    wrap.appendChild(body);
-    document.body.appendChild(wrap);
-
-    wrap.__body = body;
-    _dbgEl = wrap;
-
-    hdr.querySelector('#sqm-dbg-clear').addEventListener('click', function(e){
-      e.stopPropagation();
-      _dbgLogs = [];
-      _dbgRefresh();
-    });
-
-    // F8 토글 (Ctrl+Shift+D 는 알캡처 전역 단축키 충돌)
-    document.addEventListener('keydown', function(e){
-      if (e.key==='F8') {
-        wrap.style.display = (wrap.style.display==='none') ? 'block' : 'none';
-      }
-    });
-
-    dbgLog('🟢','Debug panel ready','F8 키로 토글 (Ctrl+Shift+D 알캡처 충돌 → F8 변경)','#4caf50');
-  }
 
   /* ===================================================
      1. UTILITIES
@@ -207,7 +142,6 @@
    *  []                   → 그대로
    *  그 외                → []
    */
-  window.dbgLog = dbgLog;
 
   function extractRows(res) {
     if (Array.isArray(res)) return res;
@@ -220,45 +154,6 @@
   }
   window.extractRows = extractRows;
 
-  /* ===================================================
-     1a. TABLE SORT — 컬럼 헤더 클릭으로 정렬 (v864.2 동일)
-     사용법: <th> 에 자동 바인딩, 숫자/문자/날짜 자동 감지
-     =================================================== */
-  function enableTableSort(tableEl) {
-    if (!tableEl || tableEl.dataset._sortBound) return;
-    tableEl.dataset._sortBound = '1';
-    var headers = tableEl.querySelectorAll('thead th');
-    headers.forEach(function(th, colIdx) {
-      th.style.cursor = 'pointer';
-      th.style.userSelect = 'none';
-      th.title = 'Click to sort';
-      th.addEventListener('click', function() {
-        var tbody = tableEl.querySelector('tbody');
-        if (!tbody) return;
-        var rows = Array.prototype.slice.call(tbody.querySelectorAll('tr'));
-        var asc = th.dataset._sortDir !== 'asc';
-        // 모든 th 리셋
-        headers.forEach(function(h){ h.dataset._sortDir=''; h.textContent=h.textContent.replace(/ [▲▼]/g,''); });
-        th.dataset._sortDir = asc ? 'asc' : 'desc';
-        th.textContent = th.textContent + (asc ? ' ▲' : ' ▼');
-        rows.sort(function(a, b) {
-          var ca = (a.children[colIdx]||{}).textContent||'';
-          var cb = (b.children[colIdx]||{}).textContent||'';
-          // 숫자 감지
-          var na = parseFloat(ca.replace(/,/g,'')), nb = parseFloat(cb.replace(/,/g,''));
-          if (!isNaN(na) && !isNaN(nb)) return asc ? na-nb : nb-na;
-          return asc ? ca.localeCompare(cb) : cb.localeCompare(ca);
-        });
-        rows.forEach(function(r){ tbody.appendChild(r); });
-      });
-    });
-  }
-
-  /* 페이지 렌더링 후 자동으로 테이블 정렬 바인딩 */
-  var _sortObserver = new MutationObserver(function() {
-    document.querySelectorAll('.data-table').forEach(enableTableSort);
-  });
-  _sortObserver.observe(document.documentElement, {childList:true, subtree:true});
 
   /* ===================================================
      1b. KEYBOARD SHORTCUTS (v864.2 동일)
@@ -466,11 +361,6 @@
     ]);
   });
 
-  function escapeHtml(s) {
-    return String(s == null ? '' : s).replace(/[&<>"']/g, function (m) {
-      return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m];
-    });
-  }
 
   function ensureToastContainer() {
     var c = document.getElementById('toast-container');
@@ -5330,7 +5220,6 @@
   }
 
   /* sqm-onestop-inbound.js 의존성 전역 노출 */
-  window.escapeHtml = escapeHtml;
   window.showDataModal = showDataModal;
   window._makeDraggableResizable = _makeDraggableResizable;
   window.loadInventoryPage = loadInventoryPage;
