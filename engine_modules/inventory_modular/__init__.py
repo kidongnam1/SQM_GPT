@@ -67,7 +67,6 @@ try:
         dict_to_packing_data,
         format_lot_no,
         format_weight,
-        normalize_column_name,
         safe_parse_date,
         safe_parse_float,
         safe_parse_int,
@@ -100,7 +99,6 @@ __all__ = [
     'PackingDataAdapter',
     'format_lot_no',
     'format_weight',
-    'normalize_column_name',
 ]
 
 try:
