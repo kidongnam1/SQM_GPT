@@ -1,4 +1,4 @@
-// SQM v8.6.6
+// SQM v8.6.9
 // Golden Reference: 돈백 무결성 이슈, 위치 미배정 등 경고 2건 표시
 
 import { apiGet } from '../api-client.js';

@@ -19,6 +19,7 @@ from fastapi import APIRouter, HTTPException, Query as QP
 from fastapi.responses import FileResponse
 from backend.common.errors import ok_response, err_response
 from backend.common.excel_alignment import safe_apply_sqm_file, safe_apply_sqm_workbook
+from .location_candidates import load_latest_candidates
 
 router = APIRouter(prefix="/api/action", tags=["actions"])
 logger = logging.getLogger(__name__)
@@ -398,19 +399,78 @@ def restore_backup(body: dict = {}):
 
 # ── F035: LOT 리스트 Excel 내보내기 ──────────────────────────
 
-# LOT Excel: 입고일(inbound_date) 미입력 시 stock_date·도착일 순으로 표시,
-# 선박·D/O·비고는 inventory 비었을 때 document_do / document_bl / document_pl 에서 보강
+# LOT Excel: inventory 값이 비었을 때 document_do / document_bl / document_pl /
+# container_info 에서 BL·Container·도착일·선박·D/O·비고를 보강한다.
 _LOT_LIST_EXCEL_SQL = """
-            SELECT i.sap_no, i.bl_no, i.container_no, i.product,
-                   i.lot_no, i.lot_sqm,
+            SELECT COALESCE(
+                       NULLIF(TRIM(COALESCE(i.sap_no, '')), ''),
+                       (SELECT NULLIF(TRIM(COALESCE(d.sap_no, '')), '')
+                          FROM document_do d
+                         WHERE d.lot_no = i.lot_no AND TRIM(COALESCE(d.lot_no, '')) != ''
+                         ORDER BY d.id DESC LIMIT 1),
+                       (SELECT NULLIF(TRIM(COALESCE(p.sap_no, '')), '')
+                          FROM document_pl p
+                         WHERE p.lot_no = i.lot_no AND TRIM(COALESCE(p.lot_no, '')) != ''
+                         ORDER BY p.id DESC LIMIT 1),
+                       (SELECT NULLIF(TRIM(COALESCE(b.sap_no, '')), '')
+                          FROM document_bl b
+                         WHERE b.lot_no = i.lot_no AND TRIM(COALESCE(b.lot_no, '')) != ''
+                         ORDER BY b.id DESC LIMIT 1)
+                   ),
+                   COALESCE(
+                       NULLIF(TRIM(COALESCE(i.bl_no, '')), ''),
+                       (SELECT NULLIF(TRIM(COALESCE(d.bl_no, '')), '')
+                          FROM document_do d
+                         WHERE d.lot_no = i.lot_no AND TRIM(COALESCE(d.lot_no, '')) != ''
+                         ORDER BY d.id DESC LIMIT 1),
+                       (SELECT NULLIF(TRIM(COALESCE(b.bl_no, '')), '')
+                          FROM document_bl b
+                         WHERE b.lot_no = i.lot_no AND TRIM(COALESCE(b.lot_no, '')) != ''
+                         ORDER BY b.id DESC LIMIT 1),
+                       (SELECT NULLIF(TRIM(COALESCE(p.bl_no, '')), '')
+                          FROM document_pl p
+                         WHERE p.lot_no = i.lot_no AND TRIM(COALESCE(p.lot_no, '')) != ''
+                         ORDER BY p.id DESC LIMIT 1)
+                   ),
+                   COALESCE(
+                       NULLIF(TRIM(COALESCE(i.container_no, '')), ''),
+                       (SELECT GROUP_CONCAT(container_no, ', ')
+                          FROM (
+                                SELECT DISTINCT NULLIF(TRIM(COALESCE(c.container_no, '')), '') AS container_no
+                                  FROM container_info c
+                                 WHERE c.lot_no = i.lot_no
+                                   AND TRIM(COALESCE(c.container_no, '')) != ''
+                                 ORDER BY c.id
+                               ))
+                   ),
+                   i.product,
+                   i.lot_no,
                    i.net_weight, i.current_weight, i.tonbag_count,
                    i.status,
                    COALESCE(
                        NULLIF(TRIM(COALESCE(i.inbound_date, '')), ''),
                        NULLIF(TRIM(COALESCE(i.stock_date, '')), ''),
-                       NULLIF(TRIM(COALESCE(i.arrival_date, '')), '')
+                       NULLIF(TRIM(COALESCE(i.arrival_date, '')), ''),
+                       (SELECT NULLIF(TRIM(COALESCE(d.arrival_date, '')), '')
+                          FROM document_do d
+                         WHERE d.lot_no = i.lot_no AND TRIM(COALESCE(d.lot_no, '')) != ''
+                         ORDER BY d.id DESC LIMIT 1)
                    ),
-                   i.arrival_date,
+                   COALESCE(
+                       NULLIF(TRIM(COALESCE(i.arrival_date, '')), ''),
+                       (SELECT NULLIF(TRIM(COALESCE(d.arrival_date, '')), '')
+                          FROM document_do d
+                         WHERE d.lot_no = i.lot_no AND TRIM(COALESCE(d.lot_no, '')) != ''
+                         ORDER BY d.id DESC LIMIT 1),
+                       (SELECT NULLIF(TRIM(COALESCE(d.arrival_date, '')), '')
+                          FROM document_do d
+                         WHERE d.bl_no = i.bl_no AND TRIM(COALESCE(i.bl_no, '')) != ''
+                         ORDER BY d.id DESC LIMIT 1),
+                       (SELECT NULLIF(TRIM(COALESCE(p.arrival_date, '')), '')
+                          FROM document_pl p
+                         WHERE p.lot_no = i.lot_no AND TRIM(COALESCE(p.lot_no, '')) != ''
+                         ORDER BY p.id DESC LIMIT 1)
+                   ),
                    i.warehouse,
                    COALESCE(
                        NULLIF(TRIM(COALESCE(i.vessel, '')), ''),
@@ -457,10 +517,10 @@ _LOT_LIST_EXCEL_SQL = """
 def _build_lot_workbook(rows):
     """
     LOT 재고현황 공통 워크북 빌더.
-    컬럼 순서: SAP NO, BL NO, Container, 제품명, LOT NO, LOT SQM,
+    컬럼 순서: SAP NO, BL NO, Container, 제품명, LOT NO,
                순중량(kg), 현재중량(kg), 톤백수, 상태, 입고일, 도착일,
-               창고, 선박, D/O NO, 비고
-    (입고일·선박·D/O·비고는 export 시 SQL에서 stock_date / document_do·bl·pl 로 보강)
+               창고, 선박, D/O NO, 비고, 랙 후보 체크
+    (입고일·도착일·선박·D/O·비고는 export 시 SQL에서 document_do·bl·pl 로 보강)
     """
     import openpyxl
     from openpyxl.styles import PatternFill, Font, Border, Side, Alignment
@@ -472,10 +532,10 @@ def _build_lot_workbook(rows):
 
     headers = [
         "SAP NO", "BL NO", "Container", "제품명",
-        "LOT NO", "LOT SQM",
+        "LOT NO",
         "순중량(kg)", "현재중량(kg)", "톤백수",
         "상태", "입고일", "도착일",
-        "창고", "선박", "D/O NO", "비고"
+        "창고", "선박", "D/O NO", "비고", "랙 후보 체크"
     ]
 
     header_fill = PatternFill("solid", fgColor="1F4E79")
@@ -514,8 +574,8 @@ def _build_lot_workbook(rows):
             if row_fill:
                 cell.fill = row_fill
 
-    # 열 너비: SAP,BL,Container,제품명,LOT,LOTSQM,net,cur,#tb,sts,inb,arr,wh,vessel,do,rem
-    col_widths = [12, 14, 16, 22, 16, 14, 13, 13, 8, 12, 12, 12, 12, 14, 14, 20]
+    # 열 너비: SAP,BL,Container,제품명,LOT,net,cur,#tb,sts,inb,arr,wh,vessel,do,rem,check
+    col_widths = [12, 14, 16, 22, 16, 13, 13, 8, 12, 12, 12, 12, 14, 14, 20, 12]
     for i, w in enumerate(col_widths, 1):
         ws.column_dimensions[get_column_letter(i)].width = w
 
@@ -529,12 +589,24 @@ def _build_lot_workbook(rows):
     return wb
 
 
+def _append_lot_candidate_summary(rows, con: sqlite3.Connection):
+    candidates = load_latest_candidates(con)
+    out = []
+    for r in rows:
+        row = list(r)
+        lot_no = str(row[4] or "").strip() if len(row) > 4 else ""
+        row.append("✓" if candidates.get(lot_no) else "")
+        out.append(tuple(row))
+    return out
+
+
 @router.get("/export-lot-excel", summary="📊 LOT 리스트 Excel 내보내기 (F035)")
 def export_lot_excel():
     """inventory 전체 → .xlsx 임시 파일 → FileResponse (브라우저 다운로드)."""
     try:
         con = _db()
         rows = con.execute(_LOT_LIST_EXCEL_SQL).fetchall()
+        rows = _append_lot_candidate_summary(rows, con)
         con.close()
 
         wb = _build_lot_workbook(rows)
@@ -582,6 +654,7 @@ def open_lot_excel():
     try:
         con = _db()
         rows = con.execute(_LOT_LIST_EXCEL_SQL).fetchall()
+        rows = _append_lot_candidate_summary(rows, con)
         con.close()
 
         wb = _build_lot_workbook(rows)
@@ -607,10 +680,11 @@ def open_lot_excel():
 # ── LOT 리스트 JSON (v8.6.8 — 화면 테이블 렌더용) ────────────────────────
 _LOT_LIST_JSON_HEADERS = [
     "sap_no", "bl_no", "container_no", "product",
-    "lot_no", "lot_sqm",
+    "lot_no",
     "net_weight", "current_weight", "tonbag_count",
     "status", "inbound_date", "arrival_date",
     "warehouse", "vessel", "do_no", "remarks",
+    "rack_location_candidate_check",
 ]
 
 
@@ -623,6 +697,7 @@ def lot_list_json():
     try:
         con = _db()
         rows = con.execute(_LOT_LIST_EXCEL_SQL).fetchall()
+        rows = _append_lot_candidate_summary(rows, con)
         con.close()
         data = []
         for r in rows:

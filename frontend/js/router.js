@@ -1,4 +1,4 @@
-// SQM v8.6.6
+// SQM v8.6.9
 // 9개 사이드바 탭 전환 로직. 이전 페이지 unmount → 다음 mount
 
 const PAGE_LOADERS = {

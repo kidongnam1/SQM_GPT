@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>S.I.M.S (SQM Inventory Management System) v8.6.8</title>
+  <title>S.I.M.S (SQM Inventory Management System) v8.6.9</title>
   <link rel="icon" type="image/x-icon" href="favicon.ico">
   <link rel="stylesheet" href="css/design-system.css?v=20260427f">
   <link rel="stylesheet" href="css/v864-layout.css?v=20260511a">
@@ -21,7 +21,7 @@
   <div style="text-align:center;">
     <div style="font-size:44px;margin-bottom:16px;animation:sqm-spin 1.2s linear infinite;">⚙️</div>
     <div style="color:#4fc3f7;font-size:20px;font-weight:700;letter-spacing:2px;">S.I.M.S</div>
-    <div style="color:#546e7a;font-size:13px;margin-top:8px;">v8.6.8 — 초기화 중...</div>
+    <div style="color:#546e7a;font-size:13px;margin-top:8px;">v8.6.9 — 초기화 중...</div>
     <div style="margin-top:22px;width:240px;height:4px;background:#1e3a5f;border-radius:2px;overflow:hidden;">
       <div style="height:100%;background:linear-gradient(90deg,#1565c0,#4fc3f7);border-radius:2px;animation:sqm-bar 1.8s ease-in-out infinite;"></div>
     </div>
@@ -56,7 +56,7 @@
 </script>
 
 <header class="app-titlebar">
-  <div class="app-title">📦 S.I.M.S (SQM Inventory Management System) v8.6.8</div>
+  <div class="app-title">📦 S.I.M.S (SQM Inventory Management System) v8.6.9</div>
 </header>
 
 <nav class="menubar" id="menubar">
@@ -106,6 +106,8 @@
           <button data-action="onBlCarrierAnalyze" title="BL 파일을 분석하여 선사별 패턴을 자동 학습합니다">🔬 선사 패턴 분석</button>
         </div>
       </div>
+      <button data-action="onInboundTemplateManage" title="선사별 PDF 파싱 템플릿을 생성·수정·삭제합니다. 선사, 템플릿이름, 제품이름, 톤백무게, BL형식 관리">📋 선사 템플릿 관리</button>
+      <button data-action="onCarrierProfile" title="선사별 기본 품목·중량을 설정합니다. OneStop 입고 시 선사 선택만으로 파싱 기준값이 자동 적용됩니다">🚢 선사 프로파일 관리</button>
       <!-- D/O만 남김: Invoice FA, B/L 삭제 -->
       <div class="submenu-parent" tabindex="0">
         <button class="submenu-parent-btn" type="button">📋 D/O</button>
@@ -133,7 +135,7 @@
       </div>
       <hr class="menu-sep">
       <button data-action="onInventoryMove" title="창고 내 톤백의 위치(구역/행/열)를 엑셀·지도 형태로 매핑합니다">📍 톤백 위치 매핑</button>
-      <button data-action="onLocationMapImport" title="위치재고조회 엑셀(신형식 G동-칸-열-층 [N])을 업로드하여 LOT↔셀 매핑을 검증·diff·반영합니다">📥 위치재고 엑셀 Import</button>
+      <button data-action="onLocationMapImport" title="위치재고조회 엑셀(신형식 G동-칸-열-층 [N])을 업로드하여 LOT 위치 후보 스냅샷을 검증·diff·저장합니다. 톤백별 위치는 출고 바코드 스캔 시 확정됩니다">📥 위치재고 엑셀 Import</button>
       <button data-action="onWarehouseDashboard" title="5동/6동 평면도 + 셀별 점유 현황 (EMPTY/OCCUPIED/HALF)">📊 창고 현황 (대시보드)</button>
 
     </div>
@@ -536,7 +538,7 @@
       <button onclick="document.getElementById('inventoryAdjustModal').style.display='none'"
         style="background:#7f8c8d;color:#fff;border:none;padding:8px 18px;border-radius:4px;cursor:pointer;font-size:13px">취소</button>
     </div>
-    <!-- v8.6.8 복구: 파싱 결과 표시 영역 (sqm-inline.js 가 참조) -->
+    <!-- v8.6.9 복구: 파싱 결과 표시 영역 (sqm-inline.js 가 참조) -->
     <div id="adjustParseResult" style="margin-top:12px;color:#ecf0f1;font-size:13px;line-height:1.6"></div>
   </div>
 </div>

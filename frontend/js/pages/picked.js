@@ -1,4 +1,4 @@
-// SQM v8.6.6
+// SQM v8.6.9
 // v864.2 기준: 출고 예정 중 "Picked" 상태만 필터
 import { apiGet } from '../api-client.js';
 import { showToast } from '../toast.js';
@@ -15,6 +15,7 @@ export async function mount(container) {
         <thead><tr><th>LOT</th><th>Product</th><th>수량</th><th>출고일</th><th>위치</th></tr></thead>
         <tbody id="picked-tbody"></tbody>
       </table>
+      <div id="picked-footer" style="padding:5px 12px;background:var(--bg-hover);border-top:1px solid var(--panel-border);font-size:12px;flex-shrink:0;"></div>
       <div class="empty" id="picked-empty" style="display:none">표시할 데이터가 없습니다</div>
     </section>`;
   await load();
@@ -41,6 +42,13 @@ async function load() {
       <td>${r.qty ?? r.bags ?? ''}</td><td>${r.date ?? ''}</td><td>${r.location ?? ''}</td></tr>
     `).join('');
     table.style.display = '';
+    var _pfoot = document.getElementById('picked-footer');
+    if (_pfoot) {
+      var _pqty = rows.reduce(function(s,r){return s+Number(r.qty||r.bags||0);},0);
+      var _ps = 'display:inline-block;padding:2px 14px;margin-right:8px;background:rgba(79,195,247,0.13);border-radius:6px;font-size:12px;color:var(--accent,#4fc3f7);font-weight:700;';
+      _pfoot.innerHTML = '<span style="'+_ps+'">🚛 PICKED '+rows.length.toLocaleString('ko-KR')+' 건</span>'
+        + (_pqty > 0 ? '<span style="'+_ps+'">📦 수량 '+_pqty.toLocaleString('ko-KR')+'</span>' : '');
+    }
   } catch (e) {
     empty.textContent = `불러오기 실패: ${e.message}`;
     empty.style.display = 'block';

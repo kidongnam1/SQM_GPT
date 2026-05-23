@@ -5,8 +5,8 @@ SQM Location Map API — v8.6.9
 위치재고조회 엑셀(신형식 G{동}-{칸}-{열}-{층} [N]) import 기능.
 
 엔드포인트:
-  POST /api/location-map/preview  — 업로드 파싱 + 검증 + 직전 batch diff (DB 미반영)
-  POST /api/location-map/commit   — 검증 통과분 DB 반영 (batch 스냅샷 저장)
+  POST /api/location-map/preview  — 업로드 파싱 + 검증 + 직전 batch diff (저장 전)
+  POST /api/location-map/commit   — 검증 통과분 LOT 위치 후보 스냅샷 저장
   GET  /api/location-map/batches  — import 이력 목록
   GET  /api/location-map/latest   — 최신 batch 매핑 조회
 
@@ -34,6 +34,17 @@ from backend.common.errors import ok_response, err_response
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix='/api/location-map', tags=['location-map'])
+
+
+def _error_help(code: str, causes: list | None = None,
+                actions: list | None = None, details: list | None = None) -> dict:
+    """사용자에게 보여줄 에러 원인/해결 안내를 표준 구조로 만든다."""
+    return {
+        'code': code,
+        'causes': causes or [],
+        'actions': actions or [],
+        'details': details or [],
+    }
 
 
 # ─────────────────────────────────────────────────────────────────────
@@ -166,12 +177,51 @@ def _inbound_short_check(lots: list, new_lot_ids: set) -> list:
     return short
 
 
+def _active_inventory_lot_warnings(con: sqlite3.Connection, lot_ids: set) -> list:
+    """
+    엑셀 LOT가 현재 재고 DB의 AVAILABLE/PENDING 톤백 LOT에 없으면 경고한다.
+
+    이 검사는 저장을 막지 않는다. 위치재고 엑셀은 LOT 위치 후보 스냅샷이므로,
+    실제 톤백별 위치 확정은 출고 바코드 스캔 시점에 맡긴다.
+    """
+    if not lot_ids:
+        return []
+    table = con.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='inventory_tonbag'"
+    ).fetchone()
+    if not table:
+        return []
+
+    placeholders = ",".join("?" for _ in lot_ids)
+    rows = con.execute(
+        f"""
+        SELECT DISTINCT lot_no
+          FROM inventory_tonbag
+         WHERE lot_no IN ({placeholders})
+           AND UPPER(COALESCE(status, '')) IN ('AVAILABLE', 'PENDING')
+           AND COALESCE(is_sample, 0) = 0
+        """,
+        tuple(lot_ids),
+    ).fetchall()
+    active_lots = {r['lot_no'] for r in rows}
+    missing = sorted(lot_ids - active_lots)
+    if not missing:
+        return []
+    shown = ", ".join(missing[:30])
+    more = f" 외 {len(missing) - 30}건" if len(missing) > 30 else ""
+    return [
+        "현재 재고 DB의 AVAILABLE/PENDING LOT에 없는 위치재고 LOT: "
+        f"{shown}{more} — 위치 후보로는 저장 가능하지만, 출고 전 입고/상태 확인이 필요합니다"
+    ]
+
+
 def _build_report(doc: dict, con: sqlite3.Connection) -> dict:
     """파싱 doc + DB → preview/commit 공용 분석 리포트."""
     prev_batch_id, prev_map = _load_latest_batch(con)
     new_map = _new_map_from_lots(doc['lots'])
     diff = _compute_diff(prev_map, new_map)
     inbound_short = _inbound_short_check(doc['lots'], set(diff['new_lots']))
+    db_lot_warnings = _active_inventory_lot_warnings(con, set(new_map))
 
     fatal = list(doc['errors'])              # 형식/셀중복/LOT중복 — commit 차단
     can_commit = (len(fatal) == 0 and len(doc['lots']) > 0)
@@ -180,7 +230,7 @@ def _build_report(doc: dict, con: sqlite3.Connection) -> dict:
         'source_file':   doc['source_file'],
         'stats':         doc['stats'],
         'errors':        fatal,
-        'warnings':      list(doc['warnings']),
+        'warnings':      list(doc['warnings']) + db_lot_warnings,
         'inbound_short': inbound_short,
         'diff': {
             'prev_batch_id': prev_batch_id,
@@ -225,10 +275,36 @@ async def preview_location_map(file: UploadFile = File(...)):
         report['filename'] = file.filename
         return ok_response(report)
     except ValueError as ve:
-        return err_response(str(ve))
+        return err_response(
+            str(ve),
+            _error_help(
+                'UPLOAD_FILE_INVALID',
+                causes=[str(ve)],
+                actions=[
+                    '파일 확장자가 .xlsx 또는 .xls 인지 확인하세요.',
+                    '파일이 비어 있거나 손상되었다면 Excel에서 다시 저장한 뒤 업로드하세요.',
+                    '위치재고조회 원본 양식인지 확인하세요. 필수 컬럼은 위치와 LOT입니다.',
+                ],
+            ),
+        )
     except Exception as e:  # noqa: BLE001
         logger.exception('[location-map/preview] error: %s', e)
-        return err_response(f'미리보기 실패: {e}')
+        return err_response(
+            f'미리보기 실패: {e}',
+            _error_help(
+                'PREVIEW_FAILED',
+                causes=[
+                    '엑셀 파일을 읽거나 위치재고 형식으로 해석하는 중 오류가 발생했습니다.',
+                    str(e),
+                ],
+                actions=[
+                    '엑셀에 위치 컬럼과 LOT 컬럼이 있는지 확인하세요.',
+                    '위치 값은 예: G6-08-13-01 [2] 형식이어야 합니다.',
+                    '같은 셀이 서로 다른 LOT에 중복 배정되어 있지 않은지 확인하세요.',
+                    '문제가 계속되면 해당 엑셀 파일명과 오류 메시지를 관리자에게 전달하세요.',
+                ],
+            ),
+        )
     finally:
         if tmp_path and os.path.exists(tmp_path):
             try:
@@ -240,13 +316,14 @@ async def preview_location_map(file: UploadFile = File(...)):
 # ─────────────────────────────────────────────────────────────────────
 # POST /api/location-map/commit
 # ─────────────────────────────────────────────────────────────────────
-@router.post('/commit', summary='💾 위치 매핑 엑셀 DB 반영 (batch 스냅샷 저장)')
+@router.post('/commit', summary='💾 위치 매핑 엑셀 LOT 위치 후보 스냅샷 저장')
 async def commit_location_map(
     file: UploadFile = File(...),
-    force: bool = Query(False, description='입고 누락(10개 미만) 경고를 무시하고 강제 반영'),
+    force: bool = Query(False, description='입고 누락(10개 미만) 경고를 무시하고 강제 저장'),
 ):
     """
     검증 통과분을 lot_location_map 에 새 batch 로 저장.
+    inventory_tonbag.location 은 변경하지 않는다.
     - 치명적 에러(형식/셀중복/LOT중복) 있으면 항상 차단
     - 입고 누락(신규 LOT 10개 미만)은 force=true 가 아니면 차단
     """
@@ -265,8 +342,23 @@ async def commit_location_map(
             if not report['can_commit']:
                 return {
                     'ok': False,
-                    'error': '검증 실패 — 치명적 에러가 있어 반영할 수 없습니다',
+                    'error': '검증 실패 — 치명적 에러가 있어 저장할 수 없습니다',
                     'error_code': 'VALIDATION_FAILED',
+                    'detail': _error_help(
+                        'VALIDATION_FAILED',
+                        causes=[
+                            '엑셀 안에 저장을 막는 치명적 검증 오류가 있습니다.',
+                            '대표 원인: 위치 형식 오류, [N] 톤백수 누락, 같은 셀 중복, 같은 LOT 중복.',
+                        ],
+                        actions=[
+                            '화면의 치명적 에러 목록에서 행 번호와 LOT를 확인하세요.',
+                            '위치 값은 예: G6-08-13-01 [2] 형식으로 수정하세요.',
+                            '같은 창고 셀이 두 LOT에 동시에 들어가 있으면 하나를 수정하세요.',
+                            '같은 LOT가 여러 행에 반복되어 있으면 한 행으로 정리하세요.',
+                            '수정한 엑셀을 다시 업로드해서 검증 통과 여부를 확인하세요.',
+                        ],
+                        details=report['errors'][:50],
+                    ),
                     'data': report,
                 }
             # 2) 입고 누락 → force 아니면 차단
@@ -276,13 +368,26 @@ async def commit_location_map(
                     'error': (
                         '신규 입고 LOT 중 톤백이 10개가 안 되는 건이 있습니다 — '
                         '바코드 스캔 누락일 수 있으니 현장 확인 후 수정하거나, '
-                        '확인했다면 강제 반영(force)으로 진행하세요'
+                        '확인했다면 강제 저장(force)으로 진행하세요'
                     ),
                     'error_code': 'INBOUND_SHORT',
+                    'detail': _error_help(
+                        'INBOUND_SHORT',
+                        causes=[
+                            '직전 위치재고 스냅샷에 없던 신규 LOT인데 톤백 합계가 10개가 아닙니다.',
+                            '현장 바코드 스캔 누락, 엑셀 위치 [N] 수량 누락, 일부 셀 누락 가능성이 있습니다.',
+                        ],
+                        actions=[
+                            '화면의 입고 누락 의심 목록에서 LOT와 부족 셀을 확인하세요.',
+                            '현장에서 해당 LOT의 실제 톤백 수와 위치를 확인하세요.',
+                            '엑셀이 틀렸다면 위치 [N] 수량을 수정한 뒤 다시 업로드하세요.',
+                            '현장 확인 결과 그대로 저장해도 된다면 강제 저장을 체크하고 진행하세요.',
+                        ],
+                    ),
                     'data': report,
                 }
 
-            # 3) 반영
+            # 3) LOT 위치 후보 스냅샷 저장
             now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             st = doc['stats']
             cur = con.execute(
@@ -319,13 +424,41 @@ async def commit_location_map(
                     batch_id, rows, file.filename, force)
         report['batch_id'] = batch_id
         report['committed_rows'] = rows
-        return ok_response(report,
-                           message=f'배치 #{batch_id} 반영 완료 — {rows}개 셀 매핑 저장')
+        return ok_response(
+            report,
+            message=f'배치 #{batch_id} 위치 후보 저장 완료 — {rows}개 셀 매핑 저장'
+        )
     except ValueError as ve:
-        return err_response(str(ve))
+        return err_response(
+            str(ve),
+            _error_help(
+                'UPLOAD_FILE_INVALID',
+                causes=[str(ve)],
+                actions=[
+                    '파일 확장자가 .xlsx 또는 .xls 인지 확인하세요.',
+                    '파일이 비어 있거나 손상되었다면 Excel에서 다시 저장한 뒤 업로드하세요.',
+                    '위치재고조회 원본 양식인지 확인하세요. 필수 컬럼은 위치와 LOT입니다.',
+                ],
+            ),
+        )
     except Exception as e:  # noqa: BLE001
         logger.exception('[location-map/commit] error: %s', e)
-        return err_response(f'반영 실패: {e}')
+        return err_response(
+            f'저장 실패: {e}',
+            _error_help(
+                'COMMIT_FAILED',
+                causes=[
+                    '검증 이후 위치 후보 스냅샷을 DB에 저장하는 중 오류가 발생했습니다.',
+                    str(e),
+                ],
+                actions=[
+                    '프로그램을 새로고침한 뒤 같은 파일을 다시 시도하세요.',
+                    '다른 사용자가 동시에 저장 중이면 잠시 후 다시 시도하세요.',
+                    'DB 파일 접근 권한 또는 디스크 여유 공간을 확인하세요.',
+                    '문제가 계속되면 오류 메시지와 파일명을 관리자에게 전달하세요.',
+                ],
+            ),
+        )
     finally:
         if tmp_path and os.path.exists(tmp_path):
             try:

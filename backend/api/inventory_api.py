@@ -712,7 +712,16 @@ def get_tonbags(
 ):
     try:
         db = _db()
+        # 위치재고 Import 테이블(lot_location_map)이 없는 DB에서도 아래 JOIN 이
+        # 깨지지 않도록 보장 — location_map_api 의 스키마 생성 로직 재사용
+        try:
+            from backend.api.location_map_api import _ensure_tables as _ensure_locmap
+            _ensure_locmap(db)
+        except Exception:
+            pass
         c  = db.cursor()
+        # location: 톤백별 위치(t.location)가 있으면 우선, 없으면 위치재고 Import
+        #           최신 batch 의 LOT 단위 셀 매핑(map_location)으로 대체.
         sql = """
             SELECT
                 t.sub_lt,
@@ -722,7 +731,8 @@ def get_tonbags(
                 t.inbound_date,
                 ROUND(t.weight / 1000.0, 3) AS weight,
                 t.status,
-                t.location,
+                COALESCE(NULLIF(TRIM(t.location), ''), lm.map_location) AS location,
+                lm.map_location,
                 t.picked_to     AS container,
                 i.product,
                 t.tonbag_uid,
@@ -730,6 +740,16 @@ def get_tonbags(
                 COALESCE(t.is_sample, 0) AS is_sample
             FROM inventory_tonbag t
             LEFT JOIN inventory i ON i.lot_no = t.lot_no
+            LEFT JOIN (
+                SELECT lot_no, GROUP_CONCAT(location, ', ') AS map_location
+                FROM (
+                    SELECT lot_no, location
+                    FROM lot_location_map
+                    WHERE batch_id = (SELECT MAX(id) FROM lot_location_import_batch)
+                    ORDER BY lot_no, location
+                )
+                GROUP BY lot_no
+            ) lm ON lm.lot_no = t.lot_no
             WHERE 1=1
         """
         params = []

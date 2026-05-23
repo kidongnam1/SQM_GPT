@@ -1,4 +1,4 @@
-// SQM v8.6.6
+// SQM v8.6.9
 // feature_matrix.json 의 category=keyboard 13건 + Golden Reference 기본 단축키
 import { navigateTo } from './router.js';
 import { showToast } from './toast.js';

@@ -1,4 +1,4 @@
-// SQM v8.6.6
+// SQM v8.6.9
 // 테이블 2개: [좌] 재고 및 확인 (판매가능/판매배정/판매화물/출고완료/반품대기/합계/샘플)
 //             [우] LOT별 (기초재고/입고/출고/기말재고/검증)
 import { apiGet } from '../api-client.js';
@@ -26,6 +26,7 @@ export async function mount(container) {
           </tr></thead>
           <tbody id="dash-products"></tbody>
         </table>
+        <div id="dash-products-footer" style="padding:5px 12px;background:var(--bg-hover);border-top:1px solid var(--panel-border);font-size:12px;flex-shrink:0;"></div>
       </div>
       <div class="panel-half">
         <table class="data-table">
@@ -35,6 +36,7 @@ export async function mount(container) {
           </tr></thead>
           <tbody id="dash-lots"></tbody>
         </table>
+        <div id="dash-lots-footer" style="padding:5px 12px;background:var(--bg-hover);border-top:1px solid var(--panel-border);font-size:12px;flex-shrink:0;"></div>
       </div>
     </div>
   `;
@@ -92,21 +94,6 @@ function renderProducts(rows) {
       <td>${total.sample}</td>
     </tr>
   `;
-}
-
-function renderLots(rows) {
-  const tbody = document.getElementById('dash-lots');
-  if (!tbody) return;
-  tbody.innerHTML = rows.map((r, i) => `
-    <tr>
-      <td>${i+1}</td>
-      <td>${num(r.opening)}</td>
-      <td>${num(r.inbound)}</td>
-      <td>${num(r.outbound)}</td>
-      <td>${num(r.ending)}</td>
-      <td><span class="badge-ok" style="color:#2e7d32;font-weight:700">${r.status || 'OK'}</span></td>
-    </tr>
-  `).join('');
-}
-
-export function unmount() {}
+  var _dpfoot = document.getElementById('dash-products-footer');
+  if (_dpfoot) {
+    var _dps = 'display:inline-block;padding:2px 14px;m

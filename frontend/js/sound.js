@@ -1,4 +1,4 @@
-// SQM v8.6.8 — DB 저장 사운드 (Web Audio API, 외부 파일 불필요)
+// SQM v8.6.9 — DB 저장 사운드 (Web Audio API, 외부 파일 불필요)
 // 성공: 딩동댕 3음 상승 | 실패: beep 2회 경고음
 
 function _tone(ac, freq, startTime, duration, type = 'sine', volume = 0.35) {

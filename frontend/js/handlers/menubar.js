@@ -1,4 +1,4 @@
-// SQM v8.6.6
+// SQM v8.6.9
 // 자동 생성 — feature_matrix.json 의 category=menubar 62건
 import { apiCall } from '../api-client.js';
 import { showToast } from '../toast.js';

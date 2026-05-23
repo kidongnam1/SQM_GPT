@@ -1,4 +1,4 @@
-/* SQM Inventory v8.6.6 — sqm-picked.js (Picked — 출고예정) */
+/* SQM Inventory v8.6.9 — sqm-picked.js (Picked — 출고예정) */
 (function () {
   'use strict';
   /* ─── sqm-core.js 공유 함수 로컬 앨리어스 ─────────────────────────
@@ -124,7 +124,7 @@
       var packedBags = Number(r.tb_picked || 0) || 0;
       html += '<tr class="picked-summary-row" data-lot="' + lot + '" style="cursor:pointer" onclick="window.togglePickedDetail(\'' + lot + '\')">'
         + '<td class="mono-cell" style="color:var(--text-muted);text-align:center">' + (_i+1) + '</td>'
-        + '<td class="mono-cell cell-left" style="color:var(--accent);font-weight:600">' + lot + '</td>'
+        + '<td class="mono-cell" style="color:var(--accent);font-weight:600">' + lot + '</td>'
         + '<td class="mono-cell">' + escapeHtml(r.picking_no || '') + '</td>'
         + '<td>' + escapeHtml(r.customer || r.picked_to || '') + '</td>'
         + '<td class="mono-cell" style="text-align:right">' + (r.tonbag_count || 0) + '</td>'

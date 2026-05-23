@@ -1,6 +1,6 @@
 """
 SQM Inventory — FastAPI Backend (PyWebView Edition)
-포트: 8765
+포트: launcher-selected local port
 """
 import sys
 import os
@@ -10,7 +10,7 @@ import os
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, PROJECT_ROOT)
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from typing import Optional, List
@@ -144,11 +144,11 @@ app = FastAPI(title="SQM Inventory API", version="8.6.4")
 # ── Swagger UI 브라우저 열기 ─────────────────────────────────────────────────
 @app.get("/api/system/open-docs", tags=["system"],
          summary="📖 Swagger UI를 기본 브라우저에서 열기")
-def open_docs_in_browser():
+def open_docs_in_browser(request: Request):
     """SQM API 관리 페이지(Swagger UI)를 기본 브라우저로 엽니다.
     선사 템플릿 추가·수정·삭제 등 고급 설정에 사용합니다."""
     import webbrowser as _wb
-    _url = "http://127.0.0.1:8765/docs"
+    _url = str(request.base_url).rstrip("/") + "/docs"
     _wb.open(_url)
     return {"ok": True, "url": _url,
             "message": f"Swagger UI를 기본 브라우저로 열었습니다: {_url}"}
@@ -218,7 +218,7 @@ def _init_db_startup():
 # allow_origins=["*"] 는 null origin을 허용하지 않으므로 명시 추가
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*", "null", "http://localhost:8765", "http://127.0.0.1:8765"],
+    allow_origins=["*", "null"],
     allow_credentials=False,   # credentials=True + wildcard 조합은 브라우저가 거부함
     allow_methods=["*"],
     allow_headers=["*"],

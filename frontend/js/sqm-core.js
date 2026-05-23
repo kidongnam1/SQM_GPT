@@ -1,5 +1,5 @@
 /* =======================================================================
-   SQM Inventory v8.6.6 - sqm-core.js
+   SQM Inventory v8.6.9 - sqm-core.js
    Rebuilt: 2026-04-21  Ruby (Senior Software Architect)
    Updated: 2026-04-27  Draggable modals, parse log panel, step badge, ESC guard
    ======================================================================= */
@@ -164,7 +164,7 @@ window.SQM_STATUS_MAP = window.SQM_STATUS_MAP || {
     console.log('[SQM Tooltip] custom dark tooltip ready');
   })();
 
-  var API = window.SQM_API_BASE || (window.location && window.location.origin) || 'http://127.0.0.1:8765';
+  var API = window.SQM_API_BASE || (window.location && window.location.origin) || '';
 
   /**
    * Excel/FileResponse 다운로드.

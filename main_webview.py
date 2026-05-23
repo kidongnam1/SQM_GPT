@@ -15,6 +15,7 @@ import sys
 import logging
 import traceback
 import json
+import subprocess
 import queue as _queue_mod
 _DETACH_QUEUE = _queue_mod.Queue()
 _DETACHED_WINDOWS: dict = {}
@@ -26,7 +27,9 @@ import ctypes as _ctypes
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 FRONTEND_DIR = os.path.join(BASE_DIR, 'frontend')
 API_HOST = '127.0.0.1'
-API_PORT = 8765
+API_DEFAULT_PORT = 8765
+API_PORT_MAX = 8799
+API_PORT = API_DEFAULT_PORT
 
 # frozen(EXE)이면 exe 옆, 아니면 프로젝트 루트에 로그 파일 생성
 if getattr(sys, 'frozen', False):
@@ -180,6 +183,201 @@ def is_port_open(host, port):
         try: s.close()
         except Exception: pass
 
+def select_available_api_port(preferred_port=API_DEFAULT_PORT, max_port=API_PORT_MAX):
+    for port in range(preferred_port, max_port + 1):
+        if not is_port_open(API_HOST, port):
+            if port != preferred_port:
+                log.warning(f"기본 포트 {preferred_port} 사용 불가 -> 대체 포트 {port} 사용")
+            return port
+    raise RuntimeError(f"사용 가능한 API 포트가 없습니다: {preferred_port}-{max_port}")
+
+def _pids_listening_on_port(port):
+    if os.name != 'nt':
+        return []
+    import re
+    try:
+        out = subprocess.check_output(
+            ['netstat', '-ano', '-p', 'tcp'],
+            text=True, encoding='cp949', errors='ignore', timeout=5
+        )
+    except Exception as e:
+        log.warning(f"netstat 실패: {e}")
+        return []
+    pids = []
+    for line in out.splitlines():
+        if f':{port}' not in line or 'LISTENING' not in line:
+            continue
+        parts = re.split(r'\s+', line.strip())
+        if parts and parts[-1].isdigit() and parts[-1] not in pids:
+            pids.append(parts[-1])
+    return pids
+
+def _get_process_command_line(pid):
+    try:
+        out = subprocess.check_output(
+            ['wmic', 'process', 'where', f'ProcessId={pid}', 'get', 'CommandLine', '/value'],
+            text=True, encoding='utf-8', errors='ignore', timeout=5,
+            stderr=subprocess.DEVNULL
+        )
+        for line in out.splitlines():
+            if line.startswith('CommandLine='):
+                return line.split('=', 1)[1].strip()
+    except Exception as e:
+        log.debug(f"wmic command line 조회 실패 PID={pid}: {e}")
+    try:
+        out = subprocess.check_output(
+            [
+                'powershell', '-NoProfile', '-Command',
+                f"(Get-CimInstance Win32_Process -Filter \"ProcessId = {pid}\").CommandLine"
+            ],
+            text=True, encoding='utf-8', errors='ignore', timeout=5,
+            stderr=subprocess.DEVNULL
+        )
+        return out.strip()
+    except Exception as e:
+        log.debug(f"PowerShell command line 조회 실패 PID={pid}: {e}")
+        return ''
+
+def _get_process_executable_path(pid):
+    try:
+        out = subprocess.check_output(
+            [
+                'powershell', '-NoProfile', '-Command',
+                f"(Get-Process -Id {pid} -ErrorAction Stop).Path"
+            ],
+            text=True, encoding='utf-8', errors='ignore', timeout=5,
+            stderr=subprocess.DEVNULL
+        )
+        return out.strip()
+    except Exception as e:
+        log.debug(f"프로세스 실행 파일 경로 조회 실패 PID={pid}: {e}")
+        return ''
+
+def _is_this_project_main_webview(command_line):
+    cmd = (command_line or '').replace('/', '\\').lower()
+    base = BASE_DIR.replace('/', '\\').lower()
+    return 'main_webview.py' in cmd and base in cmd
+
+def _is_python_executable(path):
+    name = os.path.basename(path or '').lower()
+    return name in ('python.exe', 'pythonw.exe')
+
+def _port_serves_this_project_sqm():
+    import urllib.request
+    try:
+        url = f'http://{API_HOST}:{API_PORT}/api/q3/settings-info'
+        with urllib.request.urlopen(url, timeout=2) as resp:
+            body = resp.read().decode('utf-8', errors='ignore')
+        base = BASE_DIR.replace('/', '\\').lower()
+        if base in body.replace('/', '\\').lower():
+            return True
+    except Exception as e:
+        log.debug(f"settings-info 기반 SQM 프로세스 확인 실패: {e}")
+    try:
+        url = f'http://{API_HOST}:{API_PORT}/api/health'
+        with urllib.request.urlopen(url, timeout=2) as resp:
+            body = resp.read().decode('utf-8', errors='ignore').lower()
+        return '"engine_count"' in body and '"status"' in body
+    except Exception as e:
+        log.debug(f"health 기반 SQM 프로세스 확인 실패: {e}")
+        return False
+
+def _pid_has_visible_window(pid):
+    if os.name != 'nt':
+        return False
+    try:
+        target_pid = int(pid)
+    except (TypeError, ValueError):
+        return False
+    user32 = _ctypes.windll.user32
+    visible = {'found': False}
+
+    def _callback(hwnd, _lparam):
+        if not user32.IsWindowVisible(hwnd):
+            return True
+        proc_id = _ctypes.c_ulong()
+        user32.GetWindowThreadProcessId(hwnd, _ctypes.byref(proc_id))
+        if proc_id.value == target_pid:
+            visible['found'] = True
+            return False
+        return True
+
+    enum_proc = _ctypes.WINFUNCTYPE(_ctypes.c_bool, _ctypes.c_void_p, _ctypes.c_void_p)(_callback)
+    user32.EnumWindows(enum_proc, None)
+    return visible['found']
+
+def cleanup_stale_sqm_background_processes():
+    """이전 실행에서 창 없이 남은 이 프로젝트의 SQM 백그라운드만 정리."""
+    if os.name != 'nt' or not is_port_open(API_HOST, API_PORT):
+        return False
+    cleaned = False
+    for pid in _pids_listening_on_port(API_PORT):
+        if int(pid) == os.getpid():
+            continue
+        command_line = _get_process_command_line(pid)
+        is_sqm_process = _is_this_project_main_webview(command_line) or _port_serves_this_project_sqm()
+        if not is_sqm_process:
+            exe_path = _get_process_executable_path(pid)
+            is_sqm_process = _is_python_executable(exe_path)
+            if is_sqm_process:
+                log.warning(f"포트 {API_PORT} 를 점유한 Python 프로세스 PID={pid} 를 SQM 잔류 후보로 처리")
+        if not is_sqm_process:
+            log.warning(f"포트 {API_PORT} 점유 PID={pid} 는 현재 SQM 실행으로 확인되지 않아 보존")
+            continue
+        if _pid_has_visible_window(pid):
+            log.info(f"기존 SQM 창 실행 중 감지 PID={pid} -> 보존")
+            continue
+        log.warning(f"창 없이 남은 이전 SQM 백그라운드 감지 PID={pid} -> 종료 시도")
+        try:
+            result = subprocess.run(
+                ['taskkill', '/F', '/PID', pid],
+                check=False, timeout=5,
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                text=True, encoding='utf-8', errors='ignore'
+            )
+            if result.returncode == 0:
+                cleaned = True
+            else:
+                err = (result.stderr or result.stdout or '').strip()
+                log.error(f"이전 SQM 백그라운드 종료 실패 PID={pid}: {err or 'taskkill 실패'}")
+        except Exception as e:
+            log.error(f"이전 SQM 백그라운드 종료 실패 PID={pid}: {e}")
+    if cleaned:
+        time.sleep(0.7)
+    return cleaned
+
+def _visible_sqm_process_exists():
+    for port in range(API_DEFAULT_PORT, API_PORT_MAX + 1):
+        if not is_port_open(API_HOST, port):
+            continue
+        for pid in _pids_listening_on_port(port):
+            command_line = _get_process_command_line(pid)
+            is_sqm_process = _is_this_project_main_webview(command_line)
+            if not is_sqm_process:
+                exe_path = _get_process_executable_path(pid)
+                is_sqm_process = _is_python_executable(exe_path)
+            if is_sqm_process and _pid_has_visible_window(pid):
+                return True
+    return False
+
+def should_continue_after_single_instance_lock_failure():
+    if _visible_sqm_process_exists():
+        return False
+    log.warning("단일 실행 락은 남아 있지만 보이는 SQM 창이 없어 새 포트로 실행 계속")
+    return True
+
+def existing_instance_resolution_message():
+    return (
+        "이미 SQM이 실행 중이거나 이전 백그라운드 프로세스 정리에 실패했습니다.\n\n"
+        "해결 방법:\n"
+        "1. 이미 열린 SQM 창이 있으면 그 창을 사용하거나 먼저 닫으세요.\n"
+        "2. 창이 없으면 작업 관리자에서 python.exe 또는 pythonw.exe 중 SQM 관련 프로세스를 끝내세요.\n"
+        f"3. PID를 찾으려면 CMD/PowerShell에서 실행: netstat -ano | findstr :{API_DEFAULT_PORT}\n"
+        "4. 관리자 권한 CMD에서 강제 종료: taskkill /F /PID <위에서 확인한 PID>\n"
+        "5. 종료 후 run.bat를 다시 실행하세요.\n\n"
+        "참고: 로그 파일은 sqm_debug.log 입니다."
+    )
+
 def kill_zombie_on_port(port):
     """
     Windows 한정: 해당 포트를 LISTEN 하는 프로세스(좀비) 를 종료.
@@ -187,25 +385,8 @@ def kill_zombie_on_port(port):
     """
     if os.name != 'nt':
         return False
-    import subprocess, re
-    try:
-        out = subprocess.check_output(
-            ['netstat', '-ano', '-p', 'tcp'],
-            text=True, encoding='cp949', errors='ignore'
-        )
-    except Exception as e:
-        log.warning(f"netstat 실패: {e}")
-        return False
     killed = False
-    for line in out.splitlines():
-        if f':{port}' not in line or 'LISTENING' not in line:
-            continue
-        parts = re.split(r'\s+', line.strip())
-        if not parts:
-            continue
-        pid = parts[-1]
-        if not pid.isdigit():
-            continue
+    for pid in _pids_listening_on_port(port):
         # 자기 자신 PID 는 건너뛰기
         if int(pid) == os.getpid():
             continue
@@ -288,8 +469,17 @@ SPLASH_HTML = '''<!DOCTYPE html>
 
 
 def main():
+    global API_PORT
+    cleanup_stale_sqm_background_processes()
+    API_PORT = select_available_api_port()
     if not _acquire_single_instance_lock():
-        sys.exit(0)  # 두 번째 인스턴스 조용히 종료
+        if should_continue_after_single_instance_lock_failure():
+            log.warning(f"기존 락 무시 후 대체 실행 진행: http://{API_HOST}:{API_PORT}")
+        else:
+            msg = existing_instance_resolution_message()
+            log.error(msg)
+            print(f"\n[ERROR]\n{msg}")
+            sys.exit(2)
     log.info("=== SQM 시작 (Splash 즉시 표시 모드) ===")
 
     # [P1 PATCH] 백엔드 부트스트랩(좀비 청소 + API 서버 시작)을 백그라운드 스레드로 위임.
@@ -431,7 +621,7 @@ def main():
             log.error(f"index.html 없음: {index_path}")
             sys.exit(1)
 
-        # ⚠️ ESM import 가 file:// 에서 CORS 차단되므로 http://127.0.0.1:8765/ 로 서빙
+        # ESM import 가 file:// 에서 CORS 차단되므로 로컬 HTTP 서버로 서빙
         # FastAPI 가 frontend/ 를 정적 mount 하도록 backend/api.py 에 추가됨
         import time as _time
         url = f'http://{API_HOST}:{API_PORT}/?_t={int(_time.time())}'
@@ -584,11 +774,17 @@ def main():
                         'font-family:"Segoe UI","Malgun Gothic",sans-serif;'
                         'padding:50px;line-height:1.6;}'
                         'h1{color:#fda4af;}code{background:#1e293b;padding:2px 6px;'
-                        'border-radius:4px;}</style></head><body>'
+                        'border-radius:4px;}li{margin:8px 0;}</style></head><body>'
                         '<h1>API 서버 시작 실패</h1>'
-                        '<p>로그 파일을 확인해 주세요: <code>sqm_debug.log</code></p>'
-                        '<p>또는 PowerShell에서: '
-                        '<code>netstat -ano | findstr :8765</code> 로 포트 점유 확인.</p>'
+                        '<p>로그 파일: <code>sqm_debug.log</code></p>'
+                        '<h2>해결 방법</h2>'
+                        '<ol>'
+                        '<li>이미 열린 SQM 창이 있으면 그 창을 사용하거나 먼저 닫으세요.</li>'
+                        '<li>작업 관리자에서 <code>python.exe</code> 또는 <code>pythonw.exe</code> 중 SQM 관련 프로세스를 끝내세요.</li>'
+                        f'<li>PID 확인: <code>netstat -ano | findstr :{API_PORT}</code></li>'
+                        '<li>관리자 권한 CMD에서 강제 종료: <code>taskkill /F /PID &lt;확인한 PID&gt;</code></li>'
+                        '<li>종료 후 <code>run.bat</code>를 다시 실행하세요.</li>'
+                        '</ol>'
                         '</body></html>'
                     )
                     try:

@@ -1,5 +1,5 @@
 /* =======================================================================
-   sqm-location-mapping.js  (v8.6.8)
+   sqm-location-mapping.js  (v8.6.9)
    📍 위치 매핑 워크플로우 — 미배정 톤백 인라인 매핑
 
    동작:
@@ -459,7 +459,7 @@
       body:    JSON.stringify({
         assignments: entries,
         operator:    'user',
-        note:        'v8.6.8 위치 매핑 워크플로우',
+        note:        'v8.6.9 위치 매핑 워크플로우',
       }),
     })
       .then(function(r) { return r.json(); })

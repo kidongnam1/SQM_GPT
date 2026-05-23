@@ -5,9 +5,9 @@
    동작:
      1) 엑셀 업로드 → POST /api/location-map/preview (검증 + 직전 batch diff)
      2) 검증결과 / diff / 입고누락 경고 화면 표시
-     3) [DB 반영] → POST /api/location-map/commit
+     3) [위치재고 스냅샷 저장] → POST /api/location-map/commit
         - 치명적 에러 → 차단
-        - 입고 누락(신규 LOT 10개 미만) → '강제 반영' 체크 시 force=true
+        - 입고 누락(신규 LOT 10개 미만) → '강제 저장' 체크 시 force=true
 
    호출: window.showLocationMapImportModal();
    ======================================================================= */
@@ -58,14 +58,15 @@
       +     '선택된 파일 없음</span>'
       + '  <label style="margin-left:auto;font-size:11px;color:var(--text-muted,#95a5a6);'
       +     'display:none;align-items:center;gap:4px;" id="lmi-force-wrap">'
-      + '    <input type="checkbox" id="lmi-force"> 입고 누락 무시하고 강제 반영'
+      + '    <input type="checkbox" id="lmi-force"> 입고 누락 무시하고 강제 저장'
       + '  </label>'
       + '  <button id="lmi-commit" class="btn" disabled '
-      +     'style="background:#27ae60;color:#fff;">💾 DB 반영</button>'
+      +     'style="background:#27ae60;color:#fff;">💾 위치 후보 저장</button>'
       + '</div>'
       + '<div id="lmi-body" style="flex:1;overflow:auto;padding:14px 16px;">'
       + '  <div style="color:var(--text-muted,#95a5a6);text-align:center;padding:40px;">'
-      + '    엑셀 파일을 선택하면 검증 결과와 직전 import 대비 변경점(diff)을 보여줍니다.'
+      + '    엑셀 파일을 선택하면 검증 결과와 직전 import 대비 변경점(diff)을 보여줍니다.<br>'
+      + '    톤백별 위치는 출고 바코드 스캔 시점에 확정됩니다.'
       + '  </div>'
       + '</div>';
     document.body.appendChild(d);
@@ -108,9 +109,7 @@
       .then(function (res) {
         _state.busy = false;
         if (!res || !res.ok) {
-          document.getElementById('lmi-body').innerHTML =
-            '<div style="color:#f44336;padding:20px;">❌ ' +
-            _esc((res && res.error) || '미리보기 실패') + '</div>';
+          document.getElementById('lmi-body').innerHTML = _apiErrorHtml(res, '미리보기 실패');
           return;
         }
         _state.report = res.data;
@@ -119,7 +118,17 @@
       .catch(function (e) {
         _state.busy = false;
         document.getElementById('lmi-body').innerHTML =
-          '<div style="color:#f44336;padding:20px;">❌ 요청 실패: ' + _esc(e.message) + '</div>';
+          _box('rgba(244,67,54,.10)', '#f44336',
+            '<div style="color:#ff8a80;font-weight:700;margin-bottom:8px;">❌ 서버 연결 실패</div>'
+            + '<div><b>원인</b><ul style="margin:6px 0 0 18px;padding:0;">'
+            + '<li>백엔드 서버가 실행 중이 아니거나 일시적으로 응답하지 않습니다.</li>'
+            + '<li>파일 업로드 중 연결이 끊겼을 수 있습니다.</li>'
+            + '</ul></div>'
+            + '<div style="margin-top:10px;"><b>해결 방법</b><ul style="margin:6px 0 0 18px;padding:0;">'
+            + '<li>프로그램을 새로고침하거나 재실행한 뒤 다시 업로드하세요.</li>'
+            + '<li>문제가 반복되면 아래 메시지를 관리자에게 전달하세요.</li>'
+            + '</ul></div>'
+            + '<pre style="white-space:pre-wrap;font-size:11px;margin-top:10px;">' + _esc(e.message) + '</pre>');
       });
   }
 
@@ -131,6 +140,40 @@
   function _box(bg, border, html) {
     return '<div style="background:' + bg + ';border:1px solid ' + border + ';'
       + 'border-radius:6px;padding:8px 12px;font-size:12px;line-height:1.7;">' + html + '</div>';
+  }
+  function _list(items) {
+    items = items || [];
+    if (!items.length) return '';
+    return '<ul style="margin:6px 0 0 18px;padding:0;">'
+      + items.map(function (x) { return '<li>' + _esc(x) + '</li>'; }).join('')
+      + '</ul>';
+  }
+  function _apiErrorHtml(res, fallback) {
+    var d = (res && res.detail) || {};
+    var html = '<div style="color:#ff8a80;font-weight:700;margin-bottom:8px;">❌ '
+      + _esc((res && res.error) || fallback || '요청 실패') + '</div>';
+    if (d.causes && d.causes.length) {
+      html += '<div style="margin-top:8px;"><b>원인</b>' + _list(d.causes) + '</div>';
+    }
+    if (d.actions && d.actions.length) {
+      html += '<div style="margin-top:10px;"><b>해결 방법</b>' + _list(d.actions) + '</div>';
+    }
+    if (d.details && d.details.length) {
+      html += '<details style="margin-top:10px;"><summary style="cursor:pointer;color:var(--text-muted,#95a5a6);">상세 오류 '
+        + d.details.length + '건</summary><pre style="white-space:pre-wrap;font-size:11px;max-height:180px;overflow:auto;margin-top:6px;">'
+        + _esc(d.details.join('\n')) + '</pre></details>';
+    }
+    if (res && res.data && res.data.errors && res.data.errors.length) {
+      html += '<details style="margin-top:10px;"><summary style="cursor:pointer;color:#ffab91;">검증 오류 '
+        + res.data.errors.length + '건</summary><pre style="white-space:pre-wrap;font-size:11px;max-height:180px;overflow:auto;margin-top:6px;">'
+        + _esc(res.data.errors.slice(0, 80).join('\n')) + '</pre></details>';
+    }
+    if (res && res.data && res.data.inbound_short && res.data.inbound_short.length) {
+      html += '<details style="margin-top:10px;"><summary style="cursor:pointer;color:#ffcc80;">입고 누락 의심 '
+        + res.data.inbound_short.length + '건</summary><pre style="white-space:pre-wrap;font-size:11px;max-height:180px;overflow:auto;margin-top:6px;">'
+        + _esc(JSON.stringify(res.data.inbound_short.slice(0, 30), null, 2)) + '</pre></details>';
+    }
+    return _box('rgba(244,67,54,.10)', '#f44336', html);
   }
 
   function _renderReport(rep) {
@@ -148,7 +191,7 @@
     // 치명적 에러
     var errs = rep.errors || [];
     if (errs.length) {
-      h += _sectionTitle('❌ 치명적 에러 — ' + errs.length + '건 (반영 불가)');
+      h += _sectionTitle('❌ 치명적 에러 — ' + errs.length + '건 (저장 불가)');
       h += _box('rgba(244,67,54,.1)', '#f44336',
         errs.map(function (e) { return '• ' + _esc(e); }).join('<br>'));
     }
@@ -209,10 +252,13 @@
           ? 'background:rgba(76,175,80,.12);border:1px solid #4caf50;color:#a5d6a7;'
           : 'background:rgba(244,67,54,.12);border:1px solid #f44336;color:#ef9a9a;') + '">'
       + (rep.can_commit
-          ? '✅ 검증 통과 — DB 반영 가능'
+          ? '✅ 검증 통과 — LOT 위치 후보 저장 가능'
             + (rep.has_inbound_short
-                ? ' (단, 입고 누락 의심 건이 있어 강제 반영 체크 필요)' : '')
-          : '❌ 치명적 에러로 반영 불가 — 엑셀을 수정 후 다시 업로드하세요')
+                ? ' (단, 입고 누락 의심 건이 있어 강제 저장 체크 필요)' : '')
+          : '❌ 치명적 에러로 저장 불가 — 엑셀을 수정 후 다시 업로드하세요')
+      + '<div style="margin-top:4px;color:var(--text-muted,#95a5a6);">'
+      + '이 저장은 LOT 단위 위치 스냅샷입니다. inventory_tonbag의 톤백별 실제 위치는 변경하지 않습니다.'
+      + '</div>'
       + '</div>';
 
     document.getElementById('lmi-body').innerHTML = h;
@@ -231,16 +277,16 @@
     var rep = _state.report;
     var force = document.getElementById('lmi-force').checked;
     if (rep.has_inbound_short && !force) {
-      _toast('warning', '입고 누락 의심 건이 있습니다 — 현장 확인 후 "강제 반영"을 체크하거나 엑셀을 수정하세요');
+      _toast('warning', '입고 누락 의심 건이 있습니다 — 현장 확인 후 "강제 저장"을 체크하거나 엑셀을 수정하세요');
       return;
     }
-    if (!window.sqmConfirm('이 엑셀을 DB에 반영합니다.\n\n새 batch 스냅샷이 저장됩니다. 계속할까요?')) {
+    if (!window.sqmConfirm('이 엑셀을 LOT 위치 후보 스냅샷으로 저장합니다.\n\n톤백별 실제 위치는 변경하지 않고, 출고 바코드 스캔 시점에 확정됩니다. 계속할까요?')) {
       return;
     }
     _state.busy = true;
     var btn = document.getElementById('lmi-commit');
     btn.disabled = true;
-    btn.textContent = '⏳ 반영 중...';
+    btn.textContent = '⏳ 저장 중...';
 
     var fd = new FormData();
     fd.append('file', _state.file);
@@ -249,24 +295,34 @@
       .then(function (r) { return r.json(); })
       .then(function (res) {
         _state.busy = false;
-        btn.textContent = '💾 DB 반영';
+        btn.textContent = '💾 위치 후보 저장';
         if (res && res.ok) {
           var d = res.data || {};
-          _toast('success', (res.message || '반영 완료')
+          _toast('success', (res.message || '위치 후보 저장 완료')
             + ' (batch #' + d.batch_id + ', ' + d.committed_rows + '행)');
           btn.disabled = true;
         } else {
           btn.disabled = false;
           var code = res && res.error_code;
           _toast(code === 'INBOUND_SHORT' ? 'warning' : 'error',
-            (res && res.error) || '반영 실패');
+            (res && res.error) || '저장 실패');
+          document.getElementById('lmi-body').innerHTML = _apiErrorHtml(res, '저장 실패');
         }
       })
       .catch(function (e) {
         _state.busy = false;
         btn.disabled = false;
-        btn.textContent = '💾 DB 반영';
+        btn.textContent = '💾 위치 후보 저장';
         _toast('error', '요청 실패: ' + e.message);
+        document.getElementById('lmi-body').innerHTML =
+          _box('rgba(244,67,54,.10)', '#f44336',
+            '<div style="color:#ff8a80;font-weight:700;margin-bottom:8px;">❌ 저장 요청 실패</div>'
+            + '<div><b>해결 방법</b><ul style="margin:6px 0 0 18px;padding:0;">'
+            + '<li>프로그램을 새로고침한 뒤 다시 저장하세요.</li>'
+            + '<li>백엔드 서버가 실행 중인지 확인하세요.</li>'
+            + '<li>반복되면 아래 메시지를 관리자에게 전달하세요.</li>'
+            + '</ul></div>'
+            + '<pre style="white-space:pre-wrap;font-size:11px;margin-top:10px;">' + _esc(e.message) + '</pre>');
       });
   }
 

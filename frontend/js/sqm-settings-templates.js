@@ -9,7 +9,7 @@
   var sqmConfirm = function() { return window.sqmConfirm.apply(window, arguments); };
   var showDataModal = function() { return window.showDataModal.apply(window, arguments); };
   var sqmShouldOpenXlsxAfterSave = function() { return window.sqmShouldOpenXlsxAfterSave.apply(window, arguments); };
-  var API = window.API || window.SQM_API_BASE || 'http://127.0.0.1:8765';
+  var API = window.API || window.SQM_API_BASE || window.location.origin || '';
   function showSettingsDialog(title, icon, fields) {
     var html = '<div style="max-width:480px"><h2 style="margin:0 0 16px 0">' + icon + ' ' + escapeHtml(title) + '</h2>';
     html += '<div style="display:grid;grid-template-columns:130px 1fr;gap:10px;align-items:center;margin-bottom:16px">';

@@ -1,4 +1,4 @@
-// SQM v8.6.6
+// SQM v8.6.9
 // 새로고침, Dark/Light, 돈백/LOT/MT 라디오
 import { showToast } from '../toast.js';
 import { refresh as refreshStatus } from '../components/statusbar.js';

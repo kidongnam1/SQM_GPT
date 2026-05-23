@@ -32,7 +32,7 @@ tr:hover td { background: rgba(255,255,255,.03); }
 </div>
 <div id="result"><p style="color:var(--text-muted,#94a3b8)">검사 실행 버튼을 클릭하세요.</p></div>
 <script>
-var API_BASE = (window.SQM_API_BASE || 'http://127.0.0.1:8765');
+var API_BASE = (window.SQM_API_BASE || window.location.origin || '');
 var CACHE_KEY = 'sqm_integrity_cache';
 var CACHE_TTL = 300000;
 

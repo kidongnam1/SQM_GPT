@@ -1,4 +1,4 @@
-// SQM v8.6.6
+// SQM v8.6.9
 import { apiGet } from '../api-client.js';
 import { showToast } from '../toast.js';
 
@@ -19,6 +19,7 @@ export async function mount(container) {
         <thead><tr><th>시각</th><th>유형</th><th>LOT</th><th>메모</th></tr></thead>
         <tbody id="log-tbody"></tbody>
       </table>
+      <div id="log-footer" style="padding:5px 12px;background:var(--bg-hover);border-top:1px solid var(--panel-border);font-size:12px;flex-shrink:0;"></div>
       <div class="empty" id="log-empty" style="display:none">로그 없음</div>
     </section>`;
   await load();
@@ -47,6 +48,11 @@ async function load() {
     `).join('');
     table.style.display = '';
     empty.style.display = 'none';
+    var _lfoot = document.getElementById('log-footer');
+    if (_lfoot) {
+      var _ls = 'display:inline-block;padding:2px 14px;margin-right:8px;background:rgba(79,195,247,0.13);border-radius:6px;font-size:12px;color:var(--accent,#4fc3f7);font-weight:700;';
+      _lfoot.innerHTML = '<span style="'+_ls+'">📝 로그 '+rows.length.toLocaleString('ko-KR')+' 건</span>';
+    }
   } catch (e) {
     empty.textContent = `로그 로드 실패: ${e.message}`;
     empty.style.display = 'block';

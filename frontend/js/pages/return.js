@@ -1,4 +1,4 @@
-// SQM v8.6.6
+// SQM v8.6.9
 import { apiGet } from '../api-client.js';
 import { showToast } from '../toast.js';
 
@@ -14,6 +14,7 @@ export async function mount(container) {
         <thead><tr><th>LOT</th><th>Product</th><th>수량</th><th>반품일</th><th>사유</th></tr></thead>
         <tbody id="return-tbody"></tbody>
       </table>
+      <div id="return-footer" style="padding:5px 12px;background:var(--bg-hover);border-top:1px solid var(--panel-border);font-size:12px;flex-shrink:0;"></div>
       <div class="empty" id="return-empty" style="display:none">표시할 데이터가 없습니다</div>
     </section>`;
   await load();
@@ -40,6 +41,13 @@ async function load() {
     `).join('');
     table.style.display = '';
     empty.style.display = 'none';
+    var _rfoot = document.getElementById('return-footer');
+    if (_rfoot) {
+      var _rbags = rows.reduce(function(s,r){return s+Number(r.bags||0);},0);
+      var _rs = 'display:inline-block;padding:2px 14px;margin-right:8px;background:rgba(79,195,247,0.13);border-radius:6px;font-size:12px;color:var(--accent,#4fc3f7);font-weight:700;';
+      _rfoot.innerHTML = '<span style="'+_rs+'">🔄 반품 '+rows.length.toLocaleString('ko-KR')+' 건</span>'
+        + (_rbags > 0 ? '<span style="'+_rs+'">🎒 톤백 '+_rbags.toLocaleString('ko-KR')+'</span>' : '');
+    }
   } catch (e) {
     empty.textContent = `불러오기 실패: ${e.message}`;
     empty.style.display = 'block';

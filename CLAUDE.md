@@ -1,8 +1,8 @@
-# SQM v8.6.8 | PyWebView + FastAPI + SQLite
+# SQM v8.6.9 | PyWebView + FastAPI + SQLite
 
-**작업 폴더:** `D:\program\SQM_inventory\SQM_v868_claan`
+**작업 폴더:** `D:\program\SQM_inventory\sqm_v869_clean`
 **GitHub:** `https://github.com/kidongnam1/sqm_3` (main)
-**최종 갱신:** 2026-05-17
+**최종 갱신:** 2026-05-20
 
 ---
 

@@ -5,7 +5,8 @@ features/parsers/location_inventory_parser.py — SQM v8.6.9
 위치재고조회 엑셀 파서 + 검증
 
 대상 파일: 위치재고조회_YYYYMMDD_HHMMSS.xlsx
-  헤더: 품목 | 화주 | 위치 | BAG | LOT | SAP | 구분 | 수량
+  헤더: 품명 | 화주 | 위치 | BAG | LOT | SAP | 단위 | 재고
+        (품목/구분/수량 등 다른 표기도 _COL_ALIASES 로 흡수 — 컬럼 매칭 참고)
   1행 = 1 LOT
   '위치' 셀 = 멀티라인 — 각 줄 'G{동}-{칸}-{열}-{층} [N]'
     예) G6-08-13-01 [2]
@@ -52,8 +53,8 @@ _COL_ALIASES = {
     'bag':      ['bag', '백'],
     'lot_no':   ['lot', 'lotno', 'lot_no', 'lot no', '로트', '롯트'],
     'sap_no':   ['sap', 'sapno', 'sap_no', 'sap no'],
-    'category': ['구분', 'category', 'type', 'gubun'],
-    'qty':      ['수량', 'qty', 'quantity', 'count'],
+    'category': ['구분', '단위', 'category', 'type', 'gubun', 'unit'],
+    'qty':      ['수량', '재고', 'qty', 'quantity', 'count', 'stock'],
 }
 
 

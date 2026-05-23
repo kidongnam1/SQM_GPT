@@ -18,6 +18,7 @@ from fastapi import APIRouter, HTTPException, Query as QP, UploadFile, File
 from fastapi.responses import FileResponse, StreamingResponse
 from backend.common.errors import ok_response, err_response
 from backend.common.excel_alignment import safe_apply_sqm_workbook
+from .location_candidates import expand_candidates_for_sublots, load_latest_candidates
 
 router = APIRouter(prefix="/api/action2", tags=["actions2"])
 logger = logging.getLogger(__name__)
@@ -265,14 +266,52 @@ def outbound_confirm(payload: dict):
 def _tonbag_sql(lot_no_filter: Optional[str]) -> tuple:
     """톤백 리스트 공통 SQL 반환."""
     base = """
-        SELECT COALESCE(NULLIF(TRIM(COALESCE(t.sap_no, '')), ''), i.sap_no),
-               COALESCE(NULLIF(TRIM(COALESCE(t.bl_no,  '')), ''), i.bl_no),
-               i.container_no, i.product,
+        SELECT COALESCE(
+                   NULLIF(TRIM(COALESCE(t.sap_no, '')), ''),
+                   NULLIF(TRIM(COALESCE(i.sap_no, '')), ''),
+                   (SELECT NULLIF(TRIM(COALESCE(d.sap_no, '')), '')
+                      FROM document_do d
+                     WHERE d.lot_no = t.lot_no AND TRIM(COALESCE(d.lot_no, '')) != ''
+                     ORDER BY d.id DESC LIMIT 1),
+                   (SELECT NULLIF(TRIM(COALESCE(p.sap_no, '')), '')
+                      FROM document_pl p
+                     WHERE p.lot_no = t.lot_no AND TRIM(COALESCE(p.lot_no, '')) != ''
+                     ORDER BY p.id DESC LIMIT 1)
+               ),
+               COALESCE(
+                   NULLIF(TRIM(COALESCE(t.bl_no,  '')), ''),
+                   NULLIF(TRIM(COALESCE(i.bl_no,  '')), ''),
+                   (SELECT NULLIF(TRIM(COALESCE(d.bl_no, '')), '')
+                      FROM document_do d
+                     WHERE d.lot_no = t.lot_no AND TRIM(COALESCE(d.lot_no, '')) != ''
+                     ORDER BY d.id DESC LIMIT 1),
+                   (SELECT NULLIF(TRIM(COALESCE(b.bl_no, '')), '')
+                      FROM document_bl b
+                     WHERE b.lot_no = t.lot_no AND TRIM(COALESCE(b.lot_no, '')) != ''
+                     ORDER BY b.id DESC LIMIT 1),
+                   (SELECT NULLIF(TRIM(COALESCE(p.bl_no, '')), '')
+                      FROM document_pl p
+                     WHERE p.lot_no = t.lot_no AND TRIM(COALESCE(p.lot_no, '')) != ''
+                     ORDER BY p.id DESC LIMIT 1)
+               ),
+               COALESCE(
+                   NULLIF(TRIM(COALESCE(i.container_no, '')), ''),
+                   (SELECT GROUP_CONCAT(container_no, ', ')
+                      FROM (
+                            SELECT DISTINCT NULLIF(TRIM(COALESCE(c.container_no, '')), '') AS container_no
+                              FROM container_info c
+                             WHERE c.lot_no = t.lot_no
+                               AND TRIM(COALESCE(c.container_no, '')) != ''
+                             ORDER BY c.id
+                           ))
+               ),
+               i.product,
                t.tonbag_uid, t.sub_lt, t.tonbag_no, t.weight,
                t.status,
                COALESCE(
                    NULLIF(TRIM(COALESCE(t.location, '')), ''),
-                   NULLIF(TRIM(COALESCE(i.location, '')), '')
+                   NULLIF(TRIM(COALESCE(i.location, '')), ''),
+                   ''
                ),
                COALESCE(
                    NULLIF(TRIM(COALESCE(t.inbound_date, '')), ''),
@@ -285,7 +324,8 @@ def _tonbag_sql(lot_no_filter: Optional[str]) -> tuple:
                    NULLIF(TRIM(COALESCE(t.remarks, '')), ''),
                    NULLIF(TRIM(COALESCE(i.remarks, '')), '')
                ),
-               i.warehouse
+               i.warehouse,
+               t.lot_no
         FROM inventory_tonbag t
         LEFT JOIN inventory i ON i.id = t.inventory_id
     """
@@ -294,11 +334,43 @@ def _tonbag_sql(lot_no_filter: Optional[str]) -> tuple:
     return base + " ORDER BY t.lot_no, t.sub_lt, t.tonbag_no", ()
 
 
+def _append_tonbag_rack_candidates(rows, con: sqlite3.Connection):
+    """Add row-level rack location candidate after actual location column."""
+    candidates = load_latest_candidates(con)
+    sub_lts_by_lot: dict[str, list[int]] = {}
+    for r in rows:
+        lot_no = str(r[15] or "").strip() if len(r) > 15 else ""
+        sub_lt = r[5] if len(r) > 5 else None
+        if lot_no and sub_lt is not None:
+            try:
+                sub_lts_by_lot.setdefault(lot_no, []).append(int(sub_lt))
+            except Exception:
+                pass
+
+    expanded_by_lot = {
+        lot_no: expand_candidates_for_sublots(candidates.get(lot_no, []), sub_lts)
+        for lot_no, sub_lts in sub_lts_by_lot.items()
+    }
+
+    out = []
+    for r in rows:
+        row = list(r)
+        lot_no = str(row[15] or "").strip() if len(row) > 15 else ""
+        rack_candidate = ""
+        try:
+            rack_candidate = expanded_by_lot.get(lot_no, {}).get(int(row[5]), "")
+        except Exception:
+            rack_candidate = ""
+        # Drop hidden lot_no and insert candidate after actual location.
+        out.append(tuple(row[:10] + [rack_candidate] + row[10:15]))
+    return out
+
+
 def _build_tonbag_workbook(rows):
     """
     톤백리스트 공통 워크북 빌더.
     컬럼 순서: SAP NO, BL NO, Container, 제품명, 톤백 UID, Sub LT, 톤백 번호,
-               중량(kg), 상태, 위치, 입고일, 출고대상, Sale Ref, 비고, 창고
+               중량(kg), 상태, 실제 위치, 랙 위치 후보, 입고일, 출고대상, Sale Ref, 비고, 창고
     """
     import openpyxl
     from openpyxl.styles import PatternFill, Font, Alignment
@@ -310,7 +382,7 @@ def _build_tonbag_workbook(rows):
     headers = [
         "SAP NO", "BL NO", "Container", "제품명",
         "톤백 UID", "Sub LT", "톤백 번호", "중량(kg)",
-        "상태", "위치", "입고일", "출고대상", "Sale Ref", "비고", "창고"
+        "상태", "실제 위치", "랙 위치 후보", "입고일", "출고대상", "Sale Ref", "비고", "창고"
     ]
     hdr_fill = PatternFill("solid", fgColor="1F4E79")
     hdr_font = Font(bold=True, color="FFFFFF", name="맑은 고딕")
@@ -339,8 +411,8 @@ def _build_tonbag_workbook(rows):
             cell.fill = fill
             cell.alignment = center
 
-    # 열 너비: SAP,BL,Container,제품명,UID,SubLT,#,중량,상태,위치,입고일,출고,SaleRef,비고,창고
-    widths = [12, 14, 16, 22, 20, 8, 10, 12, 12, 12, 12, 14, 14, 20, 10]
+    # 열 너비: SAP,BL,Container,제품명,UID,SubLT,#,중량,상태,실제위치,후보,입고일,출고,SaleRef,비고,창고
+    widths = [12, 14, 16, 22, 20, 8, 10, 12, 12, 12, 14, 12, 14, 14, 20, 10]
     for i, w in enumerate(widths, 1):
         ws.column_dimensions[openpyxl.utils.get_column_letter(i)].width = w
 
@@ -355,6 +427,7 @@ def export_tonbag_excel(lot_no: Optional[str] = QP(None)):
         sql, params = _tonbag_sql(lot_no)
         con = _db()
         rows = con.execute(sql, params).fetchall()
+        rows = _append_tonbag_rack_candidates(rows, con)
         con.close()
 
         wb = _build_tonbag_workbook(rows)
@@ -380,7 +453,7 @@ def export_tonbag_excel(lot_no: Optional[str] = QP(None)):
 _TONBAG_LIST_JSON_HEADERS = [
     "sap_no", "bl_no", "container_no", "product",
     "tonbag_uid", "sub_lt", "tonbag_no", "weight_kg",
-    "status", "location", "inbound_date", "sold_to",
+    "status", "location", "rack_location_candidate", "inbound_date", "sold_to",
     "sale_ref", "remarks", "warehouse",
 ]
 
@@ -397,6 +470,7 @@ def tonbag_list_json(lot_no: Optional[str] = QP(None)):
         con = _db()
         try:
             rows = con.execute(sql, params).fetchall()
+            rows = _append_tonbag_rack_candidates(rows, con)
 
             # location 별 셀 상태 캐시 (warehouse_cell_logic 동적 계산)
             cell_state_cache: dict = {}
@@ -473,6 +547,7 @@ def open_tonbag_excel(lot_no: Optional[str] = QP(None)):
         sql, params = _tonbag_sql(lot_no)
         con = _db()
         rows = con.execute(sql, params).fetchall()
+        rows = _append_tonbag_rack_candidates(rows, con)
         con.close()
 
         wb = _build_tonbag_workbook(rows)

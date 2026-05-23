@@ -19,7 +19,9 @@ from datetime import datetime
 from typing import Any, Optional
 
 from fastapi import APIRouter, HTTPException, UploadFile, File, Query, Body, Form
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+
+from core.constants import DEFAULT_WAREHOUSE
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/inbound", tags=["inbound"])
@@ -540,14 +542,46 @@ async def pdf_inbound_upload(file: UploadFile = File(...)):
 #   5. 응답: cross_check 요약 + 18열 preview_rows + 저장 결과
 # ────────────────────────────────────────────────────────────
 def _safe_attr(obj, *names, default=""):
-    """객체에서 첫 번째로 존재하고 truthy 한 속성값 반환."""
+    """객체/dict에서 첫 번째 유효 필드값 반환."""
     if not obj:
         return default
     for n in names:
-        v = getattr(obj, n, None)
-        if v:
+        if isinstance(obj, dict):
+            v = obj.get(n, None)
+        else:
+            v = getattr(obj, n, None)
+        if v not in (None, ""):
             return v
     return default
+
+
+def _doc_to_payload(obj):
+    """파싱 dataclass/dict를 onestop-save로 넘길 JSON 호환 payload로 변환."""
+    if obj is None:
+        return None
+    try:
+        from dataclasses import asdict, is_dataclass
+        if is_dataclass(obj):
+            obj = asdict(obj)
+    except Exception:
+        pass
+    if isinstance(obj, dict):
+        out = {}
+        for k, v in obj.items():
+            if str(k).startswith("raw_") or k in {"raw_text", "raw_response", "error_message"}:
+                continue
+            out[k] = _doc_to_payload(v)
+        return out
+    if isinstance(obj, (list, tuple)):
+        return [_doc_to_payload(v) for v in obj]
+    if hasattr(obj, "isoformat"):
+        try:
+            return obj.isoformat()
+        except Exception:
+            return str(obj)
+    if hasattr(obj, "__dict__"):
+        return _doc_to_payload(vars(obj))
+    return obj
 
 
 def _parse_one(parser, path, doc_type_method: str, **kwargs):
@@ -834,10 +868,14 @@ async def onestop_inbound_upload(
         preview_rows = []
         pl_obj = parsed["packing_list"]
         pl_rows = getattr(pl_obj, "rows", None) or getattr(pl_obj, "lots", None) or []
-        bl_no = _safe_attr(parsed["bl"], "bl_no", "bl_number")
-        inv_no = _safe_attr(parsed["invoice"], "invoice_no", "invoice_number")
+        bl_no = (
+            _safe_attr(parsed["bl"], "bl_no", "bl_number")
+            or _safe_attr(parsed["invoice"], "bl_no")
+            or _safe_attr(parsed["do"], "bl_no")
+        )
+        inv_no = _safe_attr(parsed["invoice"], "salar_invoice_no", "invoice_no", "invoice_number")
         inv_sap = _safe_attr(parsed["invoice"], "sap_no", "sap_number", "po_no") if parsed.get("invoice") else ""
-        ship_date = _safe_attr(parsed["bl"], "ship_date", "shipped_on_board")
+        ship_date = _safe_attr(parsed["bl"], "ship_date", "shipped_on_board", "shipped_on_board_date")
         arrival = _safe_attr(parsed["do"], "arrival_date", "eta")
         # con_return / free_time: extract from DOData.free_time_info list (v864.2 port)
         _do_obj = parsed["do"]
@@ -865,7 +903,7 @@ async def onestop_inbound_upload(
                     free_time = str(_days)
             except Exception:
                 pass
-        wh = (getattr(_do_obj, "warehouse_name", "") or getattr(_do_obj, "warehouse", "")) if _do_obj else ""
+        wh = ((getattr(_do_obj, "warehouse_name", "") or getattr(_do_obj, "warehouse", "")) if _do_obj else "") or DEFAULT_WAREHOUSE
         # manual fallback: apply when DO absent or parse missed the field
         if not arrival and manual_arrival:
             arrival = manual_arrival
@@ -997,6 +1035,12 @@ async def onestop_inbound_upload(
                 "dry_run": dry_run,
                 "preview_rows": preview_rows,
                 "preview_count": len(preview_rows),
+                "doc_payload": {
+                    "packing_list": _doc_to_payload(parsed["packing_list"]),
+                    "bl": _doc_to_payload(parsed["bl"]),
+                    "invoice": _doc_to_payload(parsed["invoice"]),
+                    "do": _doc_to_payload(parsed["do"]),
+                },
                 "cross_check": {
                     "summary": xc_summary,
                     **xc_counts,
@@ -1115,6 +1159,7 @@ async def onestop_inbound_upload(
 # ────────────────────────────────────────────────────────────
 class OneStopSaveRequest(BaseModel):
     rows: "list[dict]"
+    doc_payload: dict = Field(default_factory=dict)
 
 
 # 프론트 preview_rows (18열) → engine.add_inventory_from_dict 표준 키 매핑
@@ -1154,6 +1199,41 @@ def _onestop_row_to_engine_dict(row: dict) -> dict:
     return out
 
 
+def _persist_onestop_document_payload(engine_obj, lot_no: str, inventory_id: Any, row_data: dict, doc_payload: dict) -> None:
+    """OneStop dry-run 파싱 결과를 document_* / DO 상세 테이블에 최대한 보존."""
+    if not doc_payload or inventory_id is None:
+        return
+    pl_data = dict(doc_payload.get("packing_list") or {})
+    bl_data = doc_payload.get("bl") or None
+    invoice_data = doc_payload.get("invoice") or None
+    do_data = doc_payload.get("do") or None
+    if pl_data:
+        pl_data.update({
+            "lot_no": row_data.get("lot_no", lot_no),
+            "sap_no": row_data.get("sap_no") or pl_data.get("sap_no", ""),
+            "bl_no": row_data.get("bl_no") or pl_data.get("bl_no", ""),
+            "product": row_data.get("product") or pl_data.get("product", ""),
+            "product_code": row_data.get("product_code") or pl_data.get("code", ""),
+            "lot_sqm": row_data.get("lot_sqm") or "",
+            "mxbg_pallet": row_data.get("mxbg_pallet") or "",
+            "net_weight": row_data.get("net_weight") or "",
+            "gross_weight": row_data.get("gross_weight") or "",
+            "arrival_date": row_data.get("arrival_date") or pl_data.get("arrival_date", ""),
+        })
+        if not pl_data.get("_pl_lots_raw"):
+            pl_data["_pl_lots_raw"] = pl_data.get("lots") or pl_data.get("rows") or []
+    if hasattr(engine_obj, "_insert_do_details"):
+        engine_obj._insert_do_details(lot_no, inventory_id, do_data)
+    if hasattr(engine_obj, "_insert_document_invoice"):
+        engine_obj._insert_document_invoice(lot_no, inventory_id, invoice_data)
+    if hasattr(engine_obj, "_insert_document_bl"):
+        engine_obj._insert_document_bl(lot_no, inventory_id, bl_data)
+    if hasattr(engine_obj, "_insert_document_pl"):
+        engine_obj._insert_document_pl(lot_no, inventory_id, pl_data or row_data)
+    if hasattr(engine_obj, "_insert_document_do"):
+        engine_obj._insert_document_do(lot_no, inventory_id, do_data)
+
+
 @router.post(
     "/onestop-save",
     summary="📤 OneStop 입고 — 편집된 18열 미리보기 → DB 저장 (Sprint 1-2-C)",
@@ -1164,7 +1244,7 @@ def onestop_inbound_save(req: OneStopSaveRequest):
     받아 실제 DB에 저장.
 
     각 row 는 18개 필드를 가진 dict (lot_no/sap_no/bl_no/... /wh) 이며,
-    engine.add_inventory_from_dict 로 저장된다.
+    기본 LOT/톤백 저장 뒤 doc_payload가 있으면 document_* 보조 테이블도 채운다.
     """
     rows = req.rows or []
     if not rows:
@@ -1180,6 +1260,8 @@ def onestop_inbound_save(req: OneStopSaveRequest):
 
     success_count, fail_count = 0, 0
     errors: "list[dict]" = []
+    doc_payload = req.doc_payload or {}
+    document_saved_count = 0
 
     for idx, row in enumerate(rows, start=1):
         data = _onestop_row_to_engine_dict(row)
@@ -1192,6 +1274,22 @@ def onestop_inbound_save(req: OneStopSaveRequest):
             result = engine.add_inventory_from_dict(data)
             if result.get("success"):
                 success_count += 1
+                if doc_payload:
+                    try:
+                        inv_row = engine.db.fetchone(
+                            "SELECT id FROM inventory WHERE lot_no = ?", (data.get("lot_no"),)
+                        )
+                        inventory_id = inv_row["id"] if isinstance(inv_row, dict) else (inv_row[0] if inv_row else None)
+                        _persist_onestop_document_payload(
+                            engine, str(data.get("lot_no") or ""), inventory_id, data, doc_payload
+                        )
+                        document_saved_count += 1
+                    except Exception as doc_e:
+                        logger.warning(
+                            "[onestop-save] document payload 저장 일부 실패 row=%s lot=%s: %s",
+                            idx, data.get("lot_no"), doc_e,
+                            exc_info=True,
+                        )
             else:
                 fail_count += 1
                 errors.append({
@@ -1216,6 +1314,7 @@ def onestop_inbound_save(req: OneStopSaveRequest):
             "total":         len(rows),
             "success_count": success_count,
             "fail_count":    fail_count,
+            "document_saved_count": document_saved_count,
             "errors":        errors[:50],  # 최대 50건
         },
         "message": f"{success_count}건 입고 완료 / {fail_count}건 실패",

@@ -1,9 +1,9 @@
-// SQM v8.6.8
+// SQM v8.6.9
 // FastAPI 호출 표준 래퍼. 재시도 3회, 지수백오프.
 // 쓰기 성공 → 딩동댕, 실패 → beep
 import { playSuccess, playError } from './sound.js';
 
-const API_BASE = 'http://127.0.0.1:8765';
+const API_BASE = window.SQM_API_BASE || window.location.origin || '';
 const DEFAULT_TIMEOUT_MS = 5000;
 
 export class ApiError extends Error {

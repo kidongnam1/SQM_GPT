@@ -33,7 +33,7 @@ body { background: var(--bg, #0f172a); color: var(--text, #e2e8f0); font-family:
   <button class="send-btn" onclick="sendMsg()">전송</button>
 </div>
 <script>
-var API_BASE = (window.SQM_API_BASE || 'http://127.0.0.1:8765');
+var API_BASE = (window.SQM_API_BASE || window.location.origin || '');
 var HIST_KEY = 'sqm_ai_chat_history';
 
 function loadHistory() {

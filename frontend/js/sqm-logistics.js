@@ -1,4 +1,4 @@
-/* SQM Inventory v8.6.6 — sqm-logistics.js (Logistics — 입고·출고·반품·이동·로그·스캔) */
+/* SQM Inventory v8.6.9 — sqm-logistics.js (Logistics — 입고·출고·반품·이동·로그·스캔) */
 (function () {
   'use strict';
   /* ─── sqm-core.js 공유 함수 로컬 앨리어스 ─────────────────────────
@@ -569,7 +569,7 @@
         sampleRow =
           '<tr style="background:rgba(234,179,8,0.08);border-left:3px solid #eab308">' +
           '<td style="text-align:center">🔬</td>' +
-          '<td class="mono-cell cell-left" style="color:#eab308;font-weight:700;padding:6px 10px">' + lotKey + '(SP)</td>' +
+          '<td class="mono-cell" style="color:#eab308;font-weight:700;padding:6px 10px">' + lotKey + '(SP)</td>' +
           '<td class="mono-cell" style="color:#94a3b8">' + escapeHtml(r.sap||'') + '</td>' +
           '<td class="mono-cell" style="color:#94a3b8">' + escapeHtml(r.bl||'') + '</td>' +
           '<td><span class="tag" style="background:rgba(234,179,8,0.2);color:#eab308">' + escapeHtml(r.product||'') + '</span></td>' +
@@ -581,7 +581,7 @@
       var mainRow =
         '<tr style="border-left:3px solid #a855f7">'
         + '<td class="mono-cell" style="color:var(--text-muted)">' + (i+1) + '</td>'
-        + '<td class="mono-cell cell-left" style="color:#a855f7;font-weight:600;padding:6px 10px">' + lotKey + '</td>'
+        + '<td class="mono-cell" style="color:#a855f7;font-weight:600;padding:6px 10px">' + lotKey + '</td>'
         + '<td style="text-align:center;padding:3px 4px;width:32px">'+'<button class="btn btn-ghost btn-xs" data-lot="'+lotKey+'" onclick="window.showReturnActionMenu(this)" style="font-size:15px;padding:0 4px;letter-spacing:1px" title="추가기능">⋯</button></td>'
         + '<td class="mono-cell">' + escapeHtml(r.sap||'') + '</td>'
         + '<td class="mono-cell">' + escapeHtml(r.bl||'') + '</td>'

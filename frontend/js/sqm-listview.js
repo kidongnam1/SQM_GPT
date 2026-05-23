@@ -1,5 +1,5 @@
 /* =======================================================================
-   sqm-listview.js  (v8.6.8)
+   sqm-listview.js  (v8.6.9)
    재고 메뉴 — LOT / 톤백 리스트 화면 모달
 
    기존 동작:
@@ -38,12 +38,11 @@
 
   /* ── 컬럼 정의 ── */
   var LOT_COLS = [
-    { k: 'sap_no',        h: 'SAP NO',     w: 110 },
-    { k: 'bl_no',         h: 'BL NO',      w: 130 },
-    { k: 'container_no',  h: 'Container',  w: 130 },
+    { k: 'sap_no',        h: 'SAP NO',     w: 110, align: 'center' },
+    { k: 'bl_no',         h: 'BL NO',      w: 130, align: 'center' },
+    { k: 'container_no',  h: 'Container',  w: 130, align: 'center' },
     { k: 'product',       h: '제품명',     w: 200 },
-    { k: 'lot_no',        h: 'LOT NO',     w: 130, mono: true, bold: true },
-    { k: 'lot_sqm',       h: 'LOT SQM',    w: 110 },
+    { k: 'lot_no',        h: 'LOT NO',     w: 130, mono: true, bold: true, align: 'center' },
     { k: 'net_weight',    h: '순중량(kg)',  w: 100, align: 'right', num: true },
     { k: 'current_weight',h: '현재(kg)',    w: 100, align: 'right', num: true },
     { k: 'tonbag_count',  h: '톤백수',      w: 70,  align: 'right' },
@@ -51,26 +50,28 @@
     { k: 'inbound_date',  h: '입고일',      w: 100, align: 'center' },
     { k: 'arrival_date',  h: '도착일',      w: 100, align: 'center' },
     { k: 'warehouse',     h: '창고',        w: 60,  align: 'center' },
-    { k: 'vessel',        h: '선박',        w: 130 },
-    { k: 'do_no',         h: 'D/O NO',     w: 120 },
+    { k: 'vessel',        h: '선박',        w: 130, align: 'center' },
+    { k: 'do_no',         h: 'D/O NO',     w: 120, align: 'center' },
     { k: 'remarks',       h: '비고',       w: 160 },
+    { k: 'rack_location_candidate_check', h: '랙 후보', w: 70, align: 'center' },
   ];
 
   var TONBAG_COLS = [
-    { k: 'sap_no',       h: 'SAP NO',     w: 110 },
-    { k: 'bl_no',        h: 'BL NO',      w: 130 },
-    { k: 'container_no', h: 'Container',  w: 130 },
+    { k: 'sap_no',       h: 'SAP NO',     w: 110, align: 'center' },
+    { k: 'bl_no',        h: 'BL NO',      w: 130, align: 'center' },
+    { k: 'container_no', h: 'Container',  w: 130, align: 'center' },
     { k: 'product',      h: '제품명',     w: 200 },
-    { k: 'tonbag_uid',   h: '톤백 UID',    w: 160, mono: true },
+    { k: 'tonbag_uid',   h: '톤백 UID',    w: 160, mono: true, align: 'center' },
     { k: 'sub_lt',       h: 'Sub LT',     w: 70,  align: 'right' },
     { k: 'tonbag_no',    h: '톤백 번호',   w: 90,  align: 'center' },
     { k: 'weight_kg',    h: '중량(kg)',    w: 90,  align: 'right', num: true },
     { k: 'status',       h: '상태',        w: 90,  align: 'center', badge: 'status' },
-    { k: 'location',     h: '위치',        w: 130, mono: true },
+    { k: 'location',     h: '실제 위치',    w: 130, mono: true, align: 'center' },
+    { k: 'rack_location_candidate', h: '랙 위치 후보', w: 130, mono: true, align: 'center' },
     { k: 'cell_state',   h: '셀 상태',     w: 110, align: 'center', badge: 'cell' },
     { k: 'inbound_date', h: '입고일',      w: 100, align: 'center' },
-    { k: 'sold_to',      h: '출고대상',    w: 130 },
-    { k: 'sale_ref',     h: 'Sale Ref',   w: 130 },
+    { k: 'sold_to',      h: '출고대상',    w: 130, align: 'center' },
+    { k: 'sale_ref',     h: 'Sale Ref',   w: 130, align: 'center' },
     { k: 'remarks',      h: '비고',       w: 160 },
     { k: 'warehouse',    h: '창고',        w: 60,  align: 'center' },
   ];
@@ -86,7 +87,7 @@
     DEPLETED:  { bg: '#37474f', fg: '#cfd8dc' },
     SHIPPED:   { bg: '#212121', fg: '#9e9e9e' },
   };
-  /* v8.6.8: 셀 상태 배지 */
+  /* v8.6.9: 셀 상태 배지 */
   var CELL_STATE_COLORS = {
     EMPTY:    { bg: '#37474f', fg: '#b0bec5', icon: '⬜' },
     OCCUPIED: { bg: '#1b5e20', fg: '#a5d6a7', icon: '🟦' },
@@ -169,7 +170,7 @@
   }
 
   /* ── 렌더 ──
-     v8.6.8: onRowClick 옵션 추가 — 행 클릭 drilldown (LOT → 톤백) 용 */
+     v8.6.9: onRowClick 옵션 추가 — 행 클릭 drilldown (LOT → 톤백) 용 */
   function _renderTable(cols, rows, container, onRowClick) {
     if (!rows || rows.length === 0) {
       container.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:40px;">📭 데이터가 없습니다.</div>';
@@ -203,7 +204,7 @@
       + '<thead><tr>' + thead + '</tr></thead>'
       + '<tbody>' + tbody + '</tbody>'
       + '</table>';
-    /* v8.6.8: 행 클릭 핸들러 (drilldown) */
+    /* v8.6.9: 행 클릭 핸들러 (drilldown) */
     if (clickable) {
       container.querySelectorAll('tbody tr').forEach(function(tr) {
         tr.addEventListener('mouseenter', function() {
@@ -219,6 +220,43 @@
         });
       });
     }
+  }
+
+
+  /* -- LOT footer totals bar ---------------------------------------- */
+  function _renderLotFooter(foot, rows) {
+    var totalNet = 0, totalCur = 0, totalTonbag = 0;
+    rows.forEach(function(r) {
+      totalNet    += Number(r.net_weight     || 0);
+      totalCur    += Number(r.current_weight || 0);
+      totalTonbag += Number(r.tonbag_count   || 0);
+    });
+    var s = 'display:inline-block;padding:2px 14px;margin-right:8px;'
+          + 'background:rgba(79,195,247,0.13);border-radius:6px;'
+          + 'font-size:12px;color:var(--accent,#4fc3f7);font-weight:700;';
+    var hint = 'font-size:11px;color:var(--text-muted);margin-left:6px;';
+    foot.innerHTML =
+        '<span style="' + s + '">📦 LOT ' + rows.length.toLocaleString('ko-KR') + ' 건</span>'
+      + '<span style="' + s + '">⚖ 순중량 ' + totalNet.toLocaleString('ko-KR', {maximumFractionDigits:2}) + ' kg</span>'
+      + '<span style="' + s + '">📊 현재 ' + totalCur.toLocaleString('ko-KR', {maximumFractionDigits:2}) + ' kg</span>'
+      + '<span style="' + s + '">🎒 톤백 ' + totalTonbag.toLocaleString('ko-KR') + ' 개</span>'
+      + '<span style="' + hint + '">※ 행 클릭 → 톤백 상세 보기 · 엑셀 다운로드는 우상단 버튼</span>';
+  }
+
+  /* -- Tonbag footer totals bar ------------------------------------- */
+  function _renderTonbagFooter(foot, rows) {
+    var totalWeight = 0;
+    rows.forEach(function(r) {
+      totalWeight += Number(r.weight_kg || 0);
+    });
+    var s = 'display:inline-block;padding:2px 14px;margin-right:8px;'
+          + 'background:rgba(79,195,247,0.13);border-radius:6px;'
+          + 'font-size:12px;color:var(--accent,#4fc3f7);font-weight:700;';
+    var hint = 'font-size:11px;color:var(--text-muted);margin-left:6px;';
+    foot.innerHTML =
+        '<span style="' + s + '">🎒 톤백 ' + rows.length.toLocaleString('ko-KR') + ' 건</span>'
+      + '<span style="' + s + '">⚖ 총 중량 ' + totalWeight.toLocaleString('ko-KR', {maximumFractionDigits:2}) + ' kg</span>'
+      + '<span style="' + hint + '">※ 엑셀 다운로드는 우상단 버튼 사용</span>';
   }
 
   function _applyFilter(rows, q) {
@@ -259,7 +297,7 @@
           allRows = rows;
           cnt.textContent = '— ' + rows.length + ' 건';
           _renderTable(LOT_COLS, rows, body, _onLotRowClick);
-          foot.textContent = '※ 행 클릭 → 톤백 상세 보기  ·  엑셀 다운로드는 우상단 버튼  ·  전체 ' + rows.length + ' LOT';
+          _renderLotFooter(foot, rows);
         })
         .catch(function(e) {
           body.innerHTML = '<div style="text-align:center;color:var(--danger,#f44336);padding:40px;">'
@@ -275,10 +313,12 @@
     var fInp = document.getElementById('sqm-listview-filter');
     fInp.value = '';
     fInp.oninput = function() {
-      _renderTable(LOT_COLS, _applyFilter(allRows, this.value), body, _onLotRowClick);
+      var _lotFiltered = _applyFilter(allRows, this.value);
+      _renderTable(LOT_COLS, _lotFiltered, body, _onLotRowClick);
+      _renderLotFooter(foot, _lotFiltered);
     };
 
-    /* v8.6.8: LOT 행 클릭 → 해당 LOT 의 톤백 모달로 drilldown */
+    /* v8.6.9: LOT 행 클릭 → 해당 LOT 의 톤백 모달로 drilldown */
     function _onLotRowClick(row) {
       if (!row || !row.lot_no) { _toast('warning', 'LOT 번호가 없습니다'); return; }
       if (typeof window.showTonbagListModal === 'function') {
@@ -297,7 +337,7 @@
   window.showTonbagListModal = function(lotNo) {
     var m = _ensureModal();
     m.style.display = 'flex';
-    /* v8.6.8: LOT drilldown 진입 시 → 제목에 LOT 번호 + 돌아가기 hint */
+    /* v8.6.9: LOT drilldown 진입 시 → 제목에 LOT 번호 + 돌아가기 hint */
     var ttl = '🎒 톤백 리스트';
     if (lotNo) ttl += ' — LOT ' + lotNo + '  (← 더블클릭하면 LOT 리스트로)';
     document.getElementById('sqm-listview-title').textContent = ttl;
@@ -325,7 +365,7 @@
         .then(function(res) {
           var rows = (res && res.data && res.data.rows) || res.rows || [];
           allRows = rows;
-          /* v8.6.8: HALF 셀 톤백 카운트 → 버튼 활성화 */
+          /* v8.6.9: HALF 셀 톤백 카운트 → 버튼 활성화 */
           var halfTb = rows.filter(function(r) {
             return String(r.cell_state || '').toUpperCase() === 'HALF';
           }).length;
@@ -343,7 +383,7 @@
           }
           cnt.textContent = '— ' + rows.length + ' 건' + (halfTb ? ' · HALF ' + halfTb + '톤백' : '');
           _renderTable(TONBAG_COLS, rows, body);
-          foot.textContent = '※ 엑셀 다운로드는 우상단 버튼 사용 · 전체 ' + rows.length + ' 톤백';
+          _renderTonbagFooter(foot, rows);
         })
         .catch(function(e) {
           body.innerHTML = '<div style="text-align:center;color:var(--danger,#f44336);padding:40px;">'
@@ -360,7 +400,9 @@
     var fInp = document.getElementById('sqm-listview-filter');
     fInp.value = '';
     fInp.oninput = function() {
-      _renderTable(TONBAG_COLS, _applyFilter(allRows, this.value), body);
+      var _tbFiltered = _applyFilter(allRows, this.value);
+      _renderTable(TONBAG_COLS, _tbFiltered, body);
+      _renderTonbagFooter(foot, _tbFiltered);
     };
 
     _load();

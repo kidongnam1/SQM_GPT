@@ -1,4 +1,4 @@
-/* SQM Inventory v8.6.6 — sqm-inventory.js (Inventory — 재고목록·톤백모달) */
+/* SQM Inventory v8.6.9 — sqm-inventory.js (Inventory — 재고목록·톤백모달) */
 (function () {
   'use strict';
   /* ─── sqm-core.js 공유 함수 로컬 앨리어스 ─────────────────────────
@@ -112,7 +112,7 @@
           sampleRow =
             '<tr style="background:rgba(234,179,8,0.08);border-left:3px solid #eab308">' +
             '<td class="mono-cell" style="color:#eab308;font-size:15px;text-align:center;padding:6px 10px;line-height:1.2">🔬</td>' +
-            '<td class="mono-cell" style="color:#eab308;font-size:15px;font-weight:700;text-align:left;padding:6px 10px;line-height:1.2">'+lotKey+'(SP)</td>' +
+            '<td class="mono-cell" style="color:#eab308;font-size:15px;font-weight:700;text-align:center;padding:6px 10px;line-height:1.2">'+lotKey+'(SP)</td>' +
             '<td class="mono-cell" style="color:#555">—</td>' +
             '<td class="mono-cell" style="color:#94a3b8;font-size:15px;padding:6px 10px;line-height:1.2">'+escapeHtml(r.sap||'')+'</td>' +
             '<td class="mono-cell" style="color:#94a3b8;font-size:15px;padding:6px 10px;line-height:1.2">'+escapeHtml(r.bl||'')+'</td>' +
@@ -161,7 +161,7 @@
         var mainRow =
           '<tr style="'+(hasSample ? 'border-left:3px solid #3b82f6' : '')+'">' +
           '<td class="mono-cell" style="color:var(--text-muted)">'+(i+1)+'</td>' +
-          '<td class="mono-cell cell-left" style="color:var(--accent);font-weight:600;padding:6px 10px;line-height:1.2">'+lotKey+'</td>' +
+          '<td class="mono-cell" style="color:var(--accent);font-weight:600;padding:6px 10px;line-height:1.2">'+lotKey+'</td>' +
           '<td style="text-align:center;padding:3px 4px;width:32px">'+'<button class="btn btn-ghost btn-xs" data-lot="'+lotKey+'" onclick="window.showInvActionMenu(this)"'+'  style="font-size:15px;padding:0 4px;letter-spacing:1px;line-height:1.2" title="추가기능">⋯</button>'+'</td>' +
           '<td class="mono-cell">'+escapeHtml(r.sap||'')+'</td>' +
           '<td class="mono-cell">'+escapeHtml(r.bl||'')+'</td>' +

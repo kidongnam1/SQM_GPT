@@ -105,7 +105,7 @@
   window._updateWeightBadge = _updateWeightBadge;
 
   window._sqmDetachAiChat = function() {
-    var API = window.SQM_API_BASE || 'http://127.0.0.1:8765';
+    var API = window.SQM_API_BASE || window.location.origin || '';
     var url = API + '/frontend/detached/ai_chat.html';
     if (window.pywebview && window.pywebview.api && window.pywebview.api.open_detached_window) {
       window.pywebview.api.open_detached_window('ai_chat', 'SQM AI Chat', url, 900, 650);
@@ -117,7 +117,7 @@
   };
 
   window._sqmDetachIntegrity = function() {
-    var API = window.SQM_API_BASE || 'http://127.0.0.1:8765';
+    var API = window.SQM_API_BASE || window.location.origin || '';
     var url = API + '/frontend/detached/integrity.html';
     if (window.pywebview && window.pywebview.api && window.pywebview.api.open_detached_window) {
       window.pywebview.api.open_detached_window('integrity', '정합성 검사', url, 1000, 700);

@@ -3579,7 +3579,7 @@
     aDiv.textContent = '⏳ 조회 중…';
     hist.appendChild(aDiv);
     hist.scrollTop = hist.scrollHeight;
-    fetch('http://127.0.0.1:8765/api/ai/chat', {
+    fetch((window.SQM_API_BASE || window.location.origin || '') + '/api/ai/chat', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({message: msg})
@@ -4211,7 +4211,7 @@
         return;
       }
       if (conf.u === 'tonbag-location-upload') {
-        /* v8.6.8: 신규 위치 매핑 워크플로우 모달 (좌측 미배정 톤백 + 우측 실시간 매핑) */
+        /* v8.6.9: 신규 위치 매핑 워크플로우 모달 (좌측 미배정 톤백 + 우측 실시간 매핑) */
         if (typeof window.showLocationMappingModal === 'function') {
           window.showLocationMappingModal();
         } else {
@@ -4441,7 +4441,7 @@
      11. BIND ALL + BOOT
      =================================================== */
   function bindAll() {
-    // v8.6.8 fix (2026-05-14): data-action 바인딩 비활성화
+    // v8.6.9 fix (2026-05-14): data-action 바인딩 비활성화
     //   - 원본은 v8.6.5 era 옛 ENDPOINTS 사용 (line 4001) → onWarehouseDashboard 등 신규 매핑 누락
     //   - ev.stopPropagation() 이 sqm-inline.js 의 신규 라우터까지 차단함
     //   - 신규 라우터(sqm-inline.js)가 모든 data-action 을 처리하도록 위임
@@ -4568,7 +4568,7 @@
       }
     });
 
-    console.info('[SQM v8.6.6] bindAll complete');
+    console.info('[SQM v8.6.9] bindAll complete');
   }
 
   // ── 재고 수정 (자연어 AI 입력) ──
@@ -4691,7 +4691,7 @@
     window.SQM.renderPage = renderPage;
     window.SQM.dispatchAction = dispatchAction;
     window.SQM.currentRoute = function(){ return window.getCurrentRoute(); };
-    console.info('[SQM v8.6.6] boot complete. initial route:', initial);
+    console.info('[SQM v8.6.9] boot complete. initial route:', initial);
   }
 
   /* sqm-onestop-inbound.js 의존성 전역 노출 */

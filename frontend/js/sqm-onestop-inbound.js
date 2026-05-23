@@ -1,5 +1,5 @@
 /* =======================================================================
-   sqm-onestop-inbound.js  (v8.6.6)
+   sqm-onestop-inbound.js  (v8.6.9)
    OneStop Inbound — 4-slot wizard modal + parse engine
    Extracted from sqm-inline.js lines 3811–5008 by extract_onestop.py
    Dependencies (provided by sqm-inline.js):
@@ -37,15 +37,16 @@
     template: null,
     carrier: '',
     step: 1,
-    /* v8.6.8 Hybrid: 사용자가 사전 결정하는 packing_type 기본값 (선적 전체 적용) */
+    /* v8.6.9 Hybrid: 사용자가 사전 결정하는 packing_type 기본값 (선적 전체 적용) */
     /*   'C'      = 기본 (500kg × 2pack, 가장 흔한 패턴) */
     /*   'A'/'B'  = 강제 적용 (드문 경우) */
-    /*   'auto'   = LOT별 net÷mxbg 자동 판별 (v8.6.8 이전 방식) */
+    /*   'auto'   = LOT별 net÷mxbg 자동 판별 (v8.6.9 이전 방식) */
     /*   'manual' = 사후 [📦 팔레트/셀] 탭에서 LOT별 개별 결정 */
     defaultPacking: 'C',
     /* [Sprint 1-2-C] 편집 상태 */
     previewRows: [],        /* 현재 미리보기 rows (편집 반영됨) */
     originalRows: [],       /* 원본 백업 — 편집 롤백용 */
+    docPayload: null,       /* 파싱된 BL/PL/Invoice/D/O 상세 — DB 저장 시 보조 테이블 반영 */
     editedCells: {},        /* { "rowIdx.field": true } — 편집된 셀 표시용 */
     parsed: false,          /* 파싱 완료 여부 (true면 DB 업로드 가능) */
     /* [Sprint 1-2-D] Undo/Redo + D/O 수동 정보 */
@@ -150,7 +151,7 @@
       + '<button class="btn btn-primary" id="onestop-save-btn" onclick="window.onestopSaveDb()" disabled>📤 DB 업로드</button>'
       + '</div>';
     p.appendChild(hdr); p.appendChild(bdy);
-    /* v8.6.8: 팔레트 구성 탭 — 자동/사용자 확인 + 셀 점유 사전 계산 */
+    /* v8.6.9: 팔레트 구성 탭 — 자동/사용자 확인 + 셀 점유 사전 계산 */
     if (typeof window.getPalletTabButtonHtml === 'function') {
       hdr.insertAdjacentHTML('beforeend', window.getPalletTabButtonHtml());
     }
@@ -174,6 +175,7 @@
     /* 상태 초기화 */
     _onestopState.files = { BL: null, PACKING_LIST: null, INVOICE: null, DO: null };
     _onestopState.step = 1;
+    _onestopState.docPayload = null;
 
     var slotsHtml = ONESTOP_DOC_TYPES.map(function(dt){
       return (
@@ -193,7 +195,7 @@
 
     var html = [
       '<div class="onestop-modal">',
-      '  <h2 style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">📥 입고 — SQM v8.6.8 (OneStop)'
+      '  <h2 style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">📥 입고 — SQM v8.6.9 (OneStop)'
       +'<span id="onestop-step-badge" style="font-size:12px;font-weight:600;padding:2px 12px;border-radius:20px;background:var(--sidebar-active-bg,#3b82f6);color:var(--sidebar-active-fg,#fff);white-space:nowrap;">① 서류 선택</span></h2>',
       /* 템플릿 줄 — Sprint 2 예정 행 제거, D/O 나중에 버튼은 액션 바로 이동 */
       /* 선사 줄 */
@@ -207,7 +209,7 @@
       '    <label>💬 힌트:</label>',
       '    <input id="onestop-hint-input" type="text" placeholder="LOT/BL 특이사항 입력 (선택, DB 저장 안 됨)" style="flex:1;padding:6px 10px;background:var(--bg-hover);color:var(--fg);border:1px solid var(--border);border-radius:6px;font-size:13px">',
       '  </div>',
-      /* v8.6.8: 팔레트 구성 사전 결정 (Hybrid 설계) — 사용자가 선적 전체의 기본 packing_type 을 미리 지정 */
+      /* v8.6.9: 팔레트 구성 사전 결정 (Hybrid 설계) — 사용자가 선적 전체의 기본 packing_type 을 미리 지정 */
       '  <div class="onestop-row">',
       '    <label>📦 팔레트:</label>',
       '    <select id="onestop-default-packing" onchange="window.onestopSetDefaultPacking(this.value)" style="padding:6px 10px;flex:1;max-width:380px;background:var(--bg-hover);color:var(--fg);border:1px solid var(--border);border-radius:6px;font-size:13px">',
@@ -942,7 +944,7 @@
     }
   };
 
-  /* v8.6.8 Hybrid: 사용자가 선적 전체의 기본 packing_type 사전 결정 */
+  /* v8.6.9 Hybrid: 사용자가 선적 전체의 기본 packing_type 사전 결정 */
   window.onestopSetDefaultPacking = function(v) {
     var allowed = ['A', 'B', 'C', 'auto', 'manual'];
     if (allowed.indexOf(v) < 0) v = 'C';
@@ -1059,6 +1061,7 @@
 
         /* 18열 미리보기 테이블 채우기 + 편집 상태 초기화 */
         var rows = d.preview_rows || [];
+        _onestopState.docPayload = d.doc_payload || null;
         /* compare_mode: show side-by-side, let user pick */
         var _showCompareAfterPreview = false;
         if (d.compare_mode && d.coord_rows && d.gemini_rows) {
@@ -1090,7 +1093,7 @@
         var _cEl2 = document.getElementById('onestop-carrier');
         _openParseResultWindow(_cEl2 ? _cEl2.value : '', rows.length);
         _onestopRenderPreview(_onestopState.previewRows);
-        /* v8.6.8: 팔레트 구성 자동 판별 + 500kg 강제확인 게이트 초기화 */
+        /* v8.6.9: 팔레트 구성 자동 판별 + 500kg 강제확인 게이트 초기화 */
         if (typeof window.onestopPalletInitFromRows === 'function') {
           window.onestopPalletInitFromRows();
         }
@@ -1421,7 +1424,10 @@
     var saveBtn = document.getElementById('onestop-save-btn');
     if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = '⏳ 저장 중...'; }
 
-    apiPost('/api/inbound/onestop-save', { rows: _onestopState.previewRows })
+    apiPost('/api/inbound/onestop-save', {
+      rows: _onestopState.previewRows,
+      doc_payload: _onestopState.docPayload || {}
+    })
       .then(function(res){
         var d = (res && res.data) || {};
         if (res && res.ok) {

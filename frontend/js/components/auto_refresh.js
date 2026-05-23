@@ -1,4 +1,4 @@
-// SQM v8.6.6
+// SQM v8.6.9
 // 30초 주기, 탭 hidden 시 일시정지, 실패 3연속 시 60초 백오프
 import { startStatusAutoRefresh } from './statusbar.js';
 import { startAlertsAutoRefresh } from './alerts.js';

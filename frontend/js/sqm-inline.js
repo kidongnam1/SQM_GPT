@@ -141,7 +141,7 @@
     console.log('[SQM Tooltip] custom dark tooltip ready');
   })();
 
-  var API = window.SQM_API_BASE || (window.location && window.location.origin) || 'http://127.0.0.1:8765';
+  var API = window.SQM_API_BASE || (window.location && window.location.origin) || '';
 
   /**
    * Excel/FileResponse 다운로드.
@@ -1821,7 +1821,7 @@
 
   /* ── Excel 내보내기 ── */
   window.allocExportExcel = function() {
-    var url = (typeof API !== 'undefined' ? API : 'http://localhost:8765') + '/api/allocation/export-excel';
+    var url = (typeof API !== 'undefined' ? API : '') + '/api/allocation/export-excel';
     var a = document.createElement('a');
     a.href = url;
     a.download = '';
@@ -4488,7 +4488,7 @@
             '</div>';
           showToast('success', res.message || '확정 완료');
           dbgLog('🟢','CONFIRM-SOLD OK', res.message, '#66bb6a');
-          /* v8.6.8: CASE 3 — 부분 출고 잔여 톤백 자동 다이얼로그 */
+          /* v8.6.9: CASE 3 — 부분 출고 잔여 톤백 자동 다이얼로그 */
           if (d.half_cells && d.half_cells.length && typeof window.showCase3Dialog === 'function') {
             setTimeout(function() { window.showCase3Dialog(d.half_cells); }, 200);
           }
@@ -5015,7 +5015,7 @@
     /* ── 재고 메뉴: LOT Excel은 FileResponse → 새 창 다운로드 / 추이는 JSON 모달 ── */
     'onExportLot':         {m:'JS', u:'export-lot-excel-dl',                       lbl:'📊 LOT 리스트 Excel'},
     'onStockTrendChart':   {m:'GET', u:'/api/q/inventory-trend',                   lbl:'📊 재고 추이 차트'},
-    /* v8.6.8: 창고 셀 점유 대시보드 */
+    /* v8.6.9: 창고 셀 점유 대시보드 */
     'onWarehouseDashboard':{m:'JS', u:'warehouse-dashboard',                       lbl:'📊 창고 현황 (대시보드)'},
     /* v8.6.9: 위치재고조회 엑셀 import */
     'onLocationMapImport':{m:'JS', u:'location-map-import', lbl:'📥 위치재고 엑셀 Import'},
@@ -5415,7 +5415,7 @@
     }
   }
 
-  /* v8.6.8 fix (2026-05-14): 재고 수정 모달 함수를 window 에 노출.
+  /* v8.6.9 fix (2026-05-14): 재고 수정 모달 함수를 window 에 노출.
      - HTML 모달 내 onclick="parseAdjustRequest()" / onclick="executeAdjustment()" 가
        전역 함수 참조이므로 IIFE 내부 정의로는 ReferenceError.
      - 라우터 분기에서도 window.showInventoryAdjustDialog() 호출 가능. */

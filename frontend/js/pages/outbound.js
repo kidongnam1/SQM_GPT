@@ -2,15 +2,16 @@
 'use strict';
 
 const OutboundPage = (() => {
+  const API = window.SQM_API_BASE || window.location.origin || '';
   async function loadScheduled() {
     try {
-      const res = await fetch('http://localhost:8765/api/outbound/scheduled');
+      const res = await fetch(API + '/api/outbound/scheduled');
       return res.ok ? await res.json() : [];
     } catch { return []; }
   }
 
   async function loadHistory(dateFrom, dateTo) {
-    let url = 'http://localhost:8765/api/outbound/history';
+    let url = API + '/api/outbound/history';
     const params = new URLSearchParams();
     if (dateFrom) params.set('date_from', dateFrom);
     if (dateTo)   params.set('date_to', dateTo);
@@ -33,12 +34,13 @@ const OutboundPage = (() => {
         return `<td class="mono-cell">${row[col]||'-'}</td>`;
       }).join('') + '</tr>'
     ).join('') : `<tr><td colspan="${columns.length}" style="text-align:center;padding:40px;color:var(--text-muted)">데이터 없음</td></tr>`;
+    _renderOutboundFooter(tbodyId, rows);
   }
 
   async function confirmOutbound(lotNo) {
     if (!confirm(`${lotNo} 출고를 확정하시겠습니까?`)) return;
     try {
-      const res = await fetch(`http://localhost:8765/api/outbound/${lotNo}/confirm`, { method: 'POST' });
+      const res = await fetch(`${API}/api/outbound/${lotNo}/confirm`, { method: 'POST' });
       const data = await res.json();
       window.showToast?.(data.success ? 'success' : 'error', data.message || '처리 완료');
     } catch { window.showToast?.('error', '서버 연결 오류'); }
@@ -47,10 +49,32 @@ const OutboundPage = (() => {
   async function cancelOutbound(lotNo) {
     if (!confirm(`${lotNo} 출고를 취소하시겠습니까?`)) return;
     try {
-      const res = await fetch(`http://localhost:8765/api/outbound/${lotNo}/cancel`, { method: 'POST' });
+      const res = await fetch(`${API}/api/outbound/${lotNo}/cancel`, { method: 'POST' });
       const data = await res.json();
       window.showToast?.(data.success ? 'success' : 'error', data.message || '취소 완료');
     } catch { window.showToast?.('error', '서버 연결 오류'); }
+  }
+
+
+  function _renderOutboundFooter(tbodyId, rows) {
+    var footId = tbodyId.replace(/-tbody$/, '-footer');
+    var foot = document.getElementById(footId);
+    if (!foot) {
+      var tb = document.getElementById(tbodyId);
+      if (!tb) return;
+      var tbl = tb.closest ? tb.closest('table') : tb.parentElement;
+      if (!tbl || !tbl.parentNode) return;
+      foot = document.createElement('div');
+      foot.id = footId;
+      foot.style.cssText = 'padding:5px 12px;background:var(--bg-hover);border-top:1px solid var(--panel-border);font-size:12px;flex-shrink:0;';
+      tbl.parentNode.insertBefore(foot, tbl.nextSibling);
+    }
+    var s = 'display:inline-block;padding:2px 14px;margin-right:8px;background:rgba(79,195,247,0.13);border-radius:6px;font-size:12px;color:var(--accent,#4fc3f7);font-weight:700;';
+    var total = 0;
+    rows.forEach(function(r) { total += Number(r.balance || r.net || r.balance_kg || 0); });
+    foot.innerHTML =
+        '<span style="' + s + '">📋 ' + rows.length.toLocaleString('ko-KR') + ' 건</span>'
+      + (total > 0 ? '<span style="' + s + '">⚖ ' + total.toLocaleString('ko-KR', {maximumFractionDigits:3}) + ' MT</span>' : '');
   }
 
   return { loadScheduled, loadHistory, renderTable, confirmOutbound, cancelOutbound };

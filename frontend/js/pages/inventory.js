@@ -2,6 +2,7 @@
 'use strict';
 
 const InventoryPage = (() => {
+  const API = window.SQM_API_BASE || window.location.origin || '';
   let allData = [];
   let filtered = [];
   let currentStatus = 'ALL';
@@ -14,7 +15,7 @@ const InventoryPage = (() => {
 
   async function load() {
     try {
-      const res = await fetch('http://localhost:8765/api/inventory');
+      const res = await fetch(API + '/api/inventory');
       allData = res.ok ? await res.json() : SAMPLE_INVENTORY;
     } catch { allData = window.SAMPLE_INVENTORY || []; }
     applyFilters();

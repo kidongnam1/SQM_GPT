@@ -1,5 +1,5 @@
 /* =======================================================================
-   onestop_pallet_tab.js  (v8.6.8)
+   onestop_pallet_tab.js  (v8.6.9)
    파싱 결과창 — [📦 팔레트/셀] 탭 모듈
 
    목적:
@@ -12,7 +12,7 @@
      [📤 DB 업로드] 클릭 시 inventory.packing_type 으로 저장됨.
 
    ───────────────────────────────────────────────────────────────────────
-   강화 기능 (v8.6.8):
+   강화 기능 (v8.6.9):
      ① 자동 판별 결과 시각화 — 초록(자동) / 노랑(수정) / 빨강(미확정)
      ② 컨테이너 요약 카드    — 총 컨테이너 수, 총 셀, 적재 가능 여부
      ③ 500kg LOT 강제 확인   — 드롭다운 1회 클릭 전에는 DB 업로드 차단
@@ -143,7 +143,7 @@
 
     totalContainers = Math.ceil(totalWeight / CONTAINER_MAX_KG) || 0;
 
-    /* 창고 가용률 — 광양 GY Logis 6,572셀 기준 (v8.6.8 랙 이름 규칙 확정)
+    /* 창고 가용률 — 광양 GY Logis 6,572셀 기준 (v8.6.9 랙 이름 규칙 확정)
        5동·6동 동일: 1~3랙(6층) + 4~13랙(7층) + 14~16랙(6층), 각 31열
        동당 = 3×31×6 + 10×31×7 + 3×31×6 = 3,286 셀, ×2동 = 6,572 셀 */
     var WAREHOUSE_TOTAL = 6572;
@@ -394,7 +394,7 @@
   };
 
   /* 외부(파싱 완료 시점)에서 호출 — packing_type 초기화 + 자동 적용
-     v8.6.8 Hybrid: 사용자가 사전 결정한 defaultPacking 우선 적용 */
+     v8.6.9 Hybrid: 사용자가 사전 결정한 defaultPacking 우선 적용 */
   window.onestopPalletInitFromRows = function() {
     _palletState = {};   /* 새 파싱이면 리셋 */
     var rows = (window._onestopState && window._onestopState.previewRows) || [];
@@ -448,7 +448,7 @@
   window.onestopPalletUpdateGate = function() { updateDbUploadGate(); };
 
   /* ─────────────────────────────────────────────────────────────────────
-    랙 위치(Cell) 검증 — v8.6.8 광양 GY Logis 규칙 확정
+    랙 위치(Cell) 검증 — v8.6.9 광양 GY Logis 규칙 확정
     형식: G{동}-{칸}-{열}-{층}
       동:   5 | 6
       칸:   01~16 (랙 번호)

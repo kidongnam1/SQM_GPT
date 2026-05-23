@@ -106,7 +106,19 @@
       "Bash(echo \"---EXIT:$?---\")",
       "Bash(PYTHONIOENCODING=utf-8 python scripts/cleanup_inbound_templates.py --apply)",
       "Bash(PYTHONIOENCODING=utf-8 python scripts/seed_templates_api.py)",
-      "Bash(curl -s http://127.0.0.1:8765/api/inbound/templates)"
+      "Bash(curl -s http://127.0.0.1:8765/api/inbound/templates)",
+      "Bash(node --check frontend/js/sqm-picked.js)",
+      "Bash(node --check frontend/js/sqm-upload-modals.js)",
+      "Bash(git log *)",
+      "Bash(node --check frontend/js/sqm-location-map-import.js)",
+      "PowerShell(git status *)",
+      "PowerShell(git pull *)",
+      "PowerShell(git *)",
+      "PowerShell(Get-Command *)",
+      "PowerShell(python -c \"import openpyxl; wb=openpyxl.load_workbook\\(r'D:\\\\program\\\\SQM_inventory\\\\위치재고조회_20260518_140004.xlsx', read_only=True\\); ws=wb.active; print\\('sheet:', ws.title, 'dims:', ws.dimensions\\); rows=list\\(ws.iter_rows\\(max_row=6, values_only=True\\)\\); [print\\(i, r\\) for i,r in enumerate\\(rows\\)]\")",
+      "PowerShell(python -c \"import openpyxl; wb=openpyxl.load_workbook\\(r'D:\\\\program\\\\SQM_inventory\\\\위치재고조회_20260518_140004.xlsx', read_only=True\\); ws=wb.active; print\\('sheet:', ws.title\\); rows=list\\(ws.iter_rows\\(max_row=8, values_only=True\\)\\); [print\\(i, r\\) for i,r in enumerate\\(rows\\)]; print\\('total rows approx:', ws.max_row\\)\")",
+      "PowerShell(python -c \"import sys; sys.path.insert\\(0, r'D:\\\\program\\\\SQM_inventory\\\\sqm_v869_clean'\\); from features.parsers.location_inventory_parser import parse_location_inventory_excel; import json; doc = parse_location_inventory_excel\\(r'D:\\\\program\\\\SQM_inventory\\\\위치재고조회_20260518_140004.xlsx'\\); print\\('OK:', doc['ok']\\); print\\('STATS:', doc['stats']\\); print\\('ERRORS\\(', len\\(doc['errors']\\), '\\):'\\); [print\\('  -', e\\) for e in doc['errors'][:15]]; print\\('WARNINGS\\(', len\\(doc['warnings']\\), '\\):'\\); [print\\('  -', w\\) for w in doc['warnings'][:15]]; print\\('SAMPLE LOT:', json.dumps\\(doc['lots'][0] if doc['lots'] else None, ensure_ascii=False, default=str\\)[:600]\\)\")",
+      "PowerShell(chcp 65001 *)"
     ]
   }
 }
