@@ -160,7 +160,6 @@
   // P2-1 (2026-05-17): window.renderPage 및 getCurrentRoute는 sqm-core.js 버전이 권위
   // (sqm-inline.js의 renderPage는 내부 포워더, window 재정의 불필요)
   // allocation: sqm-inline의 단순화 버전을 window에 노출해 sqm-core.js가 사용하게 함
-  window.loadAllocationPage = loadAllocationPage;
 
   /* ===================================================
      6. DASHBOARD
@@ -411,146 +410,6 @@
   /* ===================================================
      7a. PAGE: Inventory
      =================================================== */
-  function loadInventoryPage() {
-    var route = _currentRoute;
-    var c = document.getElementById('page-container');
-    if (!c) return;
-    c.innerHTML = '<div style="padding:40px;text-align:center">Loading inventory...</div>';
-    apiGet('/api/inventory').then(function(res){
-      if (_currentRoute !== route) return;
-      var rows = extractRows(res);
-      if (!rows.length) {
-        c.innerHTML = '<div class="empty" style="padding:60px;text-align:center">No inventory data</div>';
-        return;
-      }
-      var sumBal = 0;
-      var sumNet = 0;
-      var sumIni = 0;
-      var sumOb = 0;
-      rows.forEach(function(r){
-        if (r.balance != null && !isNaN(Number(r.balance))) sumBal += Number(r.balance);
-        if (r.net != null && !isNaN(Number(r.net))) sumNet += Number(r.net);
-        if (r.initial_weight != null && !isNaN(Number(r.initial_weight))) sumIni += Number(r.initial_weight);
-        if (r.outbound_weight != null && !isNaN(Number(r.outbound_weight))) sumOb += Number(r.outbound_weight);
-      });
-      var html = '<section class="page" data-page="inventory">' +
-        '<div style="display:flex;align-items:center;gap:12px;padding:4px 0 10px">' +
-        '<h2 style="margin:0">📦 재고 목록 (Inventory)</h2>' +
-        '<span style="font-size:12px;color:var(--text-muted)" id="inv-count-label">'+rows.length+' LOTs</span>' +
-        '<button class="btn btn-secondary" onclick="renderPage(\'inventory\')" style="margin-left:auto">🔁 새로고침</button>' +
-        '</div>' +
-        /* ── 필터 / 검색 바 ── */
-        '<div id="inv-filter-bar" style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:6px 8px;background:var(--panel);border:1px solid var(--panel-border);border-radius:6px;margin-bottom:8px">' +
-        '  <label style="font-size:12px;white-space:nowrap">상태:</label>' +
-        '  <select id="inv-status-filter" style="font-size:12px;padding:2px 6px;border-radius:4px;border:1px solid var(--panel-border);background:var(--bg);color:var(--fg)" onchange="window.invApplyFilter()">' +
-        '    <option value="">전체</option>' +
-        '    <option value="AVAILABLE">AVAILABLE</option>' +
-        '    <option value="RESERVED">RESERVED</option>' +
-        '    <option value="PICKED">PICKED</option>' +
-        '    <option value="RETURN">RETURN</option>' +
-        '  </select>' +
-        '  <input id="inv-search-input" type="text" placeholder="LOT / SAP / BL / Product 검색..." ' +
-        '    style="flex:1;min-width:180px;font-size:12px;padding:2px 8px;border-radius:4px;border:1px solid var(--panel-border);background:var(--bg);color:var(--fg)" ' +
-        '    oninput="window.invApplyFilter()">' +
-        '  <button class="btn btn-ghost" style="font-size:12px" onclick="window.invClearFilter()">✕ 초기화</button>' +
-        '</div>' +
-        '<p style="font-size:12px;color:var(--text-muted);margin:0 0 8px 0">' +
-        '목록 합계 · NET(MT): <b style="color:var(--accent)">'+fmtN(sumNet)+'</b> · Balance(MT): <b>'+fmtN(sumBal)+'</b> · 차이(순−현, 샘플 등): <b style="color:#f59e0b">'+fmtN(sumNet - sumBal)+'</b>' +
-        '</p>' +
-        '<div style="overflow-x:auto"><table class="data-table"><thead><tr>' +
-        '<th>#</th><th>LOT</th><th>SAP</th><th>BL</th><th>Product</th>' +
-        '<th>Status</th><th>Balance(MT)</th><th>NET(MT)</th><th>Container</th>' +
-        '<th>MXBG</th><th>Avail</th><th>Invoice</th>' +
-        '<th>Ship</th><th>Arrival</th><th>Con Return</th><th>Free</th>' +
-        '<th>WH</th><th>Customs</th><th>Inbound(MT)</th><th>Outbound(MT)</th><th>Location</th><th></th>' +
-        '</tr></thead><tbody>';
-      html += rows.map(function(r, i){
-        var lotKey = escapeHtml(r.lot||'');
-        var hasSample = (r.sample_bags > 0);
-        var sampleRow = '';
-        if (hasSample) {
-          sampleRow =
-            '<tr style="background:rgba(234,179,8,0.08);border-left:3px solid #eab308">' +
-            '<td class="mono-cell" style="color:#eab308;font-size:11px;text-align:center">🔬</td>' +
-            '<td class="mono-cell" style="color:#eab308;font-size:12px;font-weight:700">'+lotKey+'(SP)</td>' +
-            '<td class="mono-cell" style="color:#94a3b8;font-size:11px">'+escapeHtml(r.sap||'')+'</td>' +
-            '<td class="mono-cell" style="color:#94a3b8;font-size:11px">'+escapeHtml(r.bl||'')+'</td>' +
-            '<td><span class="tag" style="background:rgba(234,179,8,0.2);color:#eab308">'+escapeHtml(r.product||'')+'</span></td>' +
-            '<td style="font-size:11px;color:#eab308;font-weight:600">SAMPLE</td>' +
-            '<td class="mono-cell" style="text-align:right;color:#eab308;font-weight:600">'+fmtN(r.sample_weight_mt||0)+'</td>' +
-            '<td class="mono-cell" style="text-align:right;color:#eab308">'+fmtN(r.sample_weight_mt||0)+'</td>' +
-            '<td class="mono-cell" style="font-size:11px;color:#94a3b8">'+escapeHtml(r.container||'')+'</td>' +
-            '<td class="mono-cell" style="text-align:center;color:#eab308;font-weight:700">'+r.sample_bags+'</td>' +
-            '<td class="mono-cell" style="text-align:center;color:#eab308;font-weight:700">'+r.sample_bags+'</td>' +
-            '<td class="mono-cell" style="font-size:11px;color:#94a3b8">'+escapeHtml(r.invoice_no||'')+'</td>' +
-            '<td class="mono-cell" style="font-size:11px;color:#94a3b8">'+escapeHtml((r.ship_date||'').slice(0,10))+'</td>' +
-            '<td class="mono-cell" style="font-size:11px;color:#94a3b8">'+escapeHtml((r.arrival_date||'').slice(0,10))+'</td>' +
-            '<td class="mono-cell" style="color:#555">—</td>' +
-            '<td class="mono-cell" style="color:#555">—</td>' +
-            '<td class="mono-cell" style="font-size:11px;color:#94a3b8">'+escapeHtml(r.wh||'')+'</td>' +
-            '<td class="mono-cell" style="color:#555">—</td>' +
-            '<td class="mono-cell" style="color:#555">—</td>' +
-            '<td class="mono-cell" style="color:#555">—</td>' +
-            '<td><span class="tag" style="background:rgba(234,179,8,0.1);color:#94a3b8">'+escapeHtml(r.location||'-')+'</span></td>' +
-            '<td></td>' +
-            '</tr>';
-        }
-        var mainRow =
-          '<tr style="'+(hasSample ? 'border-left:3px solid #3b82f6' : '')+'">' +
-          '<td class="mono-cell" style="color:var(--text-muted)">'+(i+1)+'</td>' +
-          '<td class="mono-cell" style="color:var(--accent);font-weight:600">'+lotKey+'</td>' +
-          '<td class="mono-cell">'+escapeHtml(r.sap||'')+'</td>' +
-          '<td class="mono-cell">'+escapeHtml(r.bl||'')+'</td>' +
-          '<td><span class="tag">'+escapeHtml(r.product||'')+'</span></td>' +
-          '<td>'+escapeHtml(r.status||'')+'</td>' +
-          '<td class="mono-cell" style="text-align:right">'+(r.balance!=null?fmtN(r.balance):'-')+'</td>' +
-          '<td class="mono-cell" style="text-align:right">'+(r.net!=null?fmtN(r.net):'-')+'</td>' +
-          '<td class="mono-cell">'+escapeHtml(r.container||'')+'</td>' +
-          '<td class="mono-cell" style="text-align:center">' +
-          (r.mxbg_pallet > 0
-            ? '<button class="btn btn-ghost btn-xs" style="font-weight:700;color:var(--accent);padding:0 4px" '
-            + 'onclick="window.showTonbagModal(\'' + lotKey + '\')" title="톤백 세부 보기">'
-            + r.mxbg_pallet + '</button>'
-            : '-') +
-          '</td>' +
-          '<td class="mono-cell" style="text-align:center">'+(r.avail_bags!=null?r.avail_bags:'-')+'</td>' +
-          '<td class="mono-cell">'+escapeHtml(r.invoice_no||'')+'</td>' +
-          '<td class="mono-cell">'+escapeHtml((r.ship_date||'').slice(0,10))+'</td>' +
-          '<td class="mono-cell">'+escapeHtml((r.arrival_date||'').slice(0,10))+'</td>' +
-          '<td class="mono-cell">'+escapeHtml((r.con_return||'').slice(0,10))+'</td>' +
-          '<td class="mono-cell" style="text-align:center">'+(r.free_time||'-')+'</td>' +
-          '<td class="mono-cell">'+escapeHtml(r.wh||'')+'</td>' +
-          '<td class="mono-cell">'+escapeHtml(r.customs||'')+'</td>' +
-          '<td class="mono-cell" style="text-align:right">'+(r.initial_weight!=null?fmtN(r.initial_weight):'-')+'</td>' +
-          '<td class="mono-cell" style="text-align:right">'+(r.outbound_weight!=null?fmtN(r.outbound_weight):'-')+'</td>' +
-          '<td><span class="tag">'+escapeHtml(r.location||'-')+'</span></td>' +
-          '<td style="white-space:nowrap">' +
-          '<button class="btn btn-ghost btn-xs" onclick="window.showLotDetail(\''+lotKey+'\')" title="LOT 상세">📋</button> ' +
-          '<button class="btn btn-ghost btn-xs" onclick="window.invCopyLot(\''+lotKey+'\')" title="LOT 번호 복사">📄</button> ' +
-          '<button class="btn btn-ghost btn-xs" onclick="window.invCopyRow(this)" title="행 전체 복사">📑</button> ' +
-          '<button class="btn btn-ghost btn-xs" onclick="window.invQuickOutbound(\''+lotKey+'\')" title="즉시 출고 진입" style="color:#42a5f5">🚀</button> ' +
-          '<button class="btn btn-ghost btn-xs" onclick="window.invQuickReturn(\''+lotKey+'\')" title="반품 진입" style="color:#ef5350">🔄</button> ' +
-          '<button class="btn btn-ghost btn-xs" onclick="window.invShowLotHistory(\''+lotKey+'\')" title="LOT 이력" style="color:#66bb6a">📊</button>' +
-          '</td>' +
-          '</tr>';
-        return sampleRow + mainRow;
-      }).join('');
-      html += '</tbody><tfoot><tr style="background:var(--panel);font-weight:700">';
-      html += '<td colspan="6" style="text-align:right;padding:8px 10px">합계 ('+rows.length+' LOT)</td>';
-      html += '<td class="mono-cell" style="text-align:right">'+fmtN(sumBal)+'</td>';
-      html += '<td class="mono-cell" style="text-align:right">'+fmtN(sumNet)+'</td>';
-      html += '<td colspan="10"></td>';
-      html += '<td class="mono-cell" style="text-align:right">'+fmtN(sumIni)+'</td>';
-      html += '<td class="mono-cell" style="text-align:right">'+fmtN(sumOb)+'</td>';
-      html += '<td colspan="2"></td>';
-      html += '</tr></tfoot></table></div></section>';
-      c.innerHTML = html;
-    }).catch(function(e){
-      if (_currentRoute !== route) return;
-      c.innerHTML = '<div class="empty" style="padding:40px;text-align:center">Load failed: '+escapeHtml(e.message||String(e))+'</div>';
-      showToast('error', 'Inventory load failed');
-    });
-  }
 
   /* ── Inventory 탭 필터/검색 핸들러 ─────────────────────────────── */
   var _invAllRows = [];  // 전체 행 캐시 (필터용)
@@ -867,82 +726,6 @@
     el.style.display = (el.style.display === 'none') ? 'block' : 'none';
   };
 
-  function loadAllocationPage() {
-    var route = _currentRoute;
-    var c = document.getElementById('page-container');
-    if (!c) return;
-    _allocState.selectedLots.clear();
-    c.innerHTML = [
-      '<section class="page" data-page="allocation">',
-      /* v868 fix (2026-05-16 v5): Pending/Available 패턴으로 완전 통일 — 1줄 헤더 */
-      /* ── 1줄 헤더 (제목 · 건수 · 액션 4개) ── */
-      '<div class="alloc-header" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 0 12px">',
-      '  <h2 style="margin:0;font-size:16px">📋 판매 배정 (Allocation)</h2>',
-      '  <span id="alloc-summary-label" style="color:var(--text-muted);font-size:12px"></span>',
-      /* v868 fix (2026-05-16): Allocation 그룹화 모드 토글 (LOT/컨테이너/입고일) */
-      '  <div style="display:flex;gap:4px;margin-left:8px">',
-      '    ' + _allocModeBtn('lot', 'LOT별'),
-      '    ' + _allocModeBtn('container', '컨테이너별'),
-      '    ' + _allocModeBtn('date', '입고일별'),
-      '  </div>',
-      '  <div style="margin-left:auto;display:flex;gap:6px;align-items:center;flex-wrap:wrap">',
-      '    <button class="btn btn-ghost" style="font-size:12px" onclick="renderPage(\'allocation\')" title="새로고침">🔄</button>',
-      '    <button class="btn btn-primary" style="font-size:12px;padding:4px 10px" onclick="window.allocUploadExcel()" title="배정 Excel 업로드">📂 Excel 업로드</button>',
-      '    <button class="btn btn-secondary" style="font-size:12px;padding:4px 10px" onclick="window.allocExportExcel()" title="현재 배정 데이터 Excel 다운로드">📊 Excel 내보내기</button>',
-      '    <button class="btn" style="font-size:12px;padding:4px 10px" onclick="window.allocOpenLotOverview()" title="LOT별 배정 현황 팝업">📦 LOT 현황</button>',
-      '    <button class="btn btn-danger" style="font-size:12px;padding:4px 10px" onclick="window.allocCancelSelected()" title="체크된 LOT 배정 일괄 취소">❌ 선택 배정 취소</button>',
-      '  </div>',
-      '</div>',
-      /* v868 fix (2026-05-16 v6): 필터 제거 — 사용자 미사용. 필요시 우클릭 메뉴로 충분 */
-      /* ── 로딩 / 빈 상태 ── */
-      '<div id="alloc-loading" style="padding:40px;text-align:center;color:var(--text-muted)">⏳ 데이터 로딩 중...</div>',
-      '<div class="empty" id="alloc-empty" style="display:none;padding:60px;text-align:center">📭 배정 데이터 없음</div>',
-      /* ── 테이블 (v864-2 ALLOC_PREVIEW_COLUMNS: LOT/SAP/PRODUCT/QTY/CUSTOMER/SALE REF/OUTBOUND DATE/WH/STATUS) ── */
-      '<div style="overflow-x:auto">',
-      '  <table class="data-table" id="alloc-summary-table" style="display:none;width:100%">',
-      '  <thead><tr>',
-      '    <th style="width:36px"><input type="checkbox" id="alloc-select-all" onclick="window.allocToggleAll(this.checked)"></th>',
-      '    <th style="width:40px">No.</th>',
-      '    <th>LOT NO</th>',
-      '    <th>SAP NO</th>',
-      '    <th>PRODUCT</th>',
-      '    <th style="text-align:right">QTY (MT)</th>',
-      '    <th>CUSTOMER</th>',
-      '    <th>SALE REF</th>',
-      '    <th>OUTBOUND DATE</th>',
-      '    <th>WH</th>',
-      '    <th>STATUS</th>',
-      '  </tr></thead>',
-      '  <tbody id="alloc-summary-tbody"></tbody>',
-      '  <tfoot id="alloc-summary-tfoot"></tfoot>',
-      '  </table>',
-      '</div>',
-      /* ── 상세 패널 (기존 기능 유지) ── */
-      '<div id="alloc-detail-panel" style="display:none;margin-top:16px;border-top:2px solid var(--panel-border);padding-top:16px">',
-      '  <h3 id="alloc-detail-title" style="margin:0 0 12px 0">톤백 상세</h3>',
-      '  <div id="alloc-detail-content"></div>',
-      '</div>',
-      '</section>'
-    ].join('');
-
-    apiGet('/api/q/allocation-summary').then(function(res){
-      if (_currentRoute !== route) return;
-      _allocState.rows = extractRows(res);
-      document.getElementById('alloc-loading').style.display = 'none';
-      if (!_allocState.rows.length) {
-        document.getElementById('alloc-empty').style.display = 'block';
-        var lbl = document.getElementById('alloc-summary-label');
-        if (lbl) lbl.textContent = '(0건)';
-        return;
-      }
-      _renderAllocTable();
-    }).catch(function(e){
-      if (_currentRoute !== route) return;
-      document.getElementById('alloc-loading').style.display = 'none';
-      document.getElementById('alloc-empty').textContent = 'Load failed: ' + (e.message||'');
-      document.getElementById('alloc-empty').style.display = 'block';
-    });
-  }
 
   /* ── 테이블 렌더 (필터 적용) ────────────────────────────────────── */
   function _renderAllocTable() {
@@ -4295,7 +4078,6 @@
   }
 
   /* sqm-onestop-inbound.js 의존성 전역 노출 */
-  window.loadInventoryPage = loadInventoryPage;
   window.loadKpi = loadKpi;
   window.API = API;
   Object.defineProperty(window, '_currentRoute', {
