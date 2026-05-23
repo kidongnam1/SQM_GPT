@@ -1856,53 +1856,6 @@
       });
   };
 
-  /* ===================================================
-     7g. PAGE: Log
-     =================================================== */
-  function loadLogPage() {
-    var route = _currentRoute;
-    var c = document.getElementById('page-container');
-    if (!c) return;
-    c.innerHTML = [
-      '<section class="page" data-page="log">',
-      '<h2>Log - Activity Log</h2>',
-      '<div class="toolbar-mini">',
-      '<button class="btn btn-secondary" onclick="renderPage(\'log\')">Refresh</button>',
-      '<select id="log-limit" class="select" style="margin-left:8px" onchange="renderPage(\'log\')">',
-      '<option value="100">Last 100</option>',
-      '<option value="500">Last 500</option>',
-      '<option value="1000">Last 1000</option>',
-      '</select></div>',
-      '<div id="log-loading" style="padding:40px;text-align:center">⏳ 로딩 중...</div>',
-      '<table class="data-table" id="log-table" style="display:none">',
-      '<thead><tr><th>Time</th><th>Type</th><th>LOT</th><th>Detail</th></tr></thead>',
-      '<tbody id="log-tbody"></tbody></table>',
-      '<div class="empty" id="log-empty" style="display:none">로그 없음</div>',
-      '</section>'
-    ].join('');
-    var limit = 100;
-    try { var el=document.getElementById('log-limit'); if(el) limit=parseInt(el.value)||100; } catch {}
-    apiGet('/api/q/audit-log?limit='+limit).then(function(res){
-      if (_currentRoute !== route) return;
-      var rows = extractRows(res);
-      document.getElementById('log-loading').style.display = 'none';
-      if (!rows.length) { document.getElementById('log-empty').style.display='block'; return; }
-      var tbody = document.getElementById('log-tbody');
-      if (tbody) tbody.innerHTML = rows.map(function(r){
-        return '<tr>' +
-          '<td class="mono-cell">'+escapeHtml(r.created_at||r.time||r.timestamp||'')+'</td>' +
-          '<td>'+escapeHtml(r.event_type||r.type||r.action||'')+'</td>' +
-          '<td class="mono-cell">'+escapeHtml(r.lot_no||r.lot||r.tonbag_id||'')+'</td>' +
-          '<td>'+escapeHtml(r.event_data||r.user_note||r.note||r.memo||r.detail||'')+'</td></tr>';
-      }).join('');
-      document.getElementById('log-table').style.display = '';
-    }).catch(function(e){
-      if (_currentRoute !== route) return;
-      document.getElementById('log-loading').style.display = 'none';
-      var el=document.getElementById('log-empty');
-      if (el) { el.textContent='Load failed: '+(e.message||String(e)); el.style.display='block'; }
-    });
-  }
 
   /* ===================================================
      7h. PAGE: Scan + PDF Upload
