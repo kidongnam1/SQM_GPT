@@ -156,10 +156,6 @@
     window.renderPage(route);
   }
 
-  function loadStubPage(route) {
-    var c = document.getElementById('page-container');
-    if (c) c.innerHTML = '<div class="empty" style="padding:60px;text-align:center;color:var(--text-muted)">Preparing: ' + escapeHtml(route) + '</div>';
-  }
 
   // P2-1 (2026-05-17): window.renderPage 및 getCurrentRoute는 sqm-core.js 버전이 권위
   // (sqm-inline.js의 renderPage는 내부 포워더, window 재정의 불필요)
@@ -1421,58 +1417,6 @@
   /* ===================================================
      7c. PAGE: Picked — 2단 구조 (LOT 요약 + 톤백 상세)
      =================================================== */
-  function loadPickedPage() {
-    var route = _currentRoute;
-    var c = document.getElementById('page-container');
-    if (!c) return;
-    c.innerHTML = [
-      '<section class="page" data-page="picked">',
-      '<div style="display:flex;align-items:center;gap:12px;padding:8px 0 12px">',
-      '  <h2 style="margin:0">🚛 Picked - 피킹 완료 (화물 결정)</h2>',
-      '  <button class="btn btn-secondary" onclick="renderPage(\'picked\')" style="margin-left:auto">🔁 새로고침</button>',
-      '</div>',
-      '<div id="picked-loading" style="padding:40px;text-align:center;color:var(--text-muted)">⏳ 데이터 로딩 중...</div>',
-      '<div style="overflow-x:auto">',
-      '  <table class="data-table" id="picked-table" style="display:none">',
-      '  <thead><tr><th style="color:var(--text-muted);text-align:center;width:36px">#</th><th></th><th>LOT No</th><th>피킹No</th><th>고객사</th><th>톤백수</th><th>중량(kg)</th><th>Title Transfer Date</th></tr></thead>',
-      '  <tbody id="picked-tbody"></tbody>',
-      '  </table>',
-      '</div>',
-      '<div class="empty" id="picked-empty" style="display:none;padding:60px;text-align:center">📭 피킹 데이터 없음</div>',
-      '<div id="picked-detail-panel" style="display:none;margin-top:16px;border-top:2px solid var(--border);padding-top:16px">',
-      '  <h3 id="picked-detail-title" style="margin:0 0 12px 0">톤백 상세</h3>',
-      '  <div id="picked-detail-content"></div>',
-      '</div>',
-      '</section>'
-    ].join('');
-
-    apiGet('/api/q/picked-list').then(function(res){
-      if (_currentRoute !== route) return;
-      var rows = extractRows(res);
-      document.getElementById('picked-loading').style.display = 'none';
-      if (!rows.length) { document.getElementById('picked-empty').style.display='block'; return; }
-      var tbody = document.getElementById('picked-tbody');
-      if (tbody) tbody.innerHTML = rows.map(function(r, _i){
-        var lot = escapeHtml(r.lot_no||'');
-        return '<tr class="picked-summary-row" data-lot="'+lot+'" style="cursor:pointer" onclick="window.togglePickedDetail(\''+lot+'\')">' +
-          '<td class="mono-cell" style="color:var(--text-muted);text-align:center">'+(_i+1)+'</td>' +
-          '<td style="width:24px;text-align:center"><span class="picked-expand-icon">▶</span></td>' +
-          '<td class="mono-cell" style="color:var(--accent);font-weight:600">'+lot+'</td>' +
-          '<td class="mono-cell">'+escapeHtml(r.picking_no||'')+'</td>' +
-          '<td>'+escapeHtml(r.customer||r.picked_to||'')+'</td>' +
-          '<td class="mono-cell" style="text-align:right">'+(r.tonbag_count||0)+'</td>' +
-          '<td class="mono-cell" style="text-align:right">'+(r.total_kg!=null?fmtN(r.total_kg):'-')+'</td>' +
-          '<td class="mono-cell">'+escapeHtml(r.picking_date||'')+'</td>' +
-          '</tr>';
-      }).join('');
-      document.getElementById('picked-table').style.display = '';
-    }).catch(function(e){
-      if (_currentRoute !== route) return;
-      document.getElementById('picked-loading').style.display = 'none';
-      var el = document.getElementById('picked-empty');
-      if (el) { el.textContent = 'Load failed: '+(e.message||String(e)); el.style.display='block'; }
-    });
-  }
 
   var _pickedExpandedLot = null;
   window.togglePickedDetail = function(lotNo) {
@@ -1583,64 +1527,6 @@
   }
   window._inboundFilter = _inboundFilter;   /* HTML onclick에서 호출 */
 
-  function loadInboundPage() {
-    var route = _currentRoute;
-    var c = document.getElementById('page-container');
-    if (!c) return;
-    _inboundAllRows = [];
-
-    var FILTERS = ['ALL','INBOUND','ALLOCATED','PICKED','SOLD','RETURN','HOLD'];
-    var filterBtns = FILTERS.map(function(s){
-      var col = STATUS_COLOR[s] || '#555';
-      return '<button class="inbound-filter-btn" data-status="'+s+'" '+
-        'onclick="_inboundFilter(\''+s+'\')" '+
-        'style="border:1px solid '+col+';color:'+col+';background:transparent;'+
-        'border-radius:4px;padding:3px 10px;cursor:pointer;font-size:12px;font-weight:400;opacity:0.55">'+s+'</button>';
-    }).join('');
-
-    c.innerHTML = [
-      '<section class="page" data-page="inbound">',
-      '<div style="display:flex;align-items:center;gap:12px;padding:8px 0 10px;flex-wrap:wrap">',
-      '<h2 style="margin:0;white-space:nowrap">📥 입고 목록</h2>',
-      '<div style="display:flex;gap:6px;flex-wrap:wrap">'+filterBtns+'</div>',
-      '<span id="inbound-count" style="margin-left:auto;font-size:12px;color:var(--text-muted)">--</span>',
-      '<button class="btn btn-secondary" onclick="renderPage(\'inbound\')" style="white-space:nowrap">🔁 새로고침</button>',
-      '</div>',
-      '<div id="inbound-loading" style="padding:40px;text-align:center;color:var(--text-muted)">⏳ 데이터 로딩 중...</div>',
-      '<div style="overflow-x:auto">',
-      '<table class="data-table" id="inbound-table" style="display:none">',
-      '<thead><tr>',
-      '<th>#</th><th>LOT No</th><th>SQM LOT</th><th>SAP No</th><th>BL No</th>',
-      '<th>제품</th><th>순중량(MT)</th><th>현재중량(MT)</th><th>톤백수</th>',
-      '<th>상태</th><th>입고일자</th><th>도착일자</th><th>창고</th><th>선박</th>',
-      '</tr></thead>',
-      '<tbody id="inbound-tbody"></tbody>',
-      '</table>',
-      '</div>',
-      '<div class="empty" id="inbound-empty" style="display:none;padding:60px;text-align:center;color:var(--text-muted)">📭 입고 데이터 없음</div>',
-      '</section>'
-    ].join('');
-
-    apiGet('/api/q/inbound-status').then(function(res){
-      if (_currentRoute !== route) return;
-      _inboundAllRows = (res.data && res.data.items) || [];
-      var total = _inboundAllRows.length;
-      document.getElementById('inbound-loading').style.display = 'none';
-      if (!total) {
-        document.getElementById('inbound-empty').style.display = 'block';
-        return;
-      }
-      _inboundFilter('ALL');   /* ALL 버튼 active + 전체 렌더 */
-      dbgLog('📥','inbound-page','total='+total,'#4caf50');
-    }).catch(function(e){
-      if (_currentRoute !== route) return;
-      document.getElementById('inbound-loading').style.display = 'none';
-      var el = document.getElementById('inbound-empty');
-      if (el) { el.textContent = '❌ 로드 실패: '+(e.message||String(e)); el.style.display = 'block'; }
-      showToast('error', '입고 목록 로드 실패');
-      dbgLog('❌','inbound-page',String(e),'#f44336');
-    });
-  }
 
   /* ===================================================
      7d. PAGE: Outbound (출고 현황 — F025/F037)
@@ -1652,63 +1538,6 @@
   /* ===================================================
      7d. PAGE: Outbound/Sold — 2단 구조 (LOT 요약 + 톤백 상세)
      =================================================== */
-  function loadOutboundPage() {
-    var route = _currentRoute;
-    var c = document.getElementById('page-container');
-    if (!c) return;
-    c.innerHTML = [
-      '<section class="page" data-page="outbound">',
-      '<div style="display:flex;align-items:center;gap:12px;padding:8px 0 12px">',
-      '  <h2 style="margin:0">📤 출고 완료 (Sold / Outbound)</h2>',
-      '  <button class="btn btn-secondary" onclick="renderPage(\'outbound\')" style="margin-left:auto">🔁 새로고침</button>',
-      '</div>',
-      '<div id="outbound-loading" style="padding:40px;text-align:center;color:var(--text-muted)">⏳ 데이터 로딩 중...</div>',
-      '<div style="overflow-x:auto">',
-      '  <table class="data-table" id="outbound-table" style="display:none">',
-      '  <thead><tr><th></th><th>#</th><th>LOT No</th><th>판매주문No</th><th>고객사</th><th>톤백수</th><th>중량(kg)</th><th>출고일</th></tr></thead>',
-      '  <tbody id="outbound-tbody"></tbody>',
-      '  </table>',
-      '</div>',
-      '<div class="empty" id="outbound-empty" style="display:none;padding:60px;text-align:center;color:var(--text-muted)">📭 출고 데이터 없음</div>',
-      '<div id="outbound-detail-panel" style="display:none;margin-top:16px;border-top:2px solid var(--border);padding-top:16px">',
-      '  <h3 id="outbound-detail-title" style="margin:0 0 12px 0">톤백 상세</h3>',
-      '  <div id="outbound-detail-content"></div>',
-      '</div>',
-      '</section>'
-    ].join('');
-
-    apiGet('/api/q/sold-list').then(function(res){
-      if (_currentRoute !== route) return;
-      var rows = extractRows(res);
-      document.getElementById('outbound-loading').style.display = 'none';
-      if (!rows.length) {
-        document.getElementById('outbound-empty').style.display = 'block';
-        return;
-      }
-      var tbody = document.getElementById('outbound-tbody');
-      if (tbody) tbody.innerHTML = rows.map(function(r, i){
-        var lot = escapeHtml(r.lot_no||'');
-        return '<tr class="outbound-summary-row" data-lot="'+lot+'" style="cursor:pointer" onclick="window.toggleOutboundDetail(\''+lot+'\')">' +
-          '<td style="width:24px;text-align:center"><span class="outbound-expand-icon">▶</span></td>' +
-          '<td class="mono-cell" style="color:var(--text-muted)">'+(i+1)+'</td>' +
-          '<td class="mono-cell" style="color:var(--accent);font-weight:600">'+lot+'</td>' +
-          '<td class="mono-cell">'+escapeHtml(r.sales_order_no||'-')+'</td>' +
-          '<td>'+escapeHtml(r.customer||'-')+'</td>' +
-          '<td class="mono-cell" style="text-align:right">'+(r.tonbag_count||0)+'</td>' +
-          '<td class="mono-cell" style="text-align:right">'+(r.total_kg!=null?fmtN(r.total_kg):'-')+'</td>' +
-          '<td class="mono-cell">'+escapeHtml(r.sold_date||'-')+'</td>' +
-          '</tr>';
-      }).join('');
-      document.getElementById('outbound-table').style.display = '';
-      dbgLog('📤','outbound-page','rows='+rows.length,'#4caf50');
-    }).catch(function(e){
-      if (_currentRoute !== route) return;
-      document.getElementById('outbound-loading').style.display = 'none';
-      var el = document.getElementById('outbound-empty');
-      if (el) { el.textContent = '❌ 로드 실패: '+(e.message||String(e)); el.style.display = 'block'; }
-      showToast('error', '출고 현황 로드 실패');
-    });
-  }
 
   var _outboundExpandedLot = null;
   window.toggleOutboundDetail = function(lotNo) {
@@ -1756,32 +1585,6 @@
   /* ===================================================
      7e. PAGE: Return
      =================================================== */
-  function loadReturnPage() {
-    var route = _currentRoute;
-    var c = document.getElementById('page-container');
-    if (!c) return;
-    c.innerHTML = [
-      '<section class="page" data-page="return">',
-      '<h2>Return - Re-inbound</h2>',
-      '<div class="toolbar-mini"><button class="btn btn-secondary" onclick="renderPage(\'return\')">Refresh</button></div>',
-      '<div id="return-loading" style="padding:40px;text-align:center">⏳ 로딩 중...</div>',
-      '<table class="data-table" id="return-table" style="display:none">',
-      '<thead><tr><th style="color:var(--text-muted);text-align:center;width:36px">#</th><th>LOT</th><th>Product</th><th>Qty</th><th>Date</th><th>Reason</th></tr></thead>',
-      '<tbody id="return-tbody"></tbody></table>',
-      '<div class="empty" id="return-empty" style="display:none">No return data</div>',
-      '</section>'
-    ].join('');
-    /* return-stats는 통계 구조(by_reason/monthly_trend)라 items 없음 → inventory?status=RETURN 직접 조회 */
-    apiGet('/api/inventory?status=RETURN').then(function(res){
-      if (_currentRoute !== route) return;
-      var rows = extractRows(res);
-      renderReturnRows(rows, route);
-    }).catch(function(){
-      if (_currentRoute !== route) return;
-      document.getElementById('return-loading').style.display = 'none';
-      document.getElementById('return-empty').style.display = 'block';
-    });
-  }
 
   function renderReturnRows(rows, route) {
     if (_currentRoute !== route) return;
@@ -1797,52 +1600,6 @@
   /* ===================================================
      7f. PAGE: Move
      =================================================== */
-  function loadMovePage() {
-    var route = _currentRoute;
-    var c = document.getElementById('page-container');
-    if (!c) return;
-    c.innerHTML = [
-      '<section class="page" data-page="move">',
-      '<h2>Move - Inventory Relocation</h2>',
-      '<div class="card" style="padding:20px;margin-bottom:16px">',
-      '<h3 style="margin-bottom:12px">Execute Move</h3>',
-      '<div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center">',
-      '<input id="move-lot-no" class="input" placeholder="LOT No" style="width:200px">',
-      '<input id="move-dest" class="input" placeholder="Destination (e.g. A-3-2)" style="width:200px">',
-      '<button class="btn btn-primary" onclick="window.executeMove()">Execute Move</button>',
-      '</div></div>',
-      '<div id="move-loading" style="padding:20px;text-align:center">Loading history...</div>',
-      '<table class="data-table" id="move-table" style="display:none">',
-      '<thead><tr><th style="color:var(--text-muted);text-align:center;width:36px">#</th><th>Date</th><th>LOT No</th><th>Type</th><th>Qty(MT)</th><th>From</th><th>To</th><th>By</th></tr></thead>',
-      '<tbody id="move-tbody"></tbody></table>',
-      '<div class="empty" id="move-empty" style="display:none">이동 이력 없음</div>',
-      '</section>'
-    ].join('');
-    apiGet('/api/q/movement-history').then(function(res){
-      if (_currentRoute !== route) return;
-      var rows = extractRows(res);
-      document.getElementById('move-loading').style.display = 'none';
-      if (!rows.length) { document.getElementById('move-empty').style.display='block'; return; }
-      var tbody = document.getElementById('move-tbody');
-      if (tbody) tbody.innerHTML = rows.map(function(r, _i){
-        var qtyMT = r.qty_mt != null ? fmtN(r.qty_mt) : (r.qty_kg != null ? fmtN(r.qty_kg/1000) : '-');
-        return '<tr>' +
-          '<td class="mono-cell" style="color:var(--text-muted);text-align:center">'+(_i+1)+'</td>' +
-          '<td class="mono-cell">'+escapeHtml(r.movement_date||r.moved_at||r.date||'')+'</td>' +
-          '<td class="mono-cell" style="color:var(--accent)">'+escapeHtml(r.lot_no||r.sub_lt||r.barcode||'')+'</td>' +
-          '<td>'+escapeHtml(r.movement_type||'')+'</td>' +
-          '<td class="mono-cell" style="text-align:right">'+qtyMT+'</td>' +
-          '<td class="mono-cell">'+escapeHtml(r.from_location||'-')+'</td>' +
-          '<td class="mono-cell" style="color:var(--accent)">'+escapeHtml(r.to_location||'-')+'</td>' +
-          '<td>'+escapeHtml(r.actor||r.moved_by||'system')+'</td></tr>';
-      }).join('');
-      document.getElementById('move-table').style.display = '';
-    }).catch(function(){
-      if (_currentRoute !== route) return;
-      document.getElementById('move-loading').style.display = 'none';
-      document.getElementById('move-empty').style.display = 'block';
-    });
-  }
 
   window.executeMove = function() {
     var lotNo = (document.getElementById('move-lot-no')||{}).value||'';
@@ -1860,55 +1617,6 @@
   /* ===================================================
      7h. PAGE: Scan + PDF Upload
      =================================================== */
-  function loadScanPage() {
-    var c = document.getElementById('page-container');
-    if (!c) return;
-    c.innerHTML = [
-      '<section class="page" data-page="scan">',
-      '<h2>Scan - Barcode / PDF Inbound</h2>',
-      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">',
-
-      '<!-- Barcode Panel -->',
-      '<div class="card" style="padding:20px">',
-      '<h3 style="margin-bottom:12px">Barcode Scan</h3>',
-      '<input id="scan-input" class="input" placeholder="Scan or type barcode + Enter" style="width:100%;margin-bottom:12px">',
-      '<div style="display:flex;gap:8px;margin-bottom:16px">',
-      '<button class="btn btn-primary btn-sm" onclick="window.ScanActions.quickAction(\'inbound\')">Inbound</button>',
-      '<button class="btn btn-warning btn-sm" onclick="window.ScanActions.quickAction(\'outbound\')">Outbound</button>',
-      '<button class="btn btn-secondary btn-sm" onclick="window.ScanActions.quickAction(\'move\')">Move</button>',
-      '</div>',
-      '<table class="data-table"><thead><tr><th>Time</th><th>Barcode</th><th>Action</th><th>Result</th></tr></thead>',
-      '<tbody id="scan-history-tbody"><tr><td colspan="4" style="text-align:center;padding:20px;color:var(--text-muted)">No scan history</td></tr></tbody></table>',
-      '</div>',
-
-      '<!-- PDF Panel -->',
-      '<div class="card" style="padding:20px">',
-      '<h3 style="margin-bottom:12px">PDF Inbound</h3>',
-      '<div id="pdf-drop-zone" style="border:2px dashed var(--border);border-radius:8px;padding:40px;text-align:center;cursor:pointer;color:var(--text-muted)" onclick="document.getElementById(\'pdf-file-input\').click()" ondragover="event.preventDefault();this.style.borderColor=\'var(--accent)\'" ondragleave="this.style.borderColor=\'var(--border)\'" ondrop="window.PdfInbound.handleDrop(event)">',
-      '<div style="font-size:2rem">&#x1F4C4;</div>',
-      '<div style="margin-top:8px">Drag PDF here or click to select</div>',
-      '<div style="font-size:0.8rem;margin-top:4px;color:var(--text-muted)">Picking List / BL / Inbound PDF</div>',
-      '</div>',
-      '<input type="file" id="pdf-file-input" accept=".pdf" style="display:none" onchange="window.PdfInbound.handleFile(this.files[0])">',
-      '<div id="pdf-status" style="margin-top:12px;color:var(--text-muted);font-size:0.9rem"></div>',
-      '<button class="btn btn-primary" id="pdf-upload-btn" style="display:none;margin-top:8px" onclick="window.PdfInbound.upload()">Upload &amp; Process</button>',
-      '</div>',
-
-      '</div></section>'
-    ].join('');
-
-    var inp = document.getElementById('scan-input');
-    if (inp) {
-      inp.addEventListener('keydown', function(e){
-        if (e.key==='Enter') {
-          e.preventDefault();
-          window.ScanActions.processBarcode(inp.value.trim());
-          inp.value='';
-        }
-      });
-      inp.focus();
-    }
-  }
 
   var _scanHistory = [];
   window.ScanActions = {
@@ -1992,46 +1700,6 @@
   /* ===================================================
      7i. PAGE: Tonbag
      =================================================== */
-  function loadTonbagPage() {
-    var route = _currentRoute;
-    var c = document.getElementById('page-container');
-    if (!c) return;
-    c.innerHTML = [
-      '<section class="page" data-page="tonbag">',
-      '<h2>Tonbag List</h2>',
-      '<div class="toolbar-mini"><button class="btn btn-secondary" onclick="renderPage(\'tonbag\')">Refresh</button></div>',
-      '<div id="tonbag-loading" style="padding:40px;text-align:center">⏳ 로딩 중...</div>',
-      '<table class="data-table" id="tonbag-table" style="display:none">',
-      '<thead><tr><th style="color:var(--text-muted);text-align:center;width:36px">#</th><th>Tonbag ID</th><th>LOT</th><th>Product</th><th>Status</th><th>Weight(MT)</th><th>Location</th><th>Container</th><th></th></tr></thead>',
-      '<tbody id="tonbag-tbody"></tbody></table>',
-      '<div class="empty" id="tonbag-empty" style="display:none">톤백 데이터 없음</div>',
-      '</section>'
-    ].join('');
-    apiGet('/api/tonbags').then(function(res){
-      if (_currentRoute !== route) return;
-      var rows = extractRows(res);
-      document.getElementById('tonbag-loading').style.display='none';
-      if (!rows.length) { document.getElementById('tonbag-empty').style.display='block'; return; }
-      var tbody=document.getElementById('tonbag-tbody');
-      if (tbody) tbody.innerHTML=rows.map(function(r, _i){
-        return '<tr>' +
-          '<td class="mono-cell" style="color:var(--text-muted);text-align:center">'+(_i+1)+'</td>' +
-          '<td class="mono-cell">'+escapeHtml(r.sub_lt||r.tonbag_id||'-')+'</td>' +
-          '<td class="mono-cell" style="color:var(--accent)">'+escapeHtml(r.lot_no||'-')+'</td>' +
-          '<td><span class="tag">'+escapeHtml(r.product||'-')+'</span></td>' +
-          '<td>'+escapeHtml(r.status||'-')+'</td>' +
-          '<td class="mono-cell">'+(r.weight!=null?Number(r.weight).toLocaleString():'-')+'</td>' +
-          '<td class="mono-cell">'+escapeHtml(r.location||'-')+'</td>' +
-          '<td class="mono-cell">'+escapeHtml(r.container||'-')+'</td>' +
-          '<td><button class="btn btn-ghost btn-xs">Detail</button></td></tr>';
-      }).join('');
-      document.getElementById('tonbag-table').style.display='';
-    }).catch(function(){
-      if (_currentRoute !== route) return;
-      document.getElementById('tonbag-loading').style.display='none';
-      document.getElementById('tonbag-empty').style.display='block';
-    });
-  }
 
 
 
