@@ -272,68 +272,6 @@
   }
   window.showToast = showToast;
 
-  /* ===================================================
-     2. API CLIENT
-     =================================================== */
-  var DEFAULT_TIMEOUT = 8000;
-
-  function apiCall(method, path, body, opts) {
-    opts = opts || {};
-    var timeout = opts.timeout || DEFAULT_TIMEOUT;
-    var retries = (opts.retries !== undefined) ? opts.retries : 2;
-    var url = (path.indexOf('http') === 0) ? path : API + path;
-    var fetchOpts = {
-      method: method.toUpperCase(),
-      headers: {'Content-Type':'application/json'}
-    };
-    if (body !== null && body !== undefined &&
-        ['POST','PUT','DELETE'].includes(fetchOpts.method)) {
-      fetchOpts.body = JSON.stringify(body);
-    }
-    // Debug log: request
-    dbgLog('🔵', method.toUpperCase()+' '+path, null, '#64b5f6');
-    function attempt(n) {
-      var timer;
-      var timeoutP = new Promise(function(_, rej) {
-        timer = setTimeout(function(){ var e = new Error('timeout'); e.status=0; rej(e); }, timeout);
-      });
-      return Promise.race([fetch(url, fetchOpts), timeoutP])
-        .then(function(res) {
-          clearTimeout(timer);
-          if (!res.ok) {
-            return res.json().catch(function(){return null;}).then(function(detail){
-              var e = new Error('HTTP ' + res.status);
-              e.status = res.status; e.detail = detail;
-              // Debug log: HTTP error
-              var msg = (detail && (detail.detail||detail.message)) ? (detail.detail||detail.message) : '';
-              dbgLog(res.status===501?'🟡':'🔴', 'HTTP '+res.status+' '+path, msg||'', res.status===501?'#ffa726':'#ef5350');
-              throw e;
-            });
-          }
-          // Debug log: success
-          dbgLog('🟢', 'OK '+path, null, '#66bb6a');
-          return res.json().catch(function(){return {};});
-        })
-        .catch(function(e) {
-          clearTimeout(timer);
-          if (e.status === 0) dbgLog('🔴','TIMEOUT '+path,'백엔드 응답 없음 (8초)','#ef5350');
-          if (e.status === 501 || e.status === 404) throw e;
-          if (n < retries) {
-            return new Promise(function(r){ setTimeout(r, 500 * Math.pow(2,n)); })
-              .then(function(){ return attempt(n+1); });
-          }
-          throw e;
-        });
-    }
-    return attempt(0);
-  }
-
-  function apiGet(path, opts) { return apiCall('GET', path, null, opts); }
-  function apiPost(path, body, opts) { return apiCall('POST', path, body, opts); }
-
-  window.apiCall = apiCall;
-  window.apiGet  = apiGet;
-  window.apiPost = apiPost;
 
   /* ===================================================
      3. STATE / THEME
